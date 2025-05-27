@@ -1,4 +1,6 @@
 use crate::api::RequestContext;
+use crate::common::context::Context;
+use crate::entities::channels::ChannelName;
 use crate::entities::streams::{MessageInfo, StreamMessage, StreamReadMessage, StreamReadReply};
 use hashbrown::HashMap;
 use redis::AsyncCommands;
@@ -7,7 +9,7 @@ use redis::streams::{StreamRangeReply, StreamTrimOptions, StreamTrimmingMode};
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum StreamName<'a> {
     /// This stream is used to enqueue to a session
     /// Attached is the session_id
@@ -22,14 +24,14 @@ pub enum StreamName<'a> {
     Staff,
     /// This stream is used to broadcast to developers
     Dev,
-    Channel(&'a str),
+    Channel(ChannelName<'a>),
     /// This stream is used to broadcast to spectators
     /// Attached is the session_id of the host
     Spectator(Uuid),
     /// This stream is used to broadcast to multiplayer matches
-    Multiplayer(usize),
+    Multiplayer(i64),
     /// This stream is used to broadcast to active multiplayer games
-    Multiplaying(usize),
+    Multiplaying(i64),
 }
 
 impl Display for StreamName<'_> {
@@ -59,8 +61,8 @@ fn make_offsets_key<T: Display>(session_id: T) -> String {
     format!("akatsuki:bancho:sessions:{session_id}:stream_offsets")
 }
 
-pub async fn fetch_all(ctx: &RequestContext) -> anyhow::Result<Vec<String>> {
-    let mut redis = ctx.redis.get().await?;
+pub async fn fetch_all<C: Context>(ctx: &C) -> anyhow::Result<Vec<String>> {
+    let mut redis = ctx.redis().await?;
     let mut iter: redis::AsyncIter<String> = redis.scan_match(ALL_KEY).await?;
     let mut keys = vec![];
     while let Some(stream_name) = iter.next_item().await {
@@ -117,6 +119,17 @@ pub async fn read_pending_messages(
     }
 }
 
+pub async fn is_joined(
+    ctx: &RequestContext,
+    session_id: Uuid,
+    stream_name: StreamName<'_>,
+) -> anyhow::Result<bool> {
+    let mut redis = ctx.redis.get().await?;
+    let key = make_key(stream_name);
+    let offsets_key = make_offsets_key(session_id);
+    Ok(redis.hexists(offsets_key, key).await?)
+}
+
 pub async fn set_offset(
     ctx: &RequestContext,
     session_id: Uuid,
@@ -165,13 +178,8 @@ pub async fn get_latest_message_id(
     }
 }
 
-pub async fn trim_messages(
-    ctx: &RequestContext,
-    stream_name: StreamName<'_>,
-    min_id: &str,
-) -> anyhow::Result<usize> {
-    let mut redis = ctx.redis.get().await?;
-    let key = make_key(stream_name);
+pub async fn trim_messages<C: Context>(ctx: &C, key: &str, min_id: &str) -> anyhow::Result<usize> {
+    let mut redis = ctx.redis().await?;
     let removed_count = redis
         .xtrim_options(
             key,

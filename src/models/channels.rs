@@ -1,6 +1,5 @@
 use crate::entities::channels::Channel as Entity;
 use crate::models::privileges::Privileges;
-use crate::repositories::streams::StreamName;
 
 pub struct Channel {
     pub name: String,
@@ -35,12 +34,23 @@ impl Channel {
         self.write_privileges.is_empty() || privs.intersects(self.write_privileges)
     }
 
-    pub fn get_update_stream_name(&self) -> StreamName {
-        match self.name.as_str() {
-            "#plus" | "#supporter" | "#premium" => StreamName::Donator,
-            "#staff" => StreamName::Staff,
-            "#devlog" => StreamName::Dev,
-            _ => StreamName::Main,
+    pub fn spectator() -> Self {
+        Self {
+            name: "#spectator".to_owned(),
+            description: "Spectator Channel".to_owned(),
+            read_privileges: Privileges::None,
+            write_privileges: Privileges::None,
+            status: true,
+        }
+    }
+
+    pub fn multiplayer() -> Self {
+        Self {
+            name: "#multiplayer".to_owned(),
+            description: "Multiplayer Channel".to_owned(),
+            read_privileges: Privileges::None,
+            write_privileges: Privileges::None,
+            status: false,
         }
     }
 }

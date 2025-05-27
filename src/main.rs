@@ -1,6 +1,8 @@
+use crate::common::error::ServiceResult;
 use crate::common::redis_pool::{RedisPool, RedisPoolManager};
 use crate::common::state::AppState;
 use crate::settings::AppSettings;
+use crate::usecases::streams;
 use axum::Router;
 use deadpool::Runtime;
 use redis::AsyncConnectionConfig;
@@ -9,7 +11,7 @@ use sqlx::{MySql, Pool};
 use std::error::Error;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
-use tracing::info;
+use tracing::{error, info};
 
 mod adapters;
 mod api;
@@ -31,6 +33,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let redis = initialize_redis(&settings)?;
     let state = AppState { db, redis };
 
+    initialize_trimming_task(&state);
+
     let addr = SocketAddr::from((settings.app_host, settings.app_port));
     let listener = TcpListener::bind(addr).await?;
     let app = Router::new().merge(api::router()).with_state(state);
@@ -40,6 +44,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )
     .await?;
     Ok(())
+}
+
+fn initialize_trimming_task(state: &AppState) {
+    let state = state.clone();
+    tokio::spawn(async move {
+        let state = state;
+        const MESSAGE_TTL_SECONDS: usize = 5 * 60;
+        let mut interval =
+            tokio::time::interval(std::time::Duration::from_secs(MESSAGE_TTL_SECONDS as _));
+        loop {
+            interval.tick().await;
+            match streams::trim_all_streams(&state, MESSAGE_TTL_SECONDS).await {
+                Ok(result) => {
+                    info!("Trimming result: {:?}", result);
+                }
+                Err(e) => error!("Unexpected error trimming streams: {e:?}"),
+            }
+        }
+    });
 }
 
 fn initialize_logging(settings: &AppSettings) {

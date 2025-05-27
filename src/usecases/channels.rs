@@ -1,18 +1,46 @@
 use crate::api::RequestContext;
 use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::entities::channels::ChannelName;
 use crate::models::channels::Channel;
 use crate::models::sessions::Session;
 use crate::repositories::channels;
 use crate::repositories::streams::StreamName;
-use crate::usecases::streams;
+use crate::usecases::{spectators, streams};
 use bancho_protocol::messages::server::ChannelInfo;
+use tracing::info;
 use uuid::Uuid;
 
-pub async fn fetch_one(ctx: &RequestContext, channel_name: &str) -> ServiceResult<Channel> {
-    match channels::fetch_one(ctx, channel_name).await {
-        Ok(channel) => Ok(Channel::from(channel)),
-        Err(sqlx::Error::RowNotFound) => Err(AppError::ChannelsNotFound),
-        Err(e) => unexpected(e),
+pub async fn get_channel_name<'a>(
+    ctx: &RequestContext,
+    session: &Session,
+    channel_name: &'a str,
+) -> ServiceResult<ChannelName<'a>> {
+    match channel_name {
+        "#spectator" => {
+            let host_session_id = spectators::fetch_spectating(ctx, session.session_id)
+                .await?
+                .ok_or(AppError::ChannelsUnauthorized)?;
+            Ok(ChannelName::Spectator(host_session_id))
+        }
+        "#multiplayer" => {
+            todo!()
+        }
+        channel_name => Ok(ChannelName::Chat(channel_name)),
+    }
+}
+
+pub async fn fetch_one(
+    ctx: &RequestContext,
+    channel_name: ChannelName<'_>,
+) -> ServiceResult<Channel> {
+    match channel_name {
+        ChannelName::Spectator(_) => Ok(Channel::spectator()),
+        ChannelName::Multiplayer(_) => Ok(Channel::multiplayer()),
+        ChannelName::Chat(channel_name) => match channels::fetch_one(ctx, channel_name).await {
+            Ok(channel) => Ok(Channel::from(channel)),
+            Err(sqlx::Error::RowNotFound) => Err(AppError::ChannelsNotFound),
+            Err(e) => unexpected(e),
+        },
     }
 }
 
@@ -29,7 +57,7 @@ pub async fn fetch_all(ctx: &RequestContext) -> ServiceResult<Vec<Channel>> {
 pub async fn join(
     ctx: &RequestContext,
     session: &Session,
-    channel_name: &str,
+    channel_name: ChannelName<'_>,
 ) -> ServiceResult<(Channel, usize)> {
     let channel = fetch_one(ctx, channel_name).await?;
     if !channel.can_read(session.privileges) {
@@ -39,8 +67,12 @@ pub async fn join(
     let stream_name = StreamName::Channel(channel_name);
     streams::join(ctx, session.session_id, stream_name).await?;
     let member_count = channels::join(ctx, session.session_id, channel_name).await?;
+    info!(
+        channel_name = channel_name.to_string(),
+        member_count, "User joined channel."
+    );
 
-    broadcast_channel_info_update(ctx, &channel, member_count).await?;
+    broadcast_channel_info_update(ctx, channel_name, &channel, member_count).await?;
 
     Ok((channel, member_count))
 }
@@ -48,14 +80,18 @@ pub async fn join(
 pub async fn leave(
     ctx: &RequestContext,
     session_id: Uuid,
-    channel_name: &str,
+    channel_name: ChannelName<'_>,
 ) -> ServiceResult<(Channel, usize)> {
     let channel = fetch_one(ctx, channel_name).await?;
     let stream_name = StreamName::Channel(channel_name);
     streams::leave(ctx, session_id, stream_name).await?;
     let member_count = channels::leave(ctx, session_id, channel_name).await?;
+    info!(
+        channel_name = channel_name.to_string(),
+        member_count, "User left channel."
+    );
 
-    broadcast_channel_info_update(ctx, &channel, member_count).await?;
+    broadcast_channel_info_update(ctx, channel_name, &channel, member_count).await?;
 
     Ok((channel, member_count))
 }
@@ -63,12 +99,15 @@ pub async fn leave(
 pub async fn leave_all(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<()> {
     let channels = channels::fetch_session_channels(ctx, session_id).await?;
     for channel in channels {
-        leave(ctx, session_id, &channel).await?;
+        leave(ctx, session_id, ChannelName::Chat(&channel)).await?;
     }
     Ok(())
 }
 
-pub async fn member_count(ctx: &RequestContext, channel_name: &str) -> ServiceResult<usize> {
+pub async fn member_count(
+    ctx: &RequestContext,
+    channel_name: ChannelName<'_>,
+) -> ServiceResult<usize> {
     match channels::member_count(ctx, channel_name).await {
         Ok(member_count) => Ok(member_count),
         Err(e) => unexpected(e),
@@ -79,15 +118,14 @@ pub async fn member_count(ctx: &RequestContext, channel_name: &str) -> ServiceRe
 
 async fn broadcast_channel_info_update(
     ctx: &RequestContext,
+    channel_name: ChannelName<'_>,
     channel: &Channel,
     member_count: usize,
 ) -> ServiceResult<()> {
-    let update_stream = channel.get_update_stream_name();
+    let update_stream = channel_name.get_update_stream();
     let priv_rule = match update_stream {
-        StreamName::Donator => None,
-        StreamName::Staff => None,
-        StreamName::Dev => None,
-        _ => Some(channel.read_privileges),
+        StreamName::Main => Some(channel.read_privileges),
+        _ => None,
     };
 
     streams::broadcast_message(

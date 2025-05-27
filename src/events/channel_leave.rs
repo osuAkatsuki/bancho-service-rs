@@ -12,7 +12,8 @@ pub async fn handle(
     match args.name {
         "#highlight" | "#userlog" => Ok(None),
         channel_name => {
-            channels::leave(ctx, session.session_id, channel_name).await?;
+            let name = channels::get_channel_name(ctx, session, channel_name).await?;
+            channels::leave(ctx, session.session_id, name).await?;
             Ok(None)
         }
     }

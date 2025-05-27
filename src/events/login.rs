@@ -1,5 +1,6 @@
 use crate::api::RequestContext;
 use crate::common::error::AppError;
+use crate::entities::channels::ChannelName;
 use crate::models::bancho::{BanchoResponse, LoginArgs};
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
@@ -85,6 +86,12 @@ pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
         user_panel,
     ];
 
+    let _ = streams::join(
+        ctx,
+        session.session_id,
+        StreamName::User(session.session_id),
+    )
+    .await;
     let _ = streams::join(ctx, session.session_id, StreamName::Main).await;
     join_special_channel(ctx, &mut response, &session, "#osu").await;
     join_special_channel(ctx, &mut response, &session, "#announce").await;
@@ -111,7 +118,7 @@ pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
                     continue;
                 }
 
-                let member_count = channels::member_count(ctx, &channel.name)
+                let member_count = channels::member_count(ctx, ChannelName::Chat(&channel.name))
                     .await
                     .unwrap_or_else(|e| {
                         error!("Failed to fetch channel member count: {e:?}");
@@ -152,7 +159,7 @@ async fn join_special_channel<'a>(
     session: &Session,
     channel_name: &'a str,
 ) {
-    match channels::join(ctx, &session, channel_name).await {
+    match channels::join(ctx, &session, ChannelName::Chat(channel_name)).await {
         Ok(_) => {
             let success = ChannelJoinSuccess { name: channel_name };
             response.push(success.as_message().serialize());

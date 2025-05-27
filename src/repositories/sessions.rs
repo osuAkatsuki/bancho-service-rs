@@ -7,6 +7,7 @@ use std::ops::DerefMut;
 use uuid::Uuid;
 
 const SESSIONS_KEY: &str = "akatsuki:bancho:sessions";
+const SESSIONS_USER_IDS_KEY: &str = "akatsuki:bancho:sessions:user_ids";
 pub async fn create(ctx: &RequestContext, args: CreateSessionArgs) -> anyhow::Result<Session> {
     let session = Session {
         session_id: Uuid::new_v4(),
@@ -15,17 +16,50 @@ pub async fn create(ctx: &RequestContext, args: CreateSessionArgs) -> anyhow::Re
         create_ip_address: args.ip_address,
         updated_at: chrono::Utc::now(),
     };
-    let session_id = session.session_id.to_string();
 
     let mut redis = ctx.redis.get().await?;
-    let _: () = redis.hset(SESSIONS_KEY, session_id, Json(&session)).await?;
+    redis::pipe()
+        .atomic()
+        .hset(SESSIONS_KEY, session.session_id, Json(&session))
+        .ignore()
+        .hset(SESSIONS_USER_IDS_KEY, session.user_id, session.session_id)
+        .ignore()
+        .exec_async(redis.deref_mut())
+        .await?;
     Ok(session)
 }
 
 pub async fn fetch_one(ctx: &RequestContext, session_id: Uuid) -> anyhow::Result<Option<Session>> {
     let mut redis = ctx.redis.get().await?;
-    let session: Option<Json<Session>> = redis.hget(SESSIONS_KEY, session_id.to_string()).await?;
+    let session: Option<Json<Session>> = redis.hget(SESSIONS_KEY, session_id).await?;
     Ok(session.map(Json::into_inner))
+}
+
+pub async fn fetch_one_by_user_id(
+    ctx: &RequestContext,
+    user_id: i64,
+) -> anyhow::Result<Option<Session>> {
+    let mut redis = ctx.redis.get().await?;
+    let session_id: Option<Uuid> = redis.hget(SESSIONS_USER_IDS_KEY, user_id).await?;
+    if let Some(session_id) = session_id {
+        let session: Option<Json<Session>> = redis.hget(SESSIONS_KEY, session_id).await?;
+        Ok(session.map(Json::into_inner))
+    } else {
+        Ok(None)
+    }
+}
+
+pub async fn fetch_many_by_user_id(
+    ctx: &RequestContext,
+    user_ids: &[i64],
+) -> anyhow::Result<impl Iterator<Item = Uuid>> {
+    let mut redis = ctx.redis.get().await?;
+    let session_ids: Vec<Option<Uuid>> = redis::cmd("HMGET")
+        .arg(SESSIONS_USER_IDS_KEY)
+        .arg(user_ids)
+        .query_async(redis.deref_mut())
+        .await?;
+    Ok(session_ids.into_iter().filter_map(|x| x))
 }
 
 pub async fn extend(ctx: &RequestContext, mut session: Session) -> anyhow::Result<Session> {
@@ -34,15 +68,23 @@ pub async fn extend(ctx: &RequestContext, mut session: Session) -> anyhow::Resul
 }
 
 pub async fn update(ctx: &RequestContext, session: Session) -> anyhow::Result<Session> {
-    let session_id = session.session_id.to_string();
     let mut redis = ctx.redis.get().await?;
-    let _: () = redis.hset(SESSIONS_KEY, session_id, Json(&session)).await?;
+    let _: () = redis
+        .hset(SESSIONS_KEY, session.session_id, Json(&session))
+        .await?;
     Ok(session)
 }
 
-pub async fn delete(ctx: &RequestContext, session_id: Uuid) -> anyhow::Result<()> {
+pub async fn delete(ctx: &RequestContext, session_id: Uuid, user_id: i64) -> anyhow::Result<()> {
     let mut redis = ctx.redis.get().await?;
-    let _: () = redis.hdel(SESSIONS_KEY, session_id.to_string()).await?;
+    redis::pipe()
+        .atomic()
+        .hdel(SESSIONS_KEY, session_id)
+        .ignore()
+        .hdel(SESSIONS_USER_IDS_KEY, user_id)
+        .ignore()
+        .exec_async(redis.deref_mut())
+        .await?;
     Ok(())
 }
 

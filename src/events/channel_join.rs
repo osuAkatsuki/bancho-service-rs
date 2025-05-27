@@ -10,7 +10,8 @@ pub async fn handle(ctx: &RequestContext, session: &Session, args: JoinChannel<'
     match args.name {
         "#highlight" | "#userlog" => Ok(None),
         channel_name => {
-            channels::join(ctx, session, channel_name).await?;
+            let name = channels::get_channel_name(ctx, session, channel_name).await?;
+            channels::join(ctx, session, name).await?;
             Ok(Some(Message::serialize(ChannelJoinSuccess {
                 name: channel_name,
             })))

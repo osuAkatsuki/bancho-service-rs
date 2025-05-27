@@ -1,5 +1,6 @@
 use crate::common::axum_ip::IpAddrInfo;
-use crate::common::redis_pool::RedisPool;
+use crate::common::context::Context;
+use crate::common::redis_pool::{PoolResult, RedisPool};
 use crate::common::state::AppState;
 use crate::models::bancho::BanchoResponse;
 use axum::Router;
@@ -36,5 +37,15 @@ impl FromRequestParts<AppState> for RequestContext {
             redis: state.redis.clone(),
             request_ip: ip_info,
         })
+    }
+}
+
+impl Context for RequestContext {
+    fn db(&self) -> &Pool<MySql> {
+        &self.db
+    }
+
+    fn redis(&self) -> impl Future<Output = PoolResult> {
+        self.redis.get()
     }
 }

@@ -4,6 +4,9 @@ pub mod channel_leave;
 pub mod login;
 pub mod logout;
 pub mod request_presences;
+pub mod spectate_frames;
+pub mod start_spectating;
+pub mod stop_spectating;
 pub mod user_stats_request;
 
 use crate::api::RequestContext;
@@ -51,6 +54,9 @@ pub struct Events<'a> {
 pub type EventResult = ServiceResult<Option<Vec<u8>>>;
 
 macro_rules! event_handler {
+    ($h:ident($ctx:expr, $session:expr)) => {
+        $h::handle($ctx, $session).await
+    };
     ($h:ident($ctx:expr, $session:expr, $event:expr)) => {
         $h::handle($ctx, $session, BinaryDeserialize::deserialize($event.data)?).await
     };
@@ -63,12 +69,15 @@ pub async fn handle_event(
 ) -> EventResult {
     match event.event_type {
         MessageType::Ping => Ok(None),
-        MessageType::Logout => logout::handle(ctx, session).await,
+        MessageType::Logout => event_handler!(logout(ctx, session)),
         MessageType::ChangeAction => event_handler!(change_action(ctx, session, event)),
         MessageType::JoinChannel => event_handler!(channel_join(ctx, session, event)),
         MessageType::LeaveChannel => event_handler!(channel_leave(ctx, session, event)),
         MessageType::UserStatsRequest => event_handler!(user_stats_request(ctx, session, event)),
         MessageType::RequestPresences => event_handler!(request_presences(ctx, session, event)),
+        MessageType::StartSpectating => event_handler!(start_spectating(ctx, session, event)),
+        MessageType::StopSpectating => event_handler!(stop_spectating(ctx, session)),
+        MessageType::SpectateFrames => event_handler!(spectate_frames(ctx, session, event)),
         _ => {
             warn!("Unhandled event: {:?}", event.event_type);
             Ok(None)

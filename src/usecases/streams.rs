@@ -1,4 +1,5 @@
 use crate::api::RequestContext;
+use crate::common::context::Context;
 use crate::common::error::{ServiceResult, unexpected};
 use crate::entities::streams::MessageInfo;
 use crate::models::privileges::Privileges;
@@ -7,14 +8,9 @@ use crate::repositories::streams;
 use crate::repositories::streams::StreamName;
 use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::serde::BinarySerialize;
+use chrono::TimeDelta;
+use tracing::error;
 use uuid::Uuid;
-
-pub async fn fetch_all(ctx: &RequestContext) -> ServiceResult<Vec<String>> {
-    match streams::fetch_all(ctx).await {
-        Ok(streams) => Ok(streams),
-        Err(e) => unexpected(e),
-    }
-}
 
 pub async fn broadcast_message<M: MessageArgs>(
     ctx: &RequestContext,
@@ -81,7 +77,7 @@ pub async fn join(
     session_id: Uuid,
     stream_name: StreamName<'_>,
 ) -> ServiceResult<()> {
-    let latest_message_id = streams::get_latest_message_id(ctx, stream_name.clone()).await?;
+    let latest_message_id = streams::get_latest_message_id(ctx, stream_name).await?;
     streams::set_offset(ctx, session_id, stream_name, latest_message_id).await?;
     Ok(())
 }
@@ -100,6 +96,54 @@ pub async fn leave_all(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<
         Ok(()) => Ok(()),
         Err(e) => unexpected(e),
     }
+}
+
+pub async fn is_joined(
+    ctx: &RequestContext,
+    session_id: Uuid,
+    stream_name: StreamName<'_>,
+) -> ServiceResult<bool> {
+    match streams::is_joined(ctx, session_id, stream_name).await {
+        Ok(is_joined) => Ok(is_joined),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn fetch_all<C: Context>(ctx: &C) -> ServiceResult<Vec<String>> {
+    match streams::fetch_all(ctx).await {
+        Ok(streams) => Ok(streams),
+        Err(e) => unexpected(e),
+    }
+}
+
+/// Trims stream messages to the given ttl
+pub async fn trim_stream<C: Context>(
+    ctx: &C,
+    stream_key: &str,
+    ttl_seconds: usize,
+) -> ServiceResult<usize> {
+    let now = chrono::Utc::now();
+    let min_id = now - TimeDelta::seconds(ttl_seconds as _);
+    let min_id = format!("{}-0", min_id.timestamp_millis());
+    match streams::trim_messages(ctx, stream_key, &min_id).await {
+        Ok(count) => Ok(count),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn trim_all_streams<C: Context>(
+    ctx: &C,
+    ttl_seconds: usize,
+) -> ServiceResult<Vec<(String, usize)>> {
+    let streams = fetch_all(ctx).await?;
+    let mut results = Vec::with_capacity(streams.len());
+    for stream in streams {
+        match trim_stream(ctx, &stream, ttl_seconds).await {
+            Ok(count) => results.push((stream, count)),
+            Err(e) => error!(stream_name = stream, "Error trimming stream: {e:?}"),
+        }
+    }
+    Ok(results)
 }
 
 pub async fn clear_stream(ctx: &RequestContext, stream_name: StreamName<'_>) -> ServiceResult<()> {

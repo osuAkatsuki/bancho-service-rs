@@ -10,7 +10,8 @@ use crate::models::sessions::Session;
 use crate::models::users::User;
 use crate::repositories::streams::StreamName;
 use crate::repositories::{sessions, users};
-use crate::usecases::{channels, presences, stats, streams};
+use crate::usecases::{channels, presences, spectators, stats, streams};
+use bancho_protocol::messages::server::UserLogout;
 use bancho_protocol::structures::Country;
 use tracing::error;
 use uuid::Uuid;
@@ -85,11 +86,33 @@ pub async fn create(
 pub async fn fetch_one(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<Session> {
     match sessions::fetch_one(ctx, session_id).await {
         Ok(Some(session)) if session.is_expired() => {
-            sessions::delete(ctx, session_id).await?;
+            sessions::delete(ctx, session_id, session.user_id).await?;
             Err(AppError::SessionsNotFound)
         }
         Ok(Some(session)) => Ok(Session::from(session)),
         Ok(None) => try_migrate_session(ctx, session_id).await,
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn fetch_one_by_user_id(ctx: &RequestContext, user_id: i64) -> ServiceResult<Session> {
+    match sessions::fetch_one_by_user_id(ctx, user_id).await {
+        Ok(Some(session)) if session.is_expired() => {
+            sessions::delete(ctx, session.session_id, session.user_id).await?;
+            Err(AppError::SessionsNotFound)
+        }
+        Ok(Some(session)) => Ok(Session::from(session)),
+        Ok(None) => Err(AppError::SessionsNotFound),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn fetch_many_by_user_id(
+    ctx: &RequestContext,
+    user_ids: &[i64],
+) -> ServiceResult<impl Iterator<Item = Uuid>> {
+    match sessions::fetch_many_by_user_id(ctx, user_ids).await {
+        Ok(session_ids) => Ok(session_ids),
         Err(e) => unexpected(e),
     }
 }
@@ -116,13 +139,17 @@ pub async fn extend(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<Ses
 
 pub async fn delete(ctx: &RequestContext, session: &Session) -> ServiceResult<()> {
     channels::leave_all(ctx, session.session_id).await?;
-    /*spectator::leave_current(ctx, session.session_id).await?;
-    spectator::close(ctx, session.session_id).await?;
-    multiplayer::leave_current(ctx, session.session_id).await?;*/
+    spectators::leave(ctx, session, None).await?;
+    spectators::close(ctx, session.session_id).await?;
+    // multiplayer::leave_current(ctx, session.session_id).await?;
 
     presences::delete(ctx, session.user_id).await?;
-    sessions::delete(ctx, session.session_id).await?;
+    sessions::delete(ctx, session.session_id, session.user_id).await?;
     streams::clear_stream(ctx, StreamName::User(session.session_id)).await?;
     streams::leave_all(ctx, session.session_id).await?;
+
+    // notify everyone
+    let logout_notification = UserLogout::new(session.user_id as _);
+    streams::broadcast_message(ctx, StreamName::Main, logout_notification, None, None).await?;
     Ok(())
 }

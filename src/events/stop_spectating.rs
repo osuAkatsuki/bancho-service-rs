@@ -1,11 +1,9 @@
 use crate::api::RequestContext;
 use crate::events::EventResult;
 use crate::models::sessions::Session;
-use crate::usecases::sessions;
-use tracing::info;
+use crate::usecases::spectators;
 
 pub async fn handle(ctx: &RequestContext, session: &Session) -> EventResult {
-    sessions::delete(ctx, session).await?;
-    info!(user_id = session.user_id, "User logged out.");
+    spectators::leave(ctx, session, None).await?;
     Ok(None)
 }

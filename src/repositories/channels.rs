@@ -1,5 +1,5 @@
 use crate::api::RequestContext;
-use crate::entities::channels::Channel;
+use crate::entities::channels::{Channel, ChannelName};
 use redis::AsyncCommands;
 use std::ops::DerefMut;
 use uuid::Uuid;
@@ -26,7 +26,7 @@ pub async fn fetch_all(ctx: &RequestContext) -> sqlx::Result<Vec<Channel>> {
     sqlx::query_as(QUERY).fetch_all(&ctx.db).await
 }
 
-fn make_channel_members_key(channel_name: &str) -> String {
+fn make_channel_members_key(channel_name: &ChannelName) -> String {
     format!("akatsuki:bancho:channels:{channel_name}:members")
 }
 
@@ -43,23 +43,26 @@ pub async fn fetch_session_channels(
     Ok(redis.smembers(session_channels_key).await?)
 }
 
-pub async fn member_count(ctx: &RequestContext, channel_name: &str) -> anyhow::Result<usize> {
+pub async fn member_count(
+    ctx: &RequestContext,
+    channel_name: ChannelName<'_>,
+) -> anyhow::Result<usize> {
     let mut redis = ctx.redis.get().await?;
-    let members_key = make_channel_members_key(channel_name);
+    let members_key = make_channel_members_key(&channel_name);
     Ok(redis.scard(members_key).await?)
 }
 
 pub async fn join(
     ctx: &RequestContext,
     session_id: Uuid,
-    channel_name: &str,
+    channel_name: ChannelName<'_>,
 ) -> anyhow::Result<usize> {
     let mut redis = ctx.redis.get().await?;
     let session_channels_key = make_session_channels_key(session_id);
-    let members_key = make_channel_members_key(channel_name);
+    let members_key = make_channel_members_key(&channel_name);
     let member_count: [usize; 1] = redis::pipe()
         .atomic()
-        .sadd(session_channels_key, channel_name)
+        .sadd(session_channels_key, channel_name.to_string())
         .ignore()
         .sadd(&members_key, session_id.to_string())
         .ignore()
@@ -72,14 +75,14 @@ pub async fn join(
 pub async fn leave(
     ctx: &RequestContext,
     session_id: Uuid,
-    channel_name: &str,
+    channel_name: ChannelName<'_>,
 ) -> anyhow::Result<usize> {
     let mut redis = ctx.redis.get().await?;
     let session_channels_key = make_session_channels_key(session_id);
-    let members_key = make_channel_members_key(channel_name);
+    let members_key = make_channel_members_key(&channel_name);
     let member_count: [usize; 1] = redis::pipe()
         .atomic()
-        .srem(session_channels_key, channel_name)
+        .srem(session_channels_key, channel_name.to_string())
         .ignore()
         .srem(&members_key, session_id.to_string())
         .ignore()

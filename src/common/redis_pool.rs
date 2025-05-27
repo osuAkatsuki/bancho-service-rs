@@ -1,4 +1,4 @@
-use deadpool::managed::{Manager, Metrics, Pool, RecycleResult};
+use deadpool::managed::{Manager, Metrics, Object, Pool, PoolError, RecycleResult};
 use redis::{AsyncConnectionConfig, RedisError, RedisResult};
 
 pub struct RedisPoolManager {
@@ -33,3 +33,6 @@ impl Manager for RedisPoolManager {
 }
 
 pub type RedisPool = Pool<RedisPoolManager>;
+pub type Connection = Object<RedisPoolManager>;
+pub type Error = PoolError<RedisError>;
+pub type PoolResult = Result<Connection, Error>;

@@ -14,7 +14,7 @@ const-str = "0.6.2"
 deadpool = { version = "0.12", features = ["managed", "rt_tokio_1"] }
 dotenv = "0.15"
 hashbrown = "0.15"
-redis = { version = "0.31", features = ["aio", "tokio-comp", "default", "json", "hashbrown"] }
+redis = { version = "0.31", features = ["aio", "tokio-comp", "default", "hashbrown", "json", "uuid"] }
 reqwest = { version = "0.12", features = ["json"] }
 serde = "1.0"
 serde_json = "1.0"
