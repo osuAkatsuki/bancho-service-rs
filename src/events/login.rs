@@ -1,0 +1,164 @@
+use crate::api::RequestContext;
+use crate::common::error::AppError;
+use crate::models::bancho::{BanchoResponse, LoginArgs};
+use crate::models::sessions::Session;
+use crate::repositories::streams::StreamName;
+use crate::usecases::{channels, presences, sessions, streams};
+use bancho_protocol::concat_messages;
+use bancho_protocol::messages::MessageArgs;
+use bancho_protocol::messages::server::{
+    Alert, ChannelInfo, ChannelInfoEnd, ChannelJoinSuccess, LoginResult, ProtocolVersion,
+    UserPresence, UserPresenceBundle, UserPrivileges,
+};
+use bancho_protocol::serde::BinarySerialize;
+use bancho_protocol::serde::osu_types::PrefixedVec;
+use bancho_protocol::structures::Privileges;
+use tracing::{error, info};
+
+const WELCOME_MESSAGE: &str = r#"
+             Welcome to Akatsuki!
+             Running banchus v0.1
+ "#; // This space is needed for osu! to render the line
+
+#[repr(i32)]
+enum LoginError {
+    InvalidCredentials = -1,
+    OldVersion = -2,
+    Banned = -3,
+    UnexpectedError = -5,
+    /*NeedSupporter = -6,
+    PasswordReset = -7,
+    RequireVerification = -8,*/
+}
+
+fn login_error(e: AppError) -> BanchoResponse {
+    let login_error = match e {
+        AppError::SessionsInvalidCredentials => LoginError::InvalidCredentials,
+        AppError::ClientTooOld => LoginError::OldVersion,
+        AppError::SessionsLoginForbidden => LoginError::Banned,
+        _ => LoginError::UnexpectedError,
+    };
+    let data = concat_messages!(
+        Alert {
+            message: e.message()
+        },
+        LoginResult {
+            user_id: login_error as _,
+        }
+    );
+    BanchoResponse::error_raw(None, data)
+}
+
+pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
+    let (session, user, presence) = match sessions::create(ctx, args).await {
+        Ok(res) => res,
+        Err(e) => return login_error(e),
+    };
+    let user_panel = concat_messages! {
+        UserPresence::new(
+            user.user_id as _,
+            &user.username,
+            presence.location.utc_offset,
+            presence.location.country,
+            presence.action.mode.to_bancho(),
+            session.privileges.to_bancho(),
+            presence.location.latitude,
+            presence.location.longitude,
+        ),
+        presence.to_bancho(),
+    };
+    if session.is_publicly_visible() {
+        match streams::broadcast_data(ctx, StreamName::Main, &user_panel, None, None).await {
+            Ok(_) => (),
+            Err(e) => error!("Failed to broadcast user panel: {e:?}"),
+        };
+    }
+
+    let mut response = vec![
+        concat_messages! {
+            LoginResult{ user_id: session.user_id as _ },
+            ProtocolVersion { version: 20 },
+            UserPrivileges { privileges: session.privileges.to_bancho() | Privileges::Supporter },
+            ChannelInfoEnd,
+            Alert{ message: WELCOME_MESSAGE },
+        },
+        user_panel,
+    ];
+
+    let _ = streams::join(ctx, session.session_id, StreamName::Main).await;
+    join_special_channel(ctx, &mut response, &session, "#osu").await;
+    join_special_channel(ctx, &mut response, &session, "#announce").await;
+
+    if session.privileges.is_donor() {
+        let _ = streams::join(ctx, session.session_id, StreamName::Donator).await;
+        join_special_channel(ctx, &mut response, &session, "#plus").await;
+    }
+
+    if session.privileges.is_staff() {
+        let _ = streams::join(ctx, session.session_id, StreamName::Staff).await;
+        join_special_channel(ctx, &mut response, &session, "#staff").await;
+    }
+
+    if session.privileges.is_developer() {
+        let _ = streams::join(ctx, session.session_id, StreamName::Dev).await;
+        join_special_channel(ctx, &mut response, &session, "#devlog").await;
+    }
+
+    match channels::fetch_all(ctx).await {
+        Ok(channels) => {
+            for channel in channels {
+                if !channel.can_read(session.privileges) {
+                    continue;
+                }
+
+                let member_count = channels::member_count(ctx, &channel.name)
+                    .await
+                    .unwrap_or_else(|e| {
+                        error!("Failed to fetch channel member count: {e:?}");
+                        0
+                    });
+                let info = ChannelInfo {
+                    name: &channel.name,
+                    topic: &channel.description,
+                    user_count: member_count as _,
+                };
+                response.push(info.as_message().serialize());
+            }
+        }
+        Err(e) => error!("Failed to fetch channels during login: {e:?}"),
+    }
+
+    match presences::fetch_user_ids(ctx).await {
+        Ok(user_ids) => {
+            let presence_bundle = UserPresenceBundle {
+                user_ids: PrefixedVec::from(user_ids),
+            };
+            response.push(presence_bundle.as_message().serialize());
+        }
+        Err(e) => error!("Failed to fetch presences during login: {e:?}"),
+    }
+
+    info!(
+        user_id = session.user_id,
+        username = user.username,
+        "User logged in."
+    );
+    BanchoResponse::ok(session.session_id, response.concat())
+}
+
+async fn join_special_channel<'a>(
+    ctx: &RequestContext,
+    response: &mut Vec<Vec<u8>>,
+    session: &Session,
+    channel_name: &'a str,
+) {
+    match channels::join(ctx, &session, channel_name).await {
+        Ok(_) => {
+            let success = ChannelJoinSuccess { name: channel_name };
+            response.push(success.as_message().serialize());
+        }
+        Err(e) => {
+            error!("Failed to join special channel: {e:?}");
+        }
+    }
+}
