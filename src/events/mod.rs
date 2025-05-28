@@ -1,12 +1,22 @@
+pub mod add_friend;
+pub mod cant_spectate;
 pub mod change_action;
 pub mod channel_join;
 pub mod channel_leave;
 pub mod login;
 pub mod logout;
+pub mod private_chat_message;
+pub mod public_chat_message;
+pub mod receive_updates;
+pub mod remove_friend;
+pub mod request_all_presences;
 pub mod request_presences;
+pub mod set_afk_message;
 pub mod spectate_frames;
 pub mod start_spectating;
 pub mod stop_spectating;
+pub mod toggle_private_dms;
+pub mod update_stats_request;
 pub mod user_stats_request;
 
 use crate::api::RequestContext;
@@ -68,16 +78,65 @@ pub async fn handle_event(
     event: Event<'_>,
 ) -> EventResult {
     match event.event_type {
+        // Miscellaneous events
         MessageType::Ping => Ok(None),
         MessageType::Logout => event_handler!(logout(ctx, session)),
         MessageType::ChangeAction => event_handler!(change_action(ctx, session, event)),
+        MessageType::ReceiveUpdates => event_handler!(receive_updates(ctx, session, event)),
+        MessageType::RequestPresences => event_handler!(request_presences(ctx, session, event)),
+        MessageType::RequestAllPresences => {
+            event_handler!(request_all_presences(ctx, session, event))
+        }
+        MessageType::ToggleBlockNonFriendDms => {
+            event_handler!(toggle_private_dms(ctx, session, event))
+        }
+        MessageType::AddFriend => event_handler!(add_friend(ctx, session, event)),
+        MessageType::RemoveFriend => event_handler!(remove_friend(ctx, session, event)),
+        MessageType::SetAwayMessage => event_handler!(set_afk_message(ctx, session, event)),
+        MessageType::UserStatsRequest => event_handler!(user_stats_request(ctx, session, event)),
+        MessageType::UpdateStatsRequest => event_handler!(update_stats_request(ctx, session)),
+
+        // Chat events
         MessageType::JoinChannel => event_handler!(channel_join(ctx, session, event)),
         MessageType::LeaveChannel => event_handler!(channel_leave(ctx, session, event)),
-        MessageType::UserStatsRequest => event_handler!(user_stats_request(ctx, session, event)),
-        MessageType::RequestPresences => event_handler!(request_presences(ctx, session, event)),
+        MessageType::PublicChatMessage => event_handler!(public_chat_message(ctx, session, event)),
+        MessageType::PrivateChatMessage => {
+            event_handler!(private_chat_message(ctx, session, event))
+        }
+
+        // Spectator events
         MessageType::StartSpectating => event_handler!(start_spectating(ctx, session, event)),
         MessageType::StopSpectating => event_handler!(stop_spectating(ctx, session)),
         MessageType::SpectateFrames => event_handler!(spectate_frames(ctx, session, event)),
+        MessageType::CantSpectate => event_handler!(cant_spectate(ctx, session)),
+
+        // Multiplayer events
+        /*MessageType::LeaveLobby => ,
+        MessageType::JoinLobby => ,
+        MessageType::CreateMatch => ,
+        MessageType::JoinMatch => ,
+        MessageType::LeaveMatch => ,
+        MessageType::MatchChangeSlot => ,
+        MessageType::MatchReady => ,
+        MessageType::MatchLock => ,
+        MessageType::MatchChangeSettings => ,
+        MessageType::StartMatch => ,
+        MessageType::UpdateMatchScore => ,
+        MessageType::MatchPlayerComplete => ,
+        MessageType::MatchChangeMods => ,
+        MessageType::MatchLoadComplete => ,
+        MessageType::MatchNoBeatmap => ,
+        MessageType::MatchNotReady => ,
+        MessageType::MatchFailed => ,
+        MessageType::MatchHasBeatmap => ,
+        MessageType::MatchSkipRequest => ,
+        MessageType::MatchChangeHost => ,
+        MessageType::MatchChangeTeam => ,
+        MessageType::MatchInvite => ,
+        MessageType::MatchChangePassword => ,
+        MessageType::TournamentMatchInfoRequest => ,
+        MessageType::TournamentJoinMatchChannel => ,
+        MessageType::TournamentLeaveMatchChannel => ,*/
         _ => {
             warn!("Unhandled event: {:?}", event.event_type);
             Ok(None)

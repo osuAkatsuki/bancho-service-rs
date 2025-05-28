@@ -2,6 +2,7 @@ use crate::common::error::AppError;
 use crate::entities::users::User as UserEntity;
 use crate::models::privileges::Privileges;
 use bancho_protocol::structures::Country;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug)]
 pub enum Whitelist {
@@ -31,7 +32,7 @@ pub struct User {
     pub username_safe: String,
     pub register_datetime: i64,
     pub latest_activity: i64,
-    pub silence_end: Option<i64>,
+    pub silence_end: Option<DateTime<Utc>>,
     pub silence_reason: Option<String>,
     pub privileges: Privileges,
     pub donor_expire: i64,
@@ -58,22 +59,28 @@ pub struct User {
 impl TryFrom<UserEntity> for User {
     type Error = AppError;
     fn try_from(value: UserEntity) -> Result<Self, Self::Error> {
-        let userpage_content = if let Some(userpage_content) = value.userpage_content {
-            let content = String::from_utf8(userpage_content)?;
-            Some(content)
-        } else {
-            None
+        let userpage_content = match value.userpage_content {
+            Some(userpage_content) => Some(String::from_utf8(userpage_content)?),
+            None => None,
         };
         let country = Country::try_from_iso3166_2(&value.country)?;
+        let silence_end = match value.silence_end {
+            None => None,
+            Some(silence_end) => match <DateTime<Utc>>::from_timestamp(silence_end, 0) {
+                None => None,
+                Some(silence_end) if silence_end < Utc::now() => None,
+                Some(silence_end) => Some(silence_end),
+            },
+        };
         Ok(Self {
-            userpage_content,
             country,
+            silence_end,
+            userpage_content,
             user_id: value.id,
             username: value.username,
             username_safe: value.username_safe,
             register_datetime: value.register_datetime,
             latest_activity: value.latest_activity,
-            silence_end: value.silence_end,
             silence_reason: value.silence_reason,
             privileges: Privileges::from_bits_retain(value.privileges),
             donor_expire: value.donor_expire,

@@ -4,16 +4,16 @@ use crate::entities::channels::ChannelName;
 use crate::models::bancho::{BanchoResponse, LoginArgs};
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{channels, presences, sessions, streams};
+use crate::usecases::{channels, messages, presences, relationships, sessions, streams};
 use bancho_protocol::concat_messages;
-use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::server::{
-    Alert, ChannelInfo, ChannelInfoEnd, ChannelJoinSuccess, LoginResult, ProtocolVersion,
-    UserPresence, UserPresenceBundle, UserPrivileges,
+    Alert, ChannelInfo, ChannelInfoEnd, ChannelJoinSuccess, ChatMessage, FriendsList, LoginResult,
+    ProtocolVersion, SilenceEnd, UserPresenceBundle, UserPrivileges,
 };
+use bancho_protocol::messages::{Message, MessageArgs};
 use bancho_protocol::serde::BinarySerialize;
 use bancho_protocol::serde::osu_types::PrefixedVec;
-use bancho_protocol::structures::Privileges;
+use bancho_protocol::structures::{IrcMessage, Privileges};
 use tracing::{error, info};
 
 const WELCOME_MESSAGE: &str = r#"
@@ -51,29 +51,25 @@ fn login_error(e: AppError) -> BanchoResponse {
 }
 
 pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
-    let (session, user, presence) = match sessions::create(ctx, args).await {
+    let (session, presence) = match sessions::create(ctx, args).await {
         Ok(res) => res,
         Err(e) => return login_error(e),
     };
-    let user_panel = concat_messages! {
-        UserPresence::new(
-            user.user_id as _,
-            &user.username,
-            presence.location.utc_offset,
-            presence.location.country,
-            presence.action.mode.to_bancho(),
-            session.privileges.to_bancho(),
-            presence.location.latitude,
-            presence.location.longitude,
-        ),
-        presence.to_bancho(),
-    };
+    let user_panel = presence.user_panel();
     if session.is_publicly_visible() {
         match streams::broadcast_data(ctx, StreamName::Main, &user_panel, None, None).await {
             Ok(_) => (),
             Err(e) => error!("Failed to broadcast user panel: {e:?}"),
         };
     }
+
+    let friends: Vec<i32> = match relationships::fetch_friends(ctx, session.user_id).await {
+        Ok(friends) => friends.into_iter().map(|r| r.friend_id as i32).collect(),
+        Err(e) => {
+            error!("Failed fetching friends: {e:?}");
+            vec![]
+        }
+    };
 
     let mut response = vec![
         concat_messages! {
@@ -82,9 +78,16 @@ pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
             UserPrivileges { privileges: session.privileges.to_bancho() | Privileges::Supporter },
             ChannelInfoEnd,
             Alert{ message: WELCOME_MESSAGE },
+            FriendsList::from(friends),
         },
         user_panel,
     ];
+    let silence_left = session.silence_left();
+    if silence_left != 0 {
+        response.push(Message::serialize(SilenceEnd {
+            seconds_left: silence_left as _,
+        }));
+    }
 
     let _ = streams::join(
         ctx,
@@ -145,9 +148,30 @@ pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
         Err(e) => error!("Failed to fetch presences during login: {e:?}"),
     }
 
+    match messages::fetch_unread_messages(ctx, session.user_id).await {
+        Ok(unread_messages) => {
+            match messages::mark_all_read(ctx, session.user_id).await {
+                Ok(()) => {}
+                Err(e) => error!("Failed to mark all messages as read: {e:?}"),
+            }
+
+            let unread_messages = unread_messages.map(|msg| {
+                let msg = IrcMessage {
+                    sender: &msg.sender_name,
+                    text: &msg.content,
+                    recipient: &session.username,
+                    sender_id: msg.sender_id as _,
+                };
+                Message::serialize(ChatMessage(&msg))
+            });
+            response.extend(unread_messages);
+        }
+        Err(e) => error!("Failed to fetch unread messages during login: {e:?}"),
+    }
+
     info!(
         user_id = session.user_id,
-        username = user.username,
+        username = presence.username,
         "User logged in."
     );
     BanchoResponse::ok(session.session_id, response.concat())

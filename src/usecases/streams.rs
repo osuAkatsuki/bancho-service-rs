@@ -1,4 +1,3 @@
-use crate::api::RequestContext;
 use crate::common::context::Context;
 use crate::common::error::{ServiceResult, unexpected};
 use crate::entities::streams::MessageInfo;
@@ -12,8 +11,8 @@ use chrono::TimeDelta;
 use tracing::error;
 use uuid::Uuid;
 
-pub async fn broadcast_message<M: MessageArgs>(
-    ctx: &RequestContext,
+pub async fn broadcast_message<C: Context, M: MessageArgs>(
+    ctx: &C,
     stream_name: StreamName<'_>,
     args: M,
     excluded_session_ids: Option<Vec<Uuid>>,
@@ -30,8 +29,8 @@ pub async fn broadcast_message<M: MessageArgs>(
     .await
 }
 
-pub async fn broadcast_data(
-    ctx: &RequestContext,
+pub async fn broadcast_data<C: Context>(
+    ctx: &C,
     stream_name: StreamName<'_>,
     data: &[u8],
     excluded_session_ids: Option<Vec<Uuid>>,
@@ -53,7 +52,7 @@ pub async fn broadcast_data(
     }
 }
 
-pub async fn read_pending_data(ctx: &RequestContext, session: &Session) -> ServiceResult<Vec<u8>> {
+pub async fn read_pending_data<C: Context>(ctx: &C, session: &Session) -> ServiceResult<Vec<u8>> {
     let messages = streams::read_pending_messages(ctx, session.session_id).await?;
     let mut pending_data = vec![];
     for msg in messages {
@@ -72,8 +71,8 @@ pub async fn read_pending_data(ctx: &RequestContext, session: &Session) -> Servi
     Ok(pending_data)
 }
 
-pub async fn join(
-    ctx: &RequestContext,
+pub async fn join<C: Context>(
+    ctx: &C,
     session_id: Uuid,
     stream_name: StreamName<'_>,
 ) -> ServiceResult<()> {
@@ -82,8 +81,8 @@ pub async fn join(
     Ok(())
 }
 
-pub async fn leave(
-    ctx: &RequestContext,
+pub async fn leave<C: Context>(
+    ctx: &C,
     session_id: Uuid,
     stream_name: StreamName<'_>,
 ) -> ServiceResult<()> {
@@ -91,15 +90,15 @@ pub async fn leave(
     Ok(())
 }
 
-pub async fn leave_all(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<()> {
+pub async fn leave_all<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<()> {
     match streams::remove_offsets(ctx, session_id).await {
         Ok(()) => Ok(()),
         Err(e) => unexpected(e),
     }
 }
 
-pub async fn is_joined(
-    ctx: &RequestContext,
+pub async fn is_joined<C: Context>(
+    ctx: &C,
     session_id: Uuid,
     stream_name: StreamName<'_>,
 ) -> ServiceResult<bool> {
@@ -146,7 +145,7 @@ pub async fn trim_all_streams<C: Context>(
     Ok(results)
 }
 
-pub async fn clear_stream(ctx: &RequestContext, stream_name: StreamName<'_>) -> ServiceResult<()> {
+pub async fn clear_stream<C: Context>(ctx: &C, stream_name: StreamName<'_>) -> ServiceResult<()> {
     match streams::clear_stream(ctx, stream_name).await {
         Ok(()) => Ok(()),
         Err(e) => unexpected(e),

@@ -9,6 +9,8 @@ const KEY: &'static str = "akatsuki:bancho:presences";
 pub async fn create(
     ctx: &RequestContext,
     user_id: i64,
+    username: String,
+    privileges: u8,
     action: u8,
     info_text: String,
     beatmap_md5: String,
@@ -28,6 +30,8 @@ pub async fn create(
 ) -> anyhow::Result<Presence> {
     let presence = Presence {
         user_id,
+        username,
+        privileges,
         action,
         info_text,
         beatmap_md5,

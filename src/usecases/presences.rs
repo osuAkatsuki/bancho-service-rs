@@ -2,12 +2,15 @@ use crate::api::RequestContext;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::models::Gamemode;
 use crate::models::presences::Presence;
+use crate::models::privileges::Privileges;
 use crate::repositories::presences;
 use bancho_protocol::structures::{Action, Country, Mods};
 
 pub async fn create_default(
     ctx: &RequestContext,
     user_id: i64,
+    username: String,
+    privileges: Privileges,
     ranked_score: u64,
     total_score: u64,
     accuracy: f64,
@@ -22,6 +25,8 @@ pub async fn create_default(
     create(
         ctx,
         user_id,
+        username,
+        privileges,
         Action::Idle,
         "".to_string(),
         "".to_string(),
@@ -45,6 +50,8 @@ pub async fn create_default(
 pub async fn create(
     ctx: &RequestContext,
     user_id: i64,
+    username: String,
+    privileges: Privileges,
     action: Action,
     info_text: String,
     beatmap_md5: String,
@@ -65,6 +72,8 @@ pub async fn create(
     match presences::create(
         ctx,
         user_id,
+        username,
+        privileges.to_bancho().bits() as _,
         action as _,
         info_text,
         beatmap_md5,

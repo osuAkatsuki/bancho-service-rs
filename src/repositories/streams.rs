@@ -1,4 +1,3 @@
-use crate::api::RequestContext;
 use crate::common::context::Context;
 use crate::entities::channels::ChannelName;
 use crate::entities::streams::{MessageInfo, StreamMessage, StreamReadMessage, StreamReadReply};
@@ -71,24 +70,24 @@ pub async fn fetch_all<C: Context>(ctx: &C) -> anyhow::Result<Vec<String>> {
     Ok(keys)
 }
 
-pub async fn broadcast_data(
-    ctx: &RequestContext,
+pub async fn broadcast_data<C: Context>(
+    ctx: &C,
     stream_name: StreamName<'_>,
     data: &[u8],
     info: MessageInfo,
 ) -> anyhow::Result<()> {
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     let key = make_key(stream_name);
     let message = StreamMessage::new(data, info);
     let _: () = redis.xadd(key, "*", &message.items()).await?;
     Ok(())
 }
 
-pub async fn read_pending_messages(
-    ctx: &RequestContext,
+pub async fn read_pending_messages<C: Context>(
+    ctx: &C,
     session_id: Uuid,
 ) -> anyhow::Result<Vec<StreamReadMessage>> {
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     let mut offsets = get_offsets(&mut redis, session_id).await?;
 
     let streams: Vec<&String> = offsets.keys().collect();
@@ -119,57 +118,57 @@ pub async fn read_pending_messages(
     }
 }
 
-pub async fn is_joined(
-    ctx: &RequestContext,
+pub async fn is_joined<C: Context>(
+    ctx: &C,
     session_id: Uuid,
     stream_name: StreamName<'_>,
 ) -> anyhow::Result<bool> {
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     let key = make_key(stream_name);
     let offsets_key = make_offsets_key(session_id);
     Ok(redis.hexists(offsets_key, key).await?)
 }
 
-pub async fn set_offset(
-    ctx: &RequestContext,
+pub async fn set_offset<C: Context>(
+    ctx: &C,
     session_id: Uuid,
     stream_name: StreamName<'_>,
     id: String,
 ) -> anyhow::Result<()> {
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     let key = make_key(stream_name);
     let offsets_key = make_offsets_key(session_id);
     Ok(redis.hset(offsets_key, key, id).await?)
 }
 
-pub async fn remove_offset(
-    ctx: &RequestContext,
+pub async fn remove_offset<C: Context>(
+    ctx: &C,
     session_id: Uuid,
     stream_name: StreamName<'_>,
 ) -> anyhow::Result<()> {
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     let key = make_key(stream_name);
     let offsets_key = make_offsets_key(session_id);
     Ok(redis.hdel(offsets_key, key).await?)
 }
 
-pub async fn remove_offsets(ctx: &RequestContext, session_id: Uuid) -> anyhow::Result<()> {
-    let mut redis = ctx.redis.get().await?;
+pub async fn remove_offsets<C: Context>(ctx: &C, session_id: Uuid) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
     let offsets_key = make_offsets_key(session_id);
     Ok(redis.del(offsets_key).await?)
 }
 
-pub async fn clear_stream(ctx: &RequestContext, stream_name: StreamName<'_>) -> anyhow::Result<()> {
-    let mut redis = ctx.redis.get().await?;
+pub async fn clear_stream<C: Context>(ctx: &C, stream_name: StreamName<'_>) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
     let key = make_key(stream_name);
     Ok(redis.del(key).await?)
 }
 
-pub async fn get_latest_message_id(
-    ctx: &RequestContext,
+pub async fn get_latest_message_id<C: Context>(
+    ctx: &C,
     stream_name: StreamName<'_>,
 ) -> anyhow::Result<String> {
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     let key = make_key(stream_name);
     let message_ids: StreamRangeReply = redis.xrevrange_count(key, "+", "-", 1).await?;
     match message_ids.ids.is_empty() {
@@ -187,15 +186,6 @@ pub async fn trim_messages<C: Context>(ctx: &C, key: &str, min_id: &str) -> anyh
         )
         .await?;
     Ok(removed_count)
-}
-
-pub async fn clear_messages(
-    ctx: &RequestContext,
-    stream_name: StreamName<'_>,
-) -> anyhow::Result<()> {
-    let mut redis = ctx.redis.get().await?;
-    let key = make_key(stream_name);
-    Ok(redis.del(key).await?)
 }
 
 // utility

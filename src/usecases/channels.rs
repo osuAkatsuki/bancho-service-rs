@@ -1,4 +1,4 @@
-use crate::api::RequestContext;
+use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::channels::ChannelName;
 use crate::models::channels::Channel;
@@ -10,8 +10,8 @@ use bancho_protocol::messages::server::ChannelInfo;
 use tracing::info;
 use uuid::Uuid;
 
-pub async fn get_channel_name<'a>(
-    ctx: &RequestContext,
+pub async fn get_channel_name<'a, C: Context>(
+    ctx: &C,
     session: &Session,
     channel_name: &'a str,
 ) -> ServiceResult<ChannelName<'a>> {
@@ -29,8 +29,8 @@ pub async fn get_channel_name<'a>(
     }
 }
 
-pub async fn fetch_one(
-    ctx: &RequestContext,
+pub async fn fetch_one<C: Context>(
+    ctx: &C,
     channel_name: ChannelName<'_>,
 ) -> ServiceResult<Channel> {
     match channel_name {
@@ -44,7 +44,7 @@ pub async fn fetch_one(
     }
 }
 
-pub async fn fetch_all(ctx: &RequestContext) -> ServiceResult<Vec<Channel>> {
+pub async fn fetch_all<C: Context>(ctx: &C) -> ServiceResult<Vec<Channel>> {
     match channels::fetch_all(ctx).await {
         Ok(channels) => Ok(channels
             .into_iter()
@@ -54,8 +54,8 @@ pub async fn fetch_all(ctx: &RequestContext) -> ServiceResult<Vec<Channel>> {
     }
 }
 
-pub async fn join(
-    ctx: &RequestContext,
+pub async fn join<C: Context>(
+    ctx: &C,
     session: &Session,
     channel_name: ChannelName<'_>,
 ) -> ServiceResult<(Channel, usize)> {
@@ -64,7 +64,7 @@ pub async fn join(
         return Err(AppError::ChannelsUnauthorized);
     }
 
-    let stream_name = StreamName::Channel(channel_name);
+    let stream_name = channel_name.get_message_stream();
     streams::join(ctx, session.session_id, stream_name).await?;
     let member_count = channels::join(ctx, session.session_id, channel_name).await?;
     info!(
@@ -77,13 +77,13 @@ pub async fn join(
     Ok((channel, member_count))
 }
 
-pub async fn leave(
-    ctx: &RequestContext,
+pub async fn leave<C: Context>(
+    ctx: &C,
     session_id: Uuid,
     channel_name: ChannelName<'_>,
 ) -> ServiceResult<(Channel, usize)> {
     let channel = fetch_one(ctx, channel_name).await?;
-    let stream_name = StreamName::Channel(channel_name);
+    let stream_name = channel_name.get_message_stream();
     streams::leave(ctx, session_id, stream_name).await?;
     let member_count = channels::leave(ctx, session_id, channel_name).await?;
     info!(
@@ -96,7 +96,7 @@ pub async fn leave(
     Ok((channel, member_count))
 }
 
-pub async fn leave_all(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<()> {
+pub async fn leave_all<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<()> {
     let channels = channels::fetch_session_channels(ctx, session_id).await?;
     for channel in channels {
         leave(ctx, session_id, ChannelName::Chat(&channel)).await?;
@@ -104,8 +104,8 @@ pub async fn leave_all(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<
     Ok(())
 }
 
-pub async fn member_count(
-    ctx: &RequestContext,
+pub async fn member_count<C: Context>(
+    ctx: &C,
     channel_name: ChannelName<'_>,
 ) -> ServiceResult<usize> {
     match channels::member_count(ctx, channel_name).await {
@@ -116,8 +116,8 @@ pub async fn member_count(
 
 // utility
 
-async fn broadcast_channel_info_update(
-    ctx: &RequestContext,
+async fn broadcast_channel_info_update<C: Context>(
+    ctx: &C,
     channel_name: ChannelName<'_>,
     channel: &Channel,
     member_count: usize,

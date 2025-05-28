@@ -2,8 +2,11 @@ use bancho_protocol::structures::{Mode, Mods};
 
 pub mod bancho;
 pub mod channels;
+pub mod location;
+pub mod messages;
 pub mod presences;
 pub mod privileges;
+pub mod relationships;
 pub mod sessions;
 pub mod stats;
 pub mod users;

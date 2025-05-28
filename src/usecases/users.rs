@@ -1,9 +1,15 @@
-use crate::api::RequestContext;
+use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::models::sessions::Session;
 use crate::models::users::User;
+use crate::repositories::streams::StreamName;
 use crate::repositories::users;
+use crate::usecases::{messages, sessions, streams};
+use bancho_protocol::messages::server::{SilenceEnd, UserSilenced};
 
-pub async fn fetch_one(ctx: &RequestContext, user_id: i64) -> ServiceResult<User> {
+const SILENCE_AUTO_DELETE_INTERVAL_SECONDS: u64 = 60;
+
+pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<User> {
     match users::fetch_one(ctx, user_id).await {
         Ok(user) => User::try_from(user),
         Err(sqlx::Error::RowNotFound) => Err(AppError::UsersNotFound),
@@ -11,10 +17,46 @@ pub async fn fetch_one(ctx: &RequestContext, user_id: i64) -> ServiceResult<User
     }
 }
 
-pub async fn fetch_one_by_username(ctx: &RequestContext, username: &str) -> ServiceResult<User> {
+pub async fn fetch_one_by_username<C: Context>(ctx: &C, username: &str) -> ServiceResult<User> {
     match users::fetch_one_by_username(ctx, username).await {
         Ok(user) => User::try_from(user),
         Err(sqlx::Error::RowNotFound) => Err(AppError::UsersNotFound),
         Err(e) => unexpected(e),
     }
+}
+
+pub async fn silence_user<C: Context>(
+    ctx: &C,
+    to_silence: &Session,
+    silence_reason: &str,
+    silence_seconds: i64,
+) -> ServiceResult<()> {
+    users::silence_user(ctx, to_silence.user_id, silence_reason, silence_seconds).await?;
+    sessions::silence(ctx, to_silence, silence_seconds).await?;
+    messages::delete_recent(
+        ctx,
+        to_silence.user_id,
+        SILENCE_AUTO_DELETE_INTERVAL_SECONDS,
+    )
+    .await?;
+
+    // Tell the user that they have been silenced
+    let silence_end = SilenceEnd {
+        seconds_left: silence_seconds as _,
+    };
+    streams::broadcast_message(
+        ctx,
+        StreamName::User(to_silence.session_id),
+        silence_end,
+        None,
+        None,
+    )
+    .await?;
+
+    // Tell all other users that the user has been silenced
+    let user_silenced = UserSilenced {
+        user_id: to_silence.user_id as _,
+    };
+    streams::broadcast_message(ctx, StreamName::Main, user_silenced, None, None).await?;
+    Ok(())
 }

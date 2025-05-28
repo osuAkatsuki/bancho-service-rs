@@ -5,9 +5,7 @@ use crate::models::presences::{Presence, PresenceAction, PresenceStats};
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{presences, stats, streams};
-use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::client::ChangeAction;
-use bancho_protocol::serde::BinarySerialize;
 
 pub async fn handle(
     ctx: &RequestContext,
@@ -39,9 +37,12 @@ pub async fn handle(
         presence.stats = PresenceStats::from(stats, global_rank);
     }
 
-    tracing::info!("Presence updated: {:?}", presence);
+    tracing::info!(
+        user_id = presence.user_id,
+        "Changed Action: {:?}", presence.action.action
+    );
     let presence = presences::update(ctx, presence).await?;
-    let user_panel = presence.to_bancho().as_message().serialize();
+    let user_panel = presence.user_panel();
     if session.is_publicly_visible() {
         streams::broadcast_data(ctx, StreamName::Main, &user_panel, None, None).await?;
         Ok(None)

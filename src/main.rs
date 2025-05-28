@@ -1,9 +1,9 @@
-use crate::common::error::ServiceResult;
-use crate::common::redis_pool::{RedisPool, RedisPoolManager};
-use crate::common::state::AppState;
-use crate::settings::AppSettings;
-use crate::usecases::streams;
 use axum::Router;
+use bancho_service::api;
+use bancho_service::common::redis_pool::{RedisPool, RedisPoolManager};
+use bancho_service::common::state::AppState;
+use bancho_service::settings::AppSettings;
+use bancho_service::usecases::streams;
 use deadpool::Runtime;
 use redis::AsyncConnectionConfig;
 use sqlx::mysql::MySqlPoolOptions;
@@ -12,16 +12,6 @@ use std::error::Error;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tracing::{error, info};
-
-mod adapters;
-mod api;
-mod common;
-mod entities;
-mod events;
-mod models;
-mod repositories;
-mod settings;
-mod usecases;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

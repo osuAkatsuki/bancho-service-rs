@@ -1,4 +1,4 @@
-use crate::api::RequestContext;
+use crate::common::context::Context;
 use crate::common::error::{ServiceResult, unexpected};
 use crate::entities::channels::ChannelName;
 use crate::models::sessions::Session;
@@ -10,8 +10,8 @@ use bancho_protocol::messages::server::{
 };
 use uuid::Uuid;
 
-pub async fn fetch_spectating(
-    ctx: &RequestContext,
+pub async fn fetch_spectating<C: Context>(
+    ctx: &C,
     session_id: Uuid,
 ) -> ServiceResult<Option<Uuid>> {
     match spectators::fetch_spectating(ctx, session_id).await {
@@ -20,8 +20,8 @@ pub async fn fetch_spectating(
     }
 }
 
-pub async fn fetch_all_members(
-    ctx: &RequestContext,
+pub async fn fetch_all_members<C: Context>(
+    ctx: &C,
     host_session_id: Uuid,
 ) -> ServiceResult<Vec<i64>> {
     match spectators::fetch_all_members(ctx, host_session_id).await {
@@ -30,8 +30,8 @@ pub async fn fetch_all_members(
     }
 }
 
-pub async fn join(
-    ctx: &RequestContext,
+pub async fn join<C: Context>(
+    ctx: &C,
     session: &Session,
     host_session: Session,
 ) -> ServiceResult<Vec<i64>> {
@@ -85,8 +85,8 @@ pub async fn join(
     }
 }
 
-pub async fn leave(
-    ctx: &RequestContext,
+pub async fn leave<C: Context>(
+    ctx: &C,
     session: &Session,
     host_session_id: Option<Uuid>,
 ) -> ServiceResult<usize> {
@@ -140,7 +140,7 @@ pub async fn leave(
     Ok(member_count)
 }
 
-pub async fn close(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<()> {
+pub async fn close<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<()> {
     let members = fetch_all_members(ctx, session_id).await?;
     if members.is_empty() {
         return Ok(());

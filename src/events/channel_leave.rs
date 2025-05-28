@@ -11,6 +11,7 @@ pub async fn handle(
 ) -> EventResult {
     match args.name {
         "#highlight" | "#userlog" => Ok(None),
+        channel_name if !channel_name.starts_with('#') => Ok(None),
         channel_name => {
             let name = channels::get_channel_name(ctx, session, channel_name).await?;
             channels::leave(ctx, session.session_id, name).await?;

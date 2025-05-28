@@ -2,8 +2,8 @@ use crate::entities::stats::Stats as Entity;
 
 #[derive(Debug)]
 pub struct Stats {
-    user_id: i64,
-    mode: i16,
+    pub user_id: i64,
+    pub mode: i16,
     pub ranked_score: u64,
     pub total_score: u64,
     pub playcount: u32,

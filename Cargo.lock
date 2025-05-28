@@ -165,6 +165,7 @@ dependencies = [
  "deadpool",
  "dotenv",
  "hashbrown",
+ "rand 0.9.1",
  "redis",
  "reqwest",
  "serde",

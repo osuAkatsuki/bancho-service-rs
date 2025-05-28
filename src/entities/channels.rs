@@ -11,19 +11,19 @@ pub enum ChannelName<'a> {
 
 #[derive(sqlx::FromRow)]
 pub struct Channel {
-    id: i64,
+    pub id: i64,
     pub name: String,
     pub description: String,
     pub public_read: bool,
     pub public_write: bool,
     pub status: bool,
-    #[deprecated]
-    temp: bool,
-    #[deprecated]
-    hidden: bool,
 }
 
 impl<'a> ChannelName<'a> {
+    pub fn get_message_stream(self) -> StreamName<'a> {
+        StreamName::Channel(self)
+    }
+
     pub fn get_update_stream(self) -> StreamName<'a> {
         match self {
             ChannelName::Spectator(host_session_id) => StreamName::Spectator(host_session_id),

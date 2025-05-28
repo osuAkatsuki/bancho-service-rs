@@ -7,10 +7,15 @@ pub enum AppError {
     Unexpected,
     DecodingRequestFailed,
     InternalServerError(&'static str),
+    UnsupportedClientVersion,
+    Unauthorized,
     ClientTooOld,
 
     ChannelsNotFound,
     ChannelsUnauthorized,
+
+    MessagesTooLong,
+    MessagesUserAutoSilenced,
 
     PresencesNotFound,
 
@@ -39,10 +44,15 @@ impl AppError {
             AppError::Unexpected => "unexpected",
             AppError::DecodingRequestFailed => "decoding_request_failed",
             AppError::InternalServerError(_) => "internal_server_error",
+            AppError::UnsupportedClientVersion => "unsupported_client_version",
+            AppError::Unauthorized => "unauthorized",
             AppError::ClientTooOld => "client_too_old",
 
             AppError::ChannelsNotFound => "channels.not_found",
             AppError::ChannelsUnauthorized => "channels.unauthorized",
+
+            AppError::MessagesTooLong => "messages.too_long",
+            AppError::MessagesUserAutoSilenced => "messages.user_auto_silenced",
 
             AppError::PresencesNotFound => "presences.not_found",
 
@@ -60,10 +70,15 @@ impl AppError {
             AppError::Unexpected => "An unexpected error has occurred.",
             AppError::DecodingRequestFailed => "Failed to decode request",
             AppError::InternalServerError(_) => "An internal server error has occurred.",
+            AppError::UnsupportedClientVersion => "Client is unsupported",
+            AppError::Unauthorized => "Unauthorized",
             AppError::ClientTooOld => "Client is too old",
 
             AppError::ChannelsNotFound => "Channel not found",
             AppError::ChannelsUnauthorized => "Unauthorized",
+
+            AppError::MessagesTooLong => "Message is too long",
+            AppError::MessagesUserAutoSilenced => "User has been auto-silenced",
 
             AppError::PresencesNotFound => "Presence not found",
 

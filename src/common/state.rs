@@ -1,4 +1,3 @@
-use crate::api::RequestContext;
 use crate::common::context::Context;
 use crate::common::redis_pool::{PoolResult, RedisPool};
 use sqlx::{MySql, Pool};

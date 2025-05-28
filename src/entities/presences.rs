@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Presence {
     pub user_id: i64,
+    pub username: String,
+    pub privileges: u8,
     pub action: u8,
     pub info_text: String,
     pub beatmap_md5: String,

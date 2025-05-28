@@ -1,5 +1,8 @@
 pub mod channels;
+pub mod location;
+pub mod messages;
 pub mod presences;
+pub mod relationships;
 pub mod sessions;
 pub mod spectators;
 pub mod stats;

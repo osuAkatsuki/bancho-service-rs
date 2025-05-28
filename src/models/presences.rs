@@ -2,8 +2,9 @@ use crate::common::error::AppError;
 use crate::entities::presences::Presence as Entity;
 use crate::models::Gamemode;
 use crate::models::stats::Stats;
-use bancho_protocol::messages::server::UserStats;
-use bancho_protocol::structures::{Action, Country, Mods, UserAction};
+use bancho_protocol::concat_messages;
+use bancho_protocol::messages::server::{UserPresence, UserStats};
+use bancho_protocol::structures::{Action, Country, Mods, Privileges, UserAction};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct PresenceAction {
@@ -63,7 +64,7 @@ impl PresenceStats {
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct LocationInformation {
+pub struct PresenceLocationInformation {
     pub country: Country,
     pub longitude: f32,
     pub latitude: f32,
@@ -73,12 +74,18 @@ pub struct LocationInformation {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Presence {
     pub user_id: i64,
+    pub username: String,
+    pub privileges: Privileges,
     pub action: PresenceAction,
     pub stats: PresenceStats,
-    pub location: LocationInformation,
+    pub location: PresenceLocationInformation,
 }
 
 impl Presence {
+    pub fn is_publicly_visible(&self) -> bool {
+        self.privileges.contains(Privileges::Player)
+    }
+
     pub fn to_bancho(&self) -> UserStats<'_> {
         UserStats {
             user_id: self.user_id as _,
@@ -91,12 +98,30 @@ impl Presence {
             global_rank: self.stats.global_rank as _,
         }
     }
+
+    pub fn user_panel(&self) -> Vec<u8> {
+        concat_messages! {
+            UserPresence::new(
+                self.user_id as _,
+                &self.username,
+                self.location.utc_offset,
+                self.location.country,
+                self.action.mode.to_bancho(),
+                self.privileges,
+                self.location.latitude,
+                self.location.longitude,
+            ),
+            self.to_bancho(),
+        }
+    }
 }
 
 impl Into<Entity> for Presence {
     fn into(self) -> Entity {
         Entity {
             user_id: self.user_id,
+            username: self.username,
+            privileges: self.privileges.bits() as u8,
             action: self.action.action as _,
             info_text: self.action.info_text,
             beatmap_md5: self.action.beatmap_md5,
@@ -124,6 +149,8 @@ impl TryFrom<Entity> for Presence {
     fn try_from(value: Entity) -> Result<Self, Self::Error> {
         Ok(Self {
             user_id: value.user_id,
+            username: value.username,
+            privileges: Privileges::from_bits_retain(value.privileges as _),
             action: PresenceAction {
                 action: Action::try_from(value.action)?,
                 info_text: value.info_text,
@@ -140,7 +167,7 @@ impl TryFrom<Entity> for Presence {
                 performance: value.performance,
                 global_rank: value.global_rank,
             },
-            location: LocationInformation {
+            location: PresenceLocationInformation {
                 country: Country::try_from_iso3166_2(&value.country_code)?,
                 longitude: value.longitude,
                 latitude: value.latitude,

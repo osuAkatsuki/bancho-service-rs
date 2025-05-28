@@ -3,6 +3,7 @@ use axum::extract::{FromRequest, Request};
 use axum::response::{IntoResponse, Response};
 use bancho_protocol::messages::Message;
 use bancho_protocol::messages::server::Alert;
+use chrono::{Months, NaiveDate};
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -59,11 +60,86 @@ pub struct LoginArgs {
 }
 
 pub struct ClientInfo {
-    pub osu_version: String,
+    pub osu_version: OsuVersion,
     pub utc_offset: i8,
     pub display_city: bool,
     pub client_hashes: ClientHashes,
     pub pm_private: bool,
+}
+
+#[derive(Debug)]
+pub enum ReleaseStream {
+    Stable,
+    Beta,
+    CuttingEdge,
+}
+
+#[derive(Debug)]
+pub struct OsuVersion {
+    pub release_stream: ReleaseStream,
+    pub version_date: NaiveDate,
+    pub version_minor: Option<i32>,
+}
+
+impl OsuVersion {
+    pub fn is_outdated(&self) -> bool {
+        let today = chrono::Utc::now().date_naive();
+        let version_expiration_months = match self.release_stream {
+            ReleaseStream::Stable => 12,
+            ReleaseStream::Beta => 12,
+            ReleaseStream::CuttingEdge => 6,
+        };
+        let version_expiration_date = self.version_date + Months::new(version_expiration_months);
+        // Version is outdated
+        today > version_expiration_date
+    }
+}
+
+impl FromStr for OsuVersion {
+    type Err = AppError;
+
+    fn from_str(version_string: &str) -> Result<Self, Self::Err> {
+        let version_string = version_string
+            .strip_prefix("b")
+            .ok_or(AppError::UnsupportedClientVersion)?;
+        let (beta, version_string) = match version_string.strip_suffix("beta") {
+            None => (false, version_string),
+            Some(version_string) => (true, version_string),
+        };
+        let (cutting_edge, version_string) = match version_string.strip_suffix("cuttingedge") {
+            None => (false, version_string),
+            Some(version_string) => (true, version_string),
+        };
+        let release_stream = if beta {
+            ReleaseStream::Beta
+        } else if cutting_edge {
+            ReleaseStream::CuttingEdge
+        } else {
+            ReleaseStream::Stable
+        };
+
+        let mut version_split = version_string.split('.');
+        let version_date = version_split
+            .next()
+            .ok_or(AppError::UnsupportedClientVersion)?;
+        let version_minor = version_split.next();
+
+        let version_date = NaiveDate::parse_from_str(version_date, "%Y%m%d")
+            .map_err(|_| AppError::UnsupportedClientVersion)?;
+        let version_minor = match version_minor {
+            None => None,
+            Some(version_minor) => {
+                let minor =
+                    i32::from_str(version_minor).map_err(|_| AppError::UnsupportedClientVersion)?;
+                Some(minor)
+            }
+        };
+        Ok(Self {
+            release_stream,
+            version_date,
+            version_minor,
+        })
+    }
 }
 
 pub struct ClientHashes {
@@ -145,10 +221,8 @@ impl FromStr for ClientInfo {
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let mut parts = input.splitn(5, '|');
-        let osu_version = parts
-            .next()
-            .ok_or(AppError::DecodingRequestFailed)?
-            .to_string();
+        let osu_version_str = parts.next().ok_or(AppError::DecodingRequestFailed)?;
+        let osu_version = OsuVersion::from_str(osu_version_str)?;
         let utc_offset_str = parts.next().ok_or(AppError::DecodingRequestFailed)?;
         let utc_offset =
             i8::from_str(utc_offset_str).map_err(|_| AppError::DecodingRequestFailed)?;
