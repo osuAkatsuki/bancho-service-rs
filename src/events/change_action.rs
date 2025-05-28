@@ -39,7 +39,8 @@ pub async fn handle(
 
     tracing::info!(
         user_id = presence.user_id,
-        "Changed Action: {:?}", presence.action.action
+        "Changed Action: {:?}",
+        presence.action.action
     );
     let presence = presences::update(ctx, presence).await?;
     let user_panel = presence.user_panel();

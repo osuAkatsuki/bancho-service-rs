@@ -21,7 +21,7 @@ pub async fn handle(
         .into_iter()
         .map(|(user_id, p)| match p {
             None => Message::serialize(UserLogout::new(user_id)),
-            Some(presence) if presence.is_publicly_visible() => {
+            Some(presence) if !presence.is_publicly_visible() => {
                 Message::serialize(UserLogout::new(user_id))
             }
             Some(presence) => presence.user_panel(),

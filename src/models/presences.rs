@@ -53,8 +53,8 @@ pub struct PresenceStats {
 impl PresenceStats {
     pub fn from(stats: Stats, global_rank: usize) -> Self {
         Self {
-            ranked_score: stats.ranked_score,
-            total_score: stats.total_score,
+            ranked_score: stats.ranked_score as _,
+            total_score: stats.total_score as _,
             accuracy: stats.avg_accuracy,
             playcount: stats.playcount,
             performance: stats.pp,

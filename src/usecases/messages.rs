@@ -1,15 +1,17 @@
+use crate::commands;
 use crate::common::context::Context;
-use crate::common::error::{ServiceResult, unexpected, AppError};
+use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::entities::bot;
 use crate::models::messages::{Message, Recipient};
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::messages;
 use crate::usecases::{channels, streams, users};
+use bancho_protocol::concat_messages;
 use bancho_protocol::messages::MessageArgs;
-use bancho_protocol::messages::server::{Alert, ChatMessage, TargetSilenced};
+use bancho_protocol::messages::server::{Alert, ChatMessage, TargetSilenced, UserSilenced};
 use bancho_protocol::serde::BinarySerialize;
 use bancho_protocol::structures::IrcMessage;
-use crate::commands;
 
 const CHAT_SPAM_RATE_INTERVAL: u64 = 10;
 const CHAT_SPAM_RATE: i64 = 10;
@@ -79,7 +81,8 @@ pub async fn send<C: Context>(
             excluded_session_ids = Some(vec![session.session_id]);
         }
         Recipient::UserSession(receiver_session) => {
-            if !receiver_session.is_publicly_visible() && !session.has_all_privileges(Privileges::AdminCaker)
+            if !receiver_session.is_publicly_visible()
+                && !session.has_all_privileges(Privileges::AdminCaker)
             {
                 return Err(AppError::Unauthorized);
             }
@@ -87,16 +90,20 @@ pub async fn send<C: Context>(
         }
         Recipient::OfflineUser(username) => {
             let user = users::fetch_one_by_username(ctx, username).await?;
-            if !user.privileges.is_publicly_visible() && !session.has_all_privileges(Privileges::AdminCaker)
+            if !user.privileges.is_publicly_visible()
+                && !session.has_all_privileges(Privileges::AdminCaker)
             {
                 return Err(AppError::Unauthorized);
             }
             recipient_id = Some(user.user_id);
             mark_as_unread = true;
         }
+        Recipient::Bot => {
+            recipient_id = Some(bot::BOT_ID);
+        }
     }
 
-    if commands::is_command_message(args.text) {
+    if commands::is_command_message(args.text) && recipient.can_process_commands() {
         tracing::warn!("Handle commands here");
     }
 
@@ -128,7 +135,12 @@ pub async fn send<C: Context>(
     Ok(())
 }
 
-pub async fn send_bancho<C: Context>(ctx: &C, session: &Session, recipient: Recipient<'_>, message: IrcMessage<'_>) -> ServiceResult<Option<Vec<u8>>> {
+pub async fn send_bancho<C: Context>(
+    ctx: &C,
+    session: &Session,
+    recipient: Recipient<'_>,
+    message: IrcMessage<'_>,
+) -> ServiceResult<Option<Vec<u8>>> {
     match send(ctx, session, recipient, message).await {
         Ok(()) => match recipient {
             Recipient::UserSession(recipient_session) if recipient_session.is_silenced() => {
@@ -136,8 +148,13 @@ pub async fn send_bancho<C: Context>(ctx: &C, session: &Session, recipient: Reci
                 Ok(Some(response.as_message().serialize()))
             }
             Recipient::OfflineUser(username) => {
-                let response = TargetSilenced::new(username);
-                Ok(Some(response.as_message().serialize()))
+                let offline_msg = IrcMessage {
+                    sender: username,
+                    text: "\x01ACTION is offline right now. They will receive your message when they come back.",
+                    recipient: &session.username,
+                    sender_id: 0,
+                };
+                Ok(Some(ChatMessage(&offline_msg).as_message().serialize()))
             }
             _ => Ok(None),
         },
@@ -171,6 +188,6 @@ pub async fn send_bancho<C: Context>(ctx: &C, session: &Session, recipient: Reci
             };
             Ok(Some(alert.as_message().serialize()))
         }
-        Err(e) => Err(e)
+        Err(e) => Err(e),
     }
 }

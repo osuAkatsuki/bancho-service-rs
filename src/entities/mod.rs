@@ -1,3 +1,4 @@
+pub mod bot;
 pub mod channels;
 pub mod messages;
 pub mod presences;

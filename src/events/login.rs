@@ -1,5 +1,6 @@
 use crate::api::RequestContext;
 use crate::common::error::AppError;
+use crate::entities::bot;
 use crate::entities::channels::ChannelName;
 use crate::models::bancho::{BanchoResponse, LoginArgs};
 use crate::models::sessions::Session;
@@ -81,6 +82,7 @@ pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
             FriendsList::from(friends),
         },
         user_panel,
+        bot::user_panel(),
     ];
     let silence_left = session.silence_left();
     if silence_left != 0 {

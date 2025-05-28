@@ -9,6 +9,7 @@ pub enum Recipient<'a> {
     Channel(ChannelName<'a>),
     UserSession(&'a Session),
     OfflineUser(&'a str),
+    Bot,
 }
 
 pub struct Message {
@@ -40,11 +41,18 @@ impl From<MessageEntity> for Message {
 }
 
 impl<'a> Recipient<'a> {
+    pub fn can_process_commands(&self) -> bool {
+        match self {
+            Recipient::Bot | Recipient::Channel(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn get_message_stream(self) -> Option<StreamName<'a>> {
         match self {
             Recipient::Channel(channel_name) => Some(channel_name.get_message_stream()),
             Recipient::UserSession(session) => Some(StreamName::User(session.session_id)),
-            Recipient::OfflineUser(_) => None,
+            Recipient::Bot | Recipient::OfflineUser(_) => None,
         }
     }
 }
