@@ -70,7 +70,7 @@ pub async fn fetch_all<C: Context>(ctx: &C) -> anyhow::Result<Vec<String>> {
     Ok(keys)
 }
 
-pub async fn broadcast_data<C: Context>(
+pub async fn broadcast_data<C: Context + ?Sized>(
     ctx: &C,
     stream_name: StreamName<'_>,
     data: &[u8],

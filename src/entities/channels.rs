@@ -20,6 +20,14 @@ pub struct Channel {
 }
 
 impl<'a> ChannelName<'a> {
+    pub fn to_bancho(&self) -> &str {
+        match self {
+            ChannelName::Chat(channel_name) => channel_name,
+            ChannelName::Spectator(_) => "#spectator",
+            ChannelName::Multiplayer(_) => "#multiplayer",
+        }
+    }
+
     pub fn get_message_stream(self) -> StreamName<'a> {
         StreamName::Channel(self)
     }

@@ -100,7 +100,10 @@ pub async fn fetch_one_by_user_id<C: Context>(ctx: &C, user_id: i64) -> ServiceR
     }
 }
 
-pub async fn fetch_one_by_username<C: Context>(ctx: &C, username: &str) -> ServiceResult<Session> {
+pub async fn fetch_one_by_username<C: Context + ?Sized>(
+    ctx: &C,
+    username: &str,
+) -> ServiceResult<Session> {
     match sessions::fetch_one_by_username(ctx, username).await {
         Ok(Some(session)) if session.is_expired() => {
             sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;

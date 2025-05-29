@@ -11,7 +11,6 @@ use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::server::{Alert, ChatMessage, TargetSilenced};
 use bancho_protocol::serde::BinarySerialize;
 use bancho_protocol::structures::IrcMessage;
-use tracing::error;
 
 const CHAT_SPAM_RATE_INTERVAL: u64 = 10;
 const CHAT_SPAM_RATE: i64 = 10;
@@ -104,14 +103,7 @@ pub async fn send<C: Context>(
     }
 
     if commands::is_command_message(args.text) && recipient.can_process_commands() {
-        match commands::handle_command(ctx, session, args.text).await {
-            Ok(()) => (),
-            Err(e) => error!(
-                sender_id = session.user_id,
-                message_content = args.text,
-                "Error handling command: {e:?}"
-            ),
-        }
+        commands::handle_command(ctx, session, args.text, recipient_channel).await;
     }
 
     messages::send(

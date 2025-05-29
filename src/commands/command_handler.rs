@@ -1,6 +1,7 @@
 use crate::commands::CommandResult;
 use crate::commands::from_args::FromCommandArgs;
 use crate::common::context::Context;
+use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use async_trait::async_trait;
 use hashbrown::HashMap;
@@ -8,13 +9,19 @@ use std::marker::PhantomData;
 use std::sync::LazyLock;
 
 pub type CommandRouterInstance = LazyLock<CommandRouter>;
+pub struct RegisteredCommand {
+    pub required_privileges: Privileges,
+    handler: Box<dyn CommandHandlerProxy>,
+}
+
 pub struct CommandRouter {
-    commands: HashMap<String, Box<dyn CommandHandlerProxy>>,
+    commands: HashMap<String, RegisteredCommand>,
 }
 
 #[async_trait]
 pub trait Command<Args: for<'a> FromCommandArgs<'a>>: 'static + Send + Sync {
     const NAME: &'static str;
+    const REQUIRED_PRIVILEGES: Privileges = Privileges::None;
     async fn handle<C: Context + ?Sized>(ctx: &C, session: &Session, args: Args) -> CommandResult;
 }
 
@@ -23,8 +30,9 @@ macro_rules! commands {
     ($($h:path),* $(,)?) => {
         std::sync::LazyLock::new(|| {
             use $crate::commands::command_handler::CommandRouter;
+            const CMDS: &[&str] = &[$(stringify!($h)),*];
             #[allow(unused_mut)]
-            let mut router = CommandRouter::new();
+            let mut router = CommandRouter::with_capacity(CMDS.len());
             $(router.register($h);),*
             router
         })
@@ -44,11 +52,8 @@ impl CommandRouter {
         }
     }
 
-    pub fn get_handler(&self, cmd_name: &str) -> Option<Handler<'_>> {
-        match self.commands.get(cmd_name) {
-            Some(cmd) => Some(Handler(cmd)),
-            None => None,
-        }
+    pub fn get(&self, cmd_name: &str) -> Option<&RegisteredCommand> {
+        self.commands.get(cmd_name)
     }
 
     pub fn register<Args: 'static + for<'a> FromCommandArgs<'a>, C: Command<Args>>(
@@ -56,11 +61,24 @@ impl CommandRouter {
         cmd: C,
     ) {
         self.commands
-            .insert(C::NAME.to_owned(), Box::new(Proxy::new(cmd)));
+            .insert(C::NAME.to_owned(), RegisteredCommand::new(cmd));
     }
 }
 
-pub struct Handler<'a>(&'a Box<dyn CommandHandlerProxy>);
+impl RegisteredCommand {
+    pub fn new<Args: 'static + for<'a> FromCommandArgs<'a>, C: Command<Args>>(cmd: C) -> Self {
+        Self {
+            required_privileges: C::REQUIRED_PRIVILEGES,
+            handler: Box::new(Proxy::new(cmd)),
+        }
+    }
+
+    pub fn handler(&self) -> Handler<'_> {
+        Handler(self.handler.as_ref())
+    }
+}
+
+pub struct Handler<'a>(&'a dyn CommandHandlerProxy);
 impl<'a> Handler<'a> {
     pub async fn handle<C: Context>(
         &self,

@@ -1,3 +1,4 @@
+#![feature(const_type_name)]
 pub mod adapters;
 pub mod api;
 pub mod commands;

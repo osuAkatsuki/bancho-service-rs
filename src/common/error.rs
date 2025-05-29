@@ -14,7 +14,8 @@ pub enum AppError {
     ChannelsNotFound,
     ChannelsUnauthorized,
 
-    CommandsMissingArgument(&'static str),
+    /// 0: Syntax, 1: Type Signature, 2: Typed Syntax
+    CommandsInvalidSyntax(&'static str, &'static str, &'static str),
 
     MessagesTooLong,
     MessagesUserAutoSilenced,
@@ -53,7 +54,7 @@ impl AppError {
             AppError::ChannelsNotFound => "channels.not_found",
             AppError::ChannelsUnauthorized => "channels.unauthorized",
 
-            AppError::CommandsMissingArgument(_) => "commands.missing_argument",
+            AppError::CommandsInvalidSyntax(_, _, _) => "commands.invalid_syntax",
 
             AppError::MessagesTooLong => "messages.too_long",
             AppError::MessagesUserAutoSilenced => "messages.user_auto_silenced",
@@ -81,7 +82,7 @@ impl AppError {
             AppError::ChannelsNotFound => "Channel not found",
             AppError::ChannelsUnauthorized => "Unauthorized",
 
-            AppError::CommandsMissingArgument(_) => "Command Argument missing",
+            AppError::CommandsInvalidSyntax(_, _, _) => "Invalid Command Syntax",
 
             AppError::MessagesTooLong => "Message is too long",
             AppError::MessagesUserAutoSilenced => "User has been auto-silenced",

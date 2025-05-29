@@ -1,0 +1,28 @@
+use crate::commands::CommandResult;
+use crate::common::context::Context;
+use crate::models::sessions::Session;
+use crate::repositories::streams::StreamName;
+use crate::usecases::{sessions, streams};
+use bancho_protocol::messages::server::Alert;
+use bancho_service_macros::{FromCommandArgs, command};
+
+#[derive(Debug, FromCommandArgs)]
+pub struct AlertUserArgs {
+    pub username: String,
+    pub message: String,
+}
+
+#[command("alert")]
+pub async fn alert_user<C: Context + ?Sized>(
+    ctx: &C,
+    _sender: &Session,
+    args: AlertUserArgs,
+) -> CommandResult {
+    let session = sessions::fetch_one_by_username(ctx, &args.username).await?;
+    let alert = Alert {
+        message: &args.message,
+    };
+    streams::broadcast_message(ctx, StreamName::User(session.session_id), alert, None, None)
+        .await?;
+    Ok(())
+}

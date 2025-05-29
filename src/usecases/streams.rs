@@ -11,7 +11,7 @@ use chrono::TimeDelta;
 use tracing::error;
 use uuid::Uuid;
 
-pub async fn broadcast_message<C: Context, M: MessageArgs>(
+pub async fn broadcast_message<C: Context + ?Sized, M: MessageArgs>(
     ctx: &C,
     stream_name: StreamName<'_>,
     args: M,
@@ -29,7 +29,7 @@ pub async fn broadcast_message<C: Context, M: MessageArgs>(
     .await
 }
 
-pub async fn broadcast_data<C: Context>(
+pub async fn broadcast_data<C: Context + ?Sized>(
     ctx: &C,
     stream_name: StreamName<'_>,
     data: &[u8],
