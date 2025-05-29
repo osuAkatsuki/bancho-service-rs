@@ -14,7 +14,7 @@ pub async fn handle(
     let presences = presences::fetch_multiple(ctx, &args.user_ids.0).await?;
     let response = presences
         .into_iter()
-        .map(|(user_id, p)| match p {
+        .flat_map(|(user_id, p)| match p {
             None => Message::serialize(UserLogout::new(user_id)),
             Some(presence) if !presence.is_publicly_visible() => {
                 Message::serialize(UserLogout::new(user_id))
@@ -22,7 +22,6 @@ pub async fn handle(
             Some(presence) if presence.stats.global_rank == 0 => vec![],
             Some(presence) => Message::serialize(presence.to_bancho_stats()),
         })
-        .flatten()
         .collect();
     Ok(Some(response))
 }

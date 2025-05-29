@@ -48,12 +48,11 @@ pub async fn handle(ctx: &RequestContext, session: &Session, args: StartSpectati
     let spectator_ids = spectators::join(ctx, session, host_session).await?;
     let fellow_spectators = spectator_ids
         .into_iter()
-        .map(|user_id| {
+        .flat_map(|user_id| {
             Message::serialize(FellowSpectatorJoined {
                 user_id: user_id as _,
             })
         })
-        .flatten()
         .collect();
     Ok(Some(fellow_spectators))
 }

@@ -99,7 +99,7 @@ pub async fn read_pending_messages<C: Context>(
             let messages = reply
                 .streams
                 .into_iter()
-                .map(|stream| {
+                .flat_map(|stream| {
                     if let Some(last_id) = stream.messages.last() {
                         offsets.insert(stream.stream_name, last_id.message_id.clone());
                     } else {
@@ -108,7 +108,6 @@ pub async fn read_pending_messages<C: Context>(
 
                     stream.messages
                 })
-                .flatten()
                 .collect::<Vec<_>>();
 
             // Update the users' streams offsets after reading messages from stream
