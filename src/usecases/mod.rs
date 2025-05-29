@@ -1,6 +1,7 @@
 pub mod channels;
 pub mod location;
 pub mod messages;
+pub mod multiplayer;
 pub mod presences;
 pub mod relationships;
 pub mod sessions;

@@ -3,6 +3,7 @@ use crate::common::context::Context;
 use crate::common::redis_pool::{PoolResult, RedisPool};
 use crate::common::state::AppState;
 use crate::models::bancho::BanchoResponse;
+use async_trait::async_trait;
 use axum::Router;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -40,12 +41,13 @@ impl FromRequestParts<AppState> for RequestContext {
     }
 }
 
+#[async_trait]
 impl Context for RequestContext {
     fn db(&self) -> &Pool<MySql> {
         &self.db
     }
 
-    fn redis(&self) -> impl Future<Output = PoolResult> {
-        self.redis.get()
+    async fn redis(&self) -> PoolResult {
+        self.redis.get().await
     }
 }

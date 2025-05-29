@@ -3,6 +3,8 @@ pub mod cant_spectate;
 pub mod change_action;
 pub mod channel_join;
 pub mod channel_leave;
+pub mod lobby_join;
+pub mod lobby_leave;
 pub mod login;
 pub mod logout;
 pub mod private_chat_message;
@@ -111,9 +113,9 @@ pub async fn handle_event(
         MessageType::CantSpectate => event_handler!(cant_spectate(ctx, session)),
 
         // Multiplayer events
-        /*MessageType::LeaveLobby => ,
-        MessageType::JoinLobby => ,
-        MessageType::CreateMatch => ,
+        MessageType::LeaveLobby => event_handler!(lobby_leave(ctx, session)),
+        MessageType::JoinLobby => event_handler!(lobby_join(ctx, session)),
+        /*MessageType::CreateMatch => ,
         MessageType::JoinMatch => ,
         MessageType::LeaveMatch => ,
         MessageType::MatchChangeSlot => ,

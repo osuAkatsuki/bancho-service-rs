@@ -14,6 +14,8 @@ pub enum AppError {
     ChannelsNotFound,
     ChannelsUnauthorized,
 
+    CommandsMissingArgument(&'static str),
+
     MessagesTooLong,
     MessagesUserAutoSilenced,
 
@@ -51,6 +53,8 @@ impl AppError {
             AppError::ChannelsNotFound => "channels.not_found",
             AppError::ChannelsUnauthorized => "channels.unauthorized",
 
+            AppError::CommandsMissingArgument(_) => "commands.missing_argument",
+
             AppError::MessagesTooLong => "messages.too_long",
             AppError::MessagesUserAutoSilenced => "messages.user_auto_silenced",
 
@@ -76,6 +80,8 @@ impl AppError {
 
             AppError::ChannelsNotFound => "Channel not found",
             AppError::ChannelsUnauthorized => "Unauthorized",
+
+            AppError::CommandsMissingArgument(_) => "Command Argument missing",
 
             AppError::MessagesTooLong => "Message is too long",
             AppError::MessagesUserAutoSilenced => "User has been auto-silenced",

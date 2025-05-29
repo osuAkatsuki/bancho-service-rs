@@ -4,6 +4,7 @@ pub mod bancho;
 pub mod channels;
 pub mod location;
 pub mod messages;
+pub mod multiplayer;
 pub mod presences;
 pub mod privileges;
 pub mod relationships;

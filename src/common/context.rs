@@ -1,7 +1,9 @@
 use crate::common::redis_pool::PoolResult;
+use async_trait::async_trait;
 use sqlx::{MySql, Pool};
 
-pub trait Context {
+#[async_trait]
+pub trait Context: Sync + Send {
     fn db(&self) -> &Pool<MySql>;
-    fn redis(&self) -> impl Future<Output = PoolResult>;
+    async fn redis(&self) -> PoolResult;
 }

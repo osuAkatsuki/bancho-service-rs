@@ -1,7 +1,7 @@
 use redis::{FromRedisValue, RedisResult, RedisWrite, ToRedisArgs, Value};
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 
-#[derive(Debug)]
 #[repr(transparent)]
 pub struct Json<T>(pub T);
 
@@ -27,5 +27,17 @@ impl<T: for<'a> Deserialize<'a>> FromRedisValue for Json<T> {
         let json_decoded: T =
             serde_json::from_str(&json_encoded).map_err(redis::RedisError::from)?;
         Ok(Json(json_decoded))
+    }
+}
+
+impl<T: Default> Default for Json<T> {
+    fn default() -> Self {
+        Self(T::default())
+    }
+}
+
+impl<T: Debug> Debug for Json<T> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(fmt)
     }
 }
