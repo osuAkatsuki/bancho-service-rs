@@ -92,11 +92,11 @@ pub async fn handle_event(
         MessageType::ToggleBlockNonFriendDms => {
             event_handler!(toggle_private_dms(ctx, session, event))
         }
+        MessageType::UserStatsRequest => event_handler!(user_stats_request(ctx, session, event)),
+        MessageType::UpdateStatsRequest => event_handler!(update_stats_request(ctx, session)),
         MessageType::AddFriend => event_handler!(add_friend(ctx, session, event)),
         MessageType::RemoveFriend => event_handler!(remove_friend(ctx, session, event)),
         MessageType::SetAwayMessage => event_handler!(set_afk_message(ctx, session, event)),
-        MessageType::UserStatsRequest => event_handler!(user_stats_request(ctx, session, event)),
-        MessageType::UpdateStatsRequest => event_handler!(update_stats_request(ctx, session)),
 
         // Chat events
         MessageType::JoinChannel => event_handler!(channel_join(ctx, session, event)),

@@ -20,7 +20,7 @@ pub async fn handle(
                 Message::serialize(UserLogout::new(user_id))
             }
             Some(presence) if presence.stats.global_rank == 0 => vec![],
-            Some(presence) => presence.user_panel(),
+            Some(presence) => Message::serialize(presence.to_bancho_stats()),
         })
         .flatten()
         .collect();

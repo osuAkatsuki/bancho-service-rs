@@ -65,5 +65,5 @@ pub fn presence() -> Presence {
 }
 
 pub fn user_panel() -> Vec<u8> {
-    concat_messages!(USER_PRESENCE, USER_STATS,)
+    concat_messages!(USER_PRESENCE, USER_STATS)
 }

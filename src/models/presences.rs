@@ -86,7 +86,7 @@ impl Presence {
         self.privileges.contains(Privileges::Player)
     }
 
-    pub fn to_bancho(&self) -> UserStats<'_> {
+    pub fn to_bancho_stats(&self) -> UserStats<'_> {
         UserStats {
             user_id: self.user_id as _,
             action: self.action.to_bancho(),
@@ -111,7 +111,7 @@ impl Presence {
                 self.location.latitude,
                 self.location.longitude,
             ),
-            self.to_bancho(),
+            self.to_bancho_stats(),
         }
     }
 }
