@@ -13,6 +13,7 @@ use sqlx::{MySql, Pool};
 pub mod osu;
 pub mod v1;
 
+#[derive(Clone)]
 pub struct RequestContext {
     pub db: Pool<MySql>,
     pub redis: RedisPool,

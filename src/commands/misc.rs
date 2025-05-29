@@ -24,5 +24,5 @@ pub async fn alert_user<C: Context + ?Sized>(
     };
     streams::broadcast_message(ctx, StreamName::User(session.session_id), alert, None, None)
         .await?;
-    Ok(())
+    Ok("Alert sent successfully.".to_owned())
 }

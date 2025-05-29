@@ -5,6 +5,7 @@ use axum::http::request::Parts;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 
+#[derive(Clone)]
 pub struct IpAddrInfo {
     pub ip_addr: IpAddr,
 }

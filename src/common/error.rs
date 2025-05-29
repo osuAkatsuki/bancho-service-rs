@@ -8,19 +8,23 @@ pub enum AppError {
     DecodingRequestFailed,
     InternalServerError(&'static str),
     UnsupportedClientVersion,
-    Unauthorized,
     ClientTooOld,
+    InteractionBlocked,
 
     ChannelsNotFound,
     ChannelsUnauthorized,
 
     /// 0: Syntax, 1: Type Signature, 2: Typed Syntax
     CommandsInvalidSyntax(&'static str, &'static str, &'static str),
+    CommandsUnknownCommand,
+    CommandsUnauthorized,
 
     MessagesTooLong,
     MessagesUserAutoSilenced,
 
     PresencesNotFound,
+
+    RelationshipsNotFound,
 
     UsersNotFound,
 
@@ -48,18 +52,22 @@ impl AppError {
             AppError::DecodingRequestFailed => "decoding_request_failed",
             AppError::InternalServerError(_) => "internal_server_error",
             AppError::UnsupportedClientVersion => "unsupported_client_version",
-            AppError::Unauthorized => "unauthorized",
             AppError::ClientTooOld => "client_too_old",
+            AppError::InteractionBlocked => "interaction_blocked",
 
             AppError::ChannelsNotFound => "channels.not_found",
             AppError::ChannelsUnauthorized => "channels.unauthorized",
 
             AppError::CommandsInvalidSyntax(_, _, _) => "commands.invalid_syntax",
+            AppError::CommandsUnknownCommand => "commands.unknown_command",
+            AppError::CommandsUnauthorized => "commands.unauthorized",
 
             AppError::MessagesTooLong => "messages.too_long",
             AppError::MessagesUserAutoSilenced => "messages.user_auto_silenced",
 
             AppError::PresencesNotFound => "presences.not_found",
+
+            AppError::RelationshipsNotFound => "relationships.not_found",
 
             AppError::UsersNotFound => "users.not_found",
 
@@ -76,20 +84,32 @@ impl AppError {
             AppError::DecodingRequestFailed => "Failed to decode request",
             AppError::InternalServerError(_) => "An internal server error has occurred.",
             AppError::UnsupportedClientVersion => "Client is unsupported",
-            AppError::Unauthorized => "Unauthorized",
             AppError::ClientTooOld => "Client is too old",
+            AppError::InteractionBlocked => {
+                "You do not have permission to interact with this user."
+            }
 
             AppError::ChannelsNotFound => "Channel not found",
-            AppError::ChannelsUnauthorized => "Unauthorized",
+            AppError::ChannelsUnauthorized => {
+                "You do not have permission to send messages to this channel."
+            }
 
             AppError::CommandsInvalidSyntax(_, _, _) => "Invalid Command Syntax",
+            AppError::CommandsUnknownCommand => "Unknown Command",
+            AppError::CommandsUnauthorized => {
+                "You do not have sufficient privileges to use this command."
+            }
 
-            AppError::MessagesTooLong => "Message is too long",
-            AppError::MessagesUserAutoSilenced => "User has been auto-silenced",
+            AppError::MessagesTooLong => "Your message was too long. It has not been sent.",
+            AppError::MessagesUserAutoSilenced => {
+                "You have sent too many messages in a short period of time."
+            }
 
             AppError::PresencesNotFound => "Presence not found",
 
-            AppError::UsersNotFound => "User not found",
+            AppError::RelationshipsNotFound => "Relationship not found",
+
+            AppError::UsersNotFound => "This user does not exist.",
 
             AppError::SessionsLoginForbidden => "Your account is not allowed to login.",
             AppError::SessionsInvalidCredentials => {

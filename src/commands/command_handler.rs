@@ -10,7 +10,9 @@ use std::sync::LazyLock;
 
 pub type CommandRouterInstance = LazyLock<CommandRouter>;
 pub struct RegisteredCommand {
-    pub required_privileges: Privileges,
+    pub forward_message: bool,
+    pub required_privileges: Option<Privileges>,
+    pub read_privileges: Option<Privileges>,
     handler: Box<dyn CommandHandlerProxy>,
 }
 
@@ -21,7 +23,9 @@ pub struct CommandRouter {
 #[async_trait]
 pub trait Command<Args: for<'a> FromCommandArgs<'a>>: 'static + Send + Sync {
     const NAME: &'static str;
-    const REQUIRED_PRIVILEGES: Privileges = Privileges::None;
+    const FORWARD_MESSAGE: bool = true;
+    const REQUIRED_PRIVILEGES: Option<Privileges> = None;
+    const READ_PRIVILEGES: Option<Privileges> = None;
     async fn handle<C: Context + ?Sized>(ctx: &C, session: &Session, args: Args) -> CommandResult;
 }
 
@@ -68,7 +72,9 @@ impl CommandRouter {
 impl RegisteredCommand {
     pub fn new<Args: 'static + for<'a> FromCommandArgs<'a>, C: Command<Args>>(cmd: C) -> Self {
         Self {
+            forward_message: C::FORWARD_MESSAGE,
             required_privileges: C::REQUIRED_PRIVILEGES,
+            read_privileges: C::READ_PRIVILEGES,
             handler: Box::new(Proxy::new(cmd)),
         }
     }

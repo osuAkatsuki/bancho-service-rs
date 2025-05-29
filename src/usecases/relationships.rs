@@ -5,6 +5,17 @@ use crate::repositories::relationships;
 use crate::usecases::users;
 use tracing::warn;
 
+pub async fn fetch_one<C: Context>(
+    ctx: &C,
+    follower_id: i64,
+    friend_id: i64,
+) -> ServiceResult<Relationship> {
+    match relationships::fetch_one(ctx, follower_id, friend_id).await {
+        Ok(relationship) => Ok(Relationship::from(relationship)),
+        Err(e) => unexpected(e),
+    }
+}
+
 pub async fn fetch_friends<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<Vec<Relationship>> {
     match relationships::fetch_friends(ctx, user_id).await {
         Ok(friends) => Ok(friends.into_iter().map(Relationship::from).collect()),

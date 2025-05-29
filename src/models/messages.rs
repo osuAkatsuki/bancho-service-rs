@@ -12,6 +12,12 @@ pub enum Recipient<'a> {
     Bot,
 }
 
+pub enum MessageSendResult {
+    Ok,
+    CommandExecuted,
+    CommandResponse(String),
+}
+
 pub struct Message {
     pub message_id: u64,
     pub sender_id: i64,

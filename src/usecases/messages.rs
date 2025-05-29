@@ -1,16 +1,20 @@
 use crate::commands;
+use crate::commands::{COMMAND_PREFIX, CommandExecutionResult};
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::bot;
-use crate::models::messages::{Message, Recipient};
+use crate::entities::channels::ChannelName;
+use crate::models::messages::{Message, MessageSendResult, Recipient};
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::messages;
-use crate::usecases::{channels, streams, users};
+use crate::usecases::{channels, relationships, streams, users};
 use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::server::{Alert, ChatMessage, TargetSilenced};
 use bancho_protocol::serde::BinarySerialize;
 use bancho_protocol::structures::IrcMessage;
+use tracing::error;
+use uuid::Uuid;
 
 const CHAT_SPAM_RATE_INTERVAL: u64 = 10;
 const CHAT_SPAM_RATE: i64 = 10;
@@ -45,14 +49,92 @@ pub async fn delete_recent<C: Context>(
     }
 }
 
+struct RecipientInfo<'a> {
+    recipient_channel: Option<ChannelName<'a>>,
+    recipient_id: Option<i64>,
+    mark_as_unread: bool,
+    excluded_session_ids: Option<Vec<Uuid>>,
+}
+
+impl Default for RecipientInfo<'_> {
+    fn default() -> Self {
+        Self {
+            recipient_channel: None,
+            recipient_id: None,
+            mark_as_unread: false,
+            excluded_session_ids: None,
+        }
+    }
+}
+
+async fn get_recipient_info<'a, C: Context>(
+    ctx: &C,
+    sender: &Session,
+    recipient: Recipient<'a>,
+) -> ServiceResult<RecipientInfo<'a>> {
+    match recipient {
+        Recipient::Channel(channel_name) => {
+            let channel = channels::fetch_one(ctx, channel_name).await?;
+            if !channel.can_write(sender.privileges) {
+                return Err(AppError::ChannelsUnauthorized);
+            }
+
+            Ok(RecipientInfo {
+                recipient_channel: Some(channel_name),
+                excluded_session_ids: Some(vec![sender.session_id]),
+                ..Default::default()
+            })
+        }
+        Recipient::UserSession(receiver_session) => {
+            if !receiver_session.is_publicly_visible()
+                && !sender.has_all_privileges(Privileges::AdminCaker)
+            {
+                return Err(AppError::InteractionBlocked);
+            }
+            if receiver_session.private_dms {
+                match relationships::fetch_one(ctx, receiver_session.user_id, sender.user_id).await
+                {
+                    Err(AppError::RelationshipsNotFound) => {
+                        return Err(AppError::InteractionBlocked);
+                    }
+                    Ok(_) => {}
+                    Err(e) => error!("Error fetching relationship: {e:?}"),
+                }
+            }
+            Ok(RecipientInfo {
+                recipient_id: Some(receiver_session.user_id),
+                ..Default::default()
+            })
+        }
+        Recipient::OfflineUser(username) => {
+            let user = users::fetch_one_by_username(ctx, username).await?;
+            if !user.privileges.is_publicly_visible()
+                && !sender.has_all_privileges(Privileges::AdminCaker)
+            {
+                return Err(AppError::InteractionBlocked);
+            }
+
+            Ok(RecipientInfo {
+                recipient_id: Some(user.user_id),
+                mark_as_unread: true,
+                ..Default::default()
+            })
+        }
+        Recipient::Bot => Ok(RecipientInfo {
+            recipient_id: Some(bot::BOT_ID),
+            ..Default::default()
+        }),
+    }
+}
+
 pub async fn send<C: Context>(
     ctx: &C,
     session: &Session,
     recipient: Recipient<'_>,
-    args: IrcMessage<'_>,
-) -> ServiceResult<()> {
+    args: &IrcMessage<'_>,
+) -> ServiceResult<MessageSendResult> {
     if session.is_silenced() {
-        return Ok(());
+        return Ok(MessageSendResult::Ok);
     }
 
     if args.text.len() > 500 {
@@ -66,72 +148,81 @@ pub async fn send<C: Context>(
         return Err(AppError::MessagesUserAutoSilenced);
     }
 
-    let mut recipient_channel = None;
-    let mut recipient_id = None;
-    let mut mark_as_unread = false;
-    let mut excluded_session_ids = None;
-    match recipient {
-        Recipient::Channel(channel_name) => {
-            let channel = channels::fetch_one(ctx, channel_name).await?;
-            if !channel.can_write(session.privileges) {
-                return Err(AppError::ChannelsUnauthorized);
-            }
-            recipient_channel = Some(channel_name);
-            excluded_session_ids = Some(vec![session.session_id]);
-        }
-        Recipient::UserSession(receiver_session) => {
-            if !receiver_session.is_publicly_visible()
-                && !session.has_all_privileges(Privileges::AdminCaker)
-            {
-                return Err(AppError::Unauthorized);
-            }
-            recipient_id = Some(receiver_session.user_id);
-        }
-        Recipient::OfflineUser(username) => {
-            let user = users::fetch_one_by_username(ctx, username).await?;
-            if !user.privileges.is_publicly_visible()
-                && !session.has_all_privileges(Privileges::AdminCaker)
-            {
-                return Err(AppError::Unauthorized);
-            }
-            recipient_id = Some(user.user_id);
-            mark_as_unread = true;
-        }
-        Recipient::Bot => {
-            recipient_id = Some(bot::BOT_ID);
-        }
-    }
-
-    if commands::is_command_message(args.text) && recipient.can_process_commands() {
-        commands::handle_command(ctx, session, args.text, recipient_channel).await;
-    }
-
+    let recipient_info = get_recipient_info(ctx, session, recipient).await?;
     messages::send(
         ctx,
         session.user_id,
-        recipient_channel,
-        recipient_id,
+        recipient_info.recipient_channel,
+        recipient_info.recipient_id,
         args.text,
-        mark_as_unread,
+        recipient_info.mark_as_unread,
     )
     .await?;
-    if let Some(stream_name) = recipient.get_message_stream() {
-        let msg = IrcMessage {
-            sender: &session.username,
-            text: args.text,
-            recipient: args.recipient,
-            sender_id: session.user_id as _,
-        };
-        streams::broadcast_message(
-            ctx,
-            stream_name,
-            ChatMessage(&msg),
-            excluded_session_ids,
-            None,
-        )
-        .await?;
+
+    let mut forward_message = true;
+    let mut read_privileges = None;
+    let mut cmd_response = None;
+    if commands::is_command_message(args.text) && recipient.can_process_commands() {
+        let success = commands::handle_command(ctx, session, args.text).await?;
+        match success {
+            CommandExecutionResult::NoCommand => {}
+            CommandExecutionResult::Success {
+                response,
+                forward_message: cmd_fw_message,
+                read_privileges: cmd_read_privileges,
+            } => {
+                cmd_response = Some(response);
+                forward_message = cmd_fw_message;
+                read_privileges = cmd_read_privileges;
+            }
+        }
     }
-    Ok(())
+
+    if let Some(stream_name) = recipient.get_message_stream() {
+        if forward_message {
+            let msg = IrcMessage {
+                sender: &session.username,
+                text: args.text,
+                recipient: args.recipient,
+                sender_id: session.user_id as _,
+            };
+            streams::broadcast_message(
+                ctx,
+                stream_name,
+                ChatMessage(&msg),
+                recipient_info.excluded_session_ids,
+                read_privileges,
+            )
+            .await?;
+        }
+    }
+
+    match cmd_response {
+        Some(response) => match forward_message {
+            true => match recipient.get_message_stream() {
+                Some(stream_name) => {
+                    let msg = IrcMessage {
+                        sender: bot::BOT_NAME,
+                        text: &response,
+                        recipient: args.recipient,
+                        sender_id: bot::BOT_ID as _,
+                    };
+                    streams::broadcast_message(
+                        ctx,
+                        stream_name,
+                        ChatMessage(&msg),
+                        None,
+                        read_privileges,
+                    )
+                    .await?;
+                    Ok(MessageSendResult::Ok)
+                }
+                _ => Ok(MessageSendResult::CommandResponse(response)),
+            },
+            false => Ok(MessageSendResult::CommandResponse(response)),
+        },
+        None => Ok(MessageSendResult::Ok),
+    }
 }
 
 pub async fn send_bancho<C: Context>(
@@ -140,8 +231,8 @@ pub async fn send_bancho<C: Context>(
     recipient: Recipient<'_>,
     message: IrcMessage<'_>,
 ) -> ServiceResult<Option<Vec<u8>>> {
-    match send(ctx, session, recipient, message).await {
-        Ok(()) => match recipient {
+    match send(ctx, session, recipient, &message).await {
+        Ok(result) => match recipient {
             Recipient::UserSession(recipient_session) if recipient_session.is_silenced() => {
                 let response = TargetSilenced::new(&recipient_session.username);
                 Ok(Some(response.as_message().serialize()))
@@ -155,37 +246,52 @@ pub async fn send_bancho<C: Context>(
                 };
                 Ok(Some(ChatMessage(&offline_msg).as_message().serialize()))
             }
-            _ => Ok(None),
+            _ => match result {
+                MessageSendResult::Ok | MessageSendResult::CommandExecuted => Ok(None),
+                MessageSendResult::CommandResponse(response) => {
+                    let cmd_response = IrcMessage {
+                        sender: bot::BOT_NAME,
+                        text: &response,
+                        recipient: &session.username,
+                        sender_id: bot::BOT_ID as _,
+                    };
+                    Ok(Some(ChatMessage(&cmd_response).as_message().serialize()))
+                }
+            },
         },
-        Err(AppError::MessagesTooLong) => {
+        Err(
+            e @ (AppError::InteractionBlocked
+            | AppError::ChannelsUnauthorized
+            | AppError::CommandsUnauthorized
+            | AppError::MessagesTooLong
+            | AppError::MessagesUserAutoSilenced
+            | AppError::UsersNotFound),
+        ) => {
             let alert = Alert {
-                message: "Your message was too long. It has not been sent.",
+                message: e.message(),
             };
             Ok(Some(alert.as_message().serialize()))
         }
-        Err(AppError::MessagesUserAutoSilenced) => {
-            let alert = Alert {
-                message: "You have sent too many messages in a short period of time.",
+        Err(AppError::CommandsInvalidSyntax(syntax, _, typed)) => {
+            let recipient = match recipient {
+                Recipient::Bot => session.username.as_str(),
+                Recipient::Channel(ref channel_name) => channel_name.to_bancho(),
+                _ => unreachable!(),
             };
-            Ok(Some(alert.as_message().serialize()))
-        }
-        Err(AppError::ChannelsUnauthorized) => {
-            let alert = Alert {
-                message: "You do not have permission to send messages to this channel.",
+            let cmd_name = match message.text.find(' ') {
+                None => &message.text[1..],
+                Some(idx) => &message.text[1..idx],
             };
-            Ok(Some(alert.as_message().serialize()))
-        }
-        Err(AppError::Unauthorized) => {
-            let alert = Alert {
-                message: "You do not have permission to send messages to this user.",
+            let text = format!(
+                "Invalid Command Syntax! Correct Syntax: {COMMAND_PREFIX}{cmd_name} {syntax}\n{typed}",
+            );
+            let syntax_message = IrcMessage {
+                recipient,
+                text: text.as_str(),
+                sender: bot::BOT_NAME,
+                sender_id: bot::BOT_ID as _,
             };
-            Ok(Some(alert.as_message().serialize()))
-        }
-        Err(AppError::UsersNotFound) => {
-            let alert = Alert {
-                message: "This user does not exist.",
-            };
-            Ok(Some(alert.as_message().serialize()))
+            Ok(Some(ChatMessage(&syntax_message).as_message().serialize()))
         }
         Err(e) => Err(e),
     }
