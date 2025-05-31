@@ -3,21 +3,21 @@ use chrono::{DateTime, Utc};
 use std::str::FromStr;
 
 pub struct NoArg;
-pub trait FromCommandArgs<'a>: Sized + Send + Sync {
-    fn from_args(args: Option<&'a str>) -> ServiceResult<Self>;
+pub trait FromCommandArgs: Sized {
+    fn from_args(args: Option<&str>) -> ServiceResult<Self>;
     const TYPE_SIGNATURE: &'static str;
     const SYNTAX: &'static str = "args";
     const TYPED_SYNTAX: &'static str = "args";
 }
 
-impl FromCommandArgs<'_> for NoArg {
+impl FromCommandArgs for NoArg {
     fn from_args(_args: Option<&'_ str>) -> ServiceResult<Self> {
         Ok(NoArg)
     }
     const TYPE_SIGNATURE: &'static str = "nothing";
 }
 
-impl FromCommandArgs<'_> for String {
+impl FromCommandArgs for String {
     fn from_args(args: Option<&'_ str>) -> ServiceResult<Self> {
         args.map(str::to_string)
             .ok_or(AppError::CommandsInvalidSyntax(
@@ -37,8 +37,8 @@ impl FromCommandArgs<'_> for String {
 
 macro_rules! impl_from_args {
     ($t:ty) => {
-        impl FromCommandArgs<'_> for $t {
-            fn from_args(args: Option<&'_ str>) -> ServiceResult<Self> {
+        impl FromCommandArgs for $t {
+            fn from_args(args: Option<&str>) -> ServiceResult<Self> {
                 match args {
                     None => Err(AppError::CommandsInvalidSyntax(Self::SYNTAX, Self::TYPE_SIGNATURE, Self::TYPED_SYNTAX)),
                     Some(args) => {
@@ -76,8 +76,8 @@ impl_from_args!(
     DateTime<Utc>
 );
 
-impl<'a, T: FromCommandArgs<'a>> FromCommandArgs<'a> for Option<T> {
-    fn from_args(args: Option<&'a str>) -> ServiceResult<Self> {
+impl<T: FromCommandArgs> FromCommandArgs for Option<T> {
+    fn from_args(args: Option<&str>) -> ServiceResult<Self> {
         match args {
             Some(args) => Ok(Some(T::from_args(Some(args))?)),
             None => Ok(None),

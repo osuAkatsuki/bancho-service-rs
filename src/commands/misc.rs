@@ -1,5 +1,6 @@
 use crate::commands::CommandResult;
 use crate::common::context::Context;
+use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{sessions, streams};
@@ -12,8 +13,11 @@ pub struct AlertUserArgs {
     pub message: String,
 }
 
-#[command("alert")]
-pub async fn alert_user<C: Context + ?Sized>(
+#[command(
+    "alert",
+    required_privileges = Privileges::AdminCaker,
+)]
+pub async fn alert_user<C: Context>(
     ctx: &C,
     _sender: &Session,
     args: AlertUserArgs,

@@ -57,7 +57,7 @@ pub async fn fetch_one_by_user_id<C: Context>(
     }
 }
 
-pub async fn fetch_one_by_username<C: Context + ?Sized>(
+pub async fn fetch_one_by_username<C: Context>(
     ctx: &C,
     username: &str,
 ) -> anyhow::Result<Option<Session>> {
@@ -98,7 +98,7 @@ pub async fn update<C: Context>(ctx: &C, session: Session) -> anyhow::Result<Ses
     Ok(session)
 }
 
-pub async fn delete<C: Context + ?Sized>(
+pub async fn delete<C: Context>(
     ctx: &C,
     session_id: Uuid,
     user_id: i64,

@@ -1,5 +1,5 @@
 use crate::commands;
-use crate::commands::{COMMAND_PREFIX, CommandExecutionResult};
+use crate::commands::{COMMAND_PREFIX, CommandResponse};
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::bot;
@@ -67,66 +67,6 @@ impl Default for RecipientInfo<'_> {
     }
 }
 
-async fn get_recipient_info<'a, C: Context>(
-    ctx: &C,
-    sender: &Session,
-    recipient: Recipient<'a>,
-) -> ServiceResult<RecipientInfo<'a>> {
-    match recipient {
-        Recipient::Channel(channel_name) => {
-            let channel = channels::fetch_one(ctx, channel_name).await?;
-            if !channel.can_write(sender.privileges) {
-                return Err(AppError::ChannelsUnauthorized);
-            }
-
-            Ok(RecipientInfo {
-                recipient_channel: Some(channel_name),
-                excluded_session_ids: Some(vec![sender.session_id]),
-                ..Default::default()
-            })
-        }
-        Recipient::UserSession(receiver_session) => {
-            if !receiver_session.is_publicly_visible()
-                && !sender.has_all_privileges(Privileges::AdminCaker)
-            {
-                return Err(AppError::InteractionBlocked);
-            }
-            if receiver_session.private_dms {
-                match relationships::fetch_one(ctx, receiver_session.user_id, sender.user_id).await
-                {
-                    Err(AppError::RelationshipsNotFound) => {
-                        return Err(AppError::InteractionBlocked);
-                    }
-                    Ok(_) => {}
-                    Err(e) => error!("Error fetching relationship: {e:?}"),
-                }
-            }
-            Ok(RecipientInfo {
-                recipient_id: Some(receiver_session.user_id),
-                ..Default::default()
-            })
-        }
-        Recipient::OfflineUser(username) => {
-            let user = users::fetch_one_by_username(ctx, username).await?;
-            if !user.privileges.is_publicly_visible()
-                && !sender.has_all_privileges(Privileges::AdminCaker)
-            {
-                return Err(AppError::InteractionBlocked);
-            }
-
-            Ok(RecipientInfo {
-                recipient_id: Some(user.user_id),
-                mark_as_unread: true,
-                ..Default::default()
-            })
-        }
-        Recipient::Bot => Ok(RecipientInfo {
-            recipient_id: Some(bot::BOT_ID),
-            ..Default::default()
-        }),
-    }
-}
-
 pub async fn send<C: Context>(
     ctx: &C,
     session: &Session,
@@ -159,27 +99,15 @@ pub async fn send<C: Context>(
     )
     .await?;
 
-    let mut forward_message = true;
-    let mut read_privileges = None;
-    let mut cmd_response = None;
-    if commands::is_command_message(args.text) && recipient.can_process_commands() {
-        let success = commands::handle_command(ctx, session, args.text).await?;
-        match success {
-            CommandExecutionResult::NoCommand => {}
-            CommandExecutionResult::Success {
-                response,
-                forward_message: cmd_fw_message,
-                read_privileges: cmd_read_privileges,
-            } => {
-                cmd_response = Some(response);
-                forward_message = cmd_fw_message;
-                read_privileges = cmd_read_privileges;
-            }
-        }
-    }
+    let response = match commands::is_command_message(args.text) && recipient.can_process_commands()
+    {
+        true => commands::handle_command(ctx, session, args.text).await?,
+        false => CommandResponse::default(),
+    };
+    let properties = response.properties;
 
     if let Some(stream_name) = recipient.get_message_stream() {
-        if forward_message {
+        if properties.forward_message {
             let msg = IrcMessage {
                 sender: &session.username,
                 text: args.text,
@@ -191,19 +119,19 @@ pub async fn send<C: Context>(
                 stream_name,
                 ChatMessage(&msg),
                 recipient_info.excluded_session_ids,
-                read_privileges,
+                properties.read_privileges,
             )
             .await?;
         }
     }
 
-    match cmd_response {
-        Some(response) => match forward_message {
+    match response.answer {
+        Some(answer) => match properties.forward_message {
             true => match recipient.get_message_stream() {
                 Some(stream_name) => {
                     let msg = IrcMessage {
                         sender: bot::BOT_NAME,
-                        text: &response,
+                        text: &answer,
                         recipient: args.recipient,
                         sender_id: bot::BOT_ID as _,
                     };
@@ -212,14 +140,14 @@ pub async fn send<C: Context>(
                         stream_name,
                         ChatMessage(&msg),
                         None,
-                        read_privileges,
+                        properties.read_privileges,
                     )
                     .await?;
                     Ok(MessageSendResult::Ok)
                 }
-                _ => Ok(MessageSendResult::CommandResponse(response)),
+                _ => Ok(MessageSendResult::CommandResponse(answer)),
             },
-            false => Ok(MessageSendResult::CommandResponse(response)),
+            false => Ok(MessageSendResult::CommandResponse(answer)),
         },
         None => Ok(MessageSendResult::Ok),
     }
@@ -294,5 +222,65 @@ pub async fn send_bancho<C: Context>(
             Ok(Some(ChatMessage(&syntax_message).as_message().serialize()))
         }
         Err(e) => Err(e),
+    }
+}
+
+async fn get_recipient_info<'a, C: Context>(
+    ctx: &C,
+    sender: &Session,
+    recipient: Recipient<'a>,
+) -> ServiceResult<RecipientInfo<'a>> {
+    match recipient {
+        Recipient::Channel(channel_name) => {
+            let channel = channels::fetch_one(ctx, channel_name).await?;
+            if !channel.can_write(sender.privileges) {
+                return Err(AppError::ChannelsUnauthorized);
+            }
+
+            Ok(RecipientInfo {
+                recipient_channel: Some(channel_name),
+                excluded_session_ids: Some(vec![sender.session_id]),
+                ..Default::default()
+            })
+        }
+        Recipient::UserSession(receiver_session) => {
+            if !receiver_session.is_publicly_visible()
+                && !sender.has_all_privileges(Privileges::AdminCaker)
+            {
+                return Err(AppError::InteractionBlocked);
+            }
+            if receiver_session.private_dms {
+                match relationships::fetch_one(ctx, receiver_session.user_id, sender.user_id).await
+                {
+                    Err(AppError::RelationshipsNotFound) => {
+                        return Err(AppError::InteractionBlocked);
+                    }
+                    Ok(_) => {}
+                    Err(e) => error!("Error fetching relationship: {e:?}"),
+                }
+            }
+            Ok(RecipientInfo {
+                recipient_id: Some(receiver_session.user_id),
+                ..Default::default()
+            })
+        }
+        Recipient::OfflineUser(username) => {
+            let user = users::fetch_one_by_username(ctx, username).await?;
+            if !user.privileges.is_publicly_visible()
+                && !sender.has_all_privileges(Privileges::AdminCaker)
+            {
+                return Err(AppError::InteractionBlocked);
+            }
+
+            Ok(RecipientInfo {
+                recipient_id: Some(user.user_id),
+                mark_as_unread: true,
+                ..Default::default()
+            })
+        }
+        Recipient::Bot => Ok(RecipientInfo {
+            recipient_id: Some(bot::BOT_ID),
+            ..Default::default()
+        }),
     }
 }
