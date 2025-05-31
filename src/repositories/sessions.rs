@@ -3,7 +3,6 @@ use crate::common::chat::safe_username;
 use crate::common::context::Context;
 use crate::common::redis_json::Json;
 use crate::entities::sessions::{CreateSessionArgs, FallbackSession, Session};
-use chrono::TimeDelta;
 use redis::AsyncCommands;
 use std::ops::DerefMut;
 use uuid::Uuid;
@@ -131,15 +130,6 @@ pub async fn set_private_dms<C: Context>(
     private_dms: bool,
 ) -> anyhow::Result<Session> {
     session.private_dms = private_dms;
-    update(ctx, session).await
-}
-
-pub async fn silence<C: Context>(
-    ctx: &C,
-    mut session: Session,
-    silence_seconds: i64,
-) -> anyhow::Result<Session> {
-    session.silence_end = Some(chrono::Utc::now() + TimeDelta::seconds(silence_seconds));
     update(ctx, session).await
 }
 

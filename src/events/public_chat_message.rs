@@ -7,7 +7,7 @@ use bancho_protocol::messages::client::PublicChatMessage;
 
 pub async fn handle(
     ctx: &RequestContext,
-    session: &Session,
+    session: &mut Session,
     args: PublicChatMessage<'_>,
 ) -> EventResult {
     let channel_name = channels::get_channel_name(ctx, session, &args.message.recipient).await?;

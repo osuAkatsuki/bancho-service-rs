@@ -10,8 +10,9 @@ use crate::models::sessions::Session;
 use crate::models::users::User;
 use crate::repositories::streams::StreamName;
 use crate::repositories::{sessions, users};
-use crate::usecases::{channels, location, presences, spectators, stats, streams};
+use crate::usecases::{channels, location, multiplayer, presences, spectators, stats, streams};
 use bancho_protocol::messages::server::UserLogout;
+use chrono::TimeDelta;
 use uuid::Uuid;
 
 pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Session, Presence)> {
@@ -146,7 +147,7 @@ pub async fn delete(ctx: &RequestContext, session: &Session) -> ServiceResult<()
     channels::leave_all(ctx, session.session_id).await?;
     spectators::leave(ctx, session, None).await?;
     spectators::close(ctx, session.session_id).await?;
-    // multiplayer::leave_current(ctx, session.session_id).await?;
+    multiplayer::leave(ctx, session, None).await?;
 
     presences::delete(ctx, session.user_id).await?;
     sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;
@@ -173,10 +174,11 @@ pub async fn set_private_dms(
 /// Silences the given session for the given amount of seconds.
 pub async fn silence<C: Context>(
     ctx: &C,
-    session: &Session,
+    session: &mut Session,
     silence_seconds: i64,
 ) -> ServiceResult<()> {
-    match sessions::silence(ctx, session.as_entity(), silence_seconds).await {
+    session.silence_end = Some(chrono::Utc::now() + TimeDelta::seconds(silence_seconds));
+    match sessions::update(ctx, session.as_entity()).await {
         Ok(_) => Ok(()),
         Err(e) => unexpected(e),
     }

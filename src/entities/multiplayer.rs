@@ -1,3 +1,4 @@
+use bancho_protocol::structures::SlotStatus;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -38,4 +39,25 @@ pub struct MultiplayerMatchSlot {
     pub loaded: bool,
     pub skipped: bool,
     pub completed: bool,
+}
+
+impl MultiplayerMatchSlot {
+    pub fn prepare(&mut self, user_id: i64) {
+        self.status = SlotStatus::NotReady.bits();
+        self.team = 0;
+        self.mods = 0;
+        self.user_id = Some(user_id);
+        self.loaded = false;
+        self.skipped = false;
+        self.completed = false;
+    }
+    pub fn clear(&mut self) {
+        self.status = SlotStatus::Empty.bits();
+        self.team = 0;
+        self.mods = 0;
+        self.user_id = None;
+        self.loaded = false;
+        self.skipped = false;
+        self.completed = false;
+    }
 }

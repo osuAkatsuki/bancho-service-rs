@@ -22,6 +22,10 @@ pub enum AppError {
     MessagesTooLong,
     MessagesUserAutoSilenced,
 
+    MultiplayerNotFound,
+    MultiplayerInvalidPassword,
+    MultiplayerMatchFull,
+
     PresencesNotFound,
 
     RelationshipsNotFound,
@@ -65,6 +69,10 @@ impl AppError {
             AppError::MessagesTooLong => "messages.too_long",
             AppError::MessagesUserAutoSilenced => "messages.user_auto_silenced",
 
+            AppError::MultiplayerNotFound => "multiplayer.not_found",
+            AppError::MultiplayerInvalidPassword => "multiplayer.invalid_password",
+            AppError::MultiplayerMatchFull => "multiplayer.match_full",
+
             AppError::PresencesNotFound => "presences.not_found",
 
             AppError::RelationshipsNotFound => "relationships.not_found",
@@ -105,6 +113,12 @@ impl AppError {
                 "You have sent too many messages in a short period of time."
             }
 
+            AppError::MultiplayerNotFound => "The multiplayer match could not be found.",
+            AppError::MultiplayerInvalidPassword => {
+                "You have entered an invalid password for this match."
+            }
+            AppError::MultiplayerMatchFull => "The match has no free space left.",
+
             AppError::PresencesNotFound => "Presence not found",
 
             AppError::RelationshipsNotFound => "Relationship not found",
@@ -115,7 +129,7 @@ impl AppError {
             AppError::SessionsInvalidCredentials => {
                 "You have entered an invalid username or password."
             }
-            AppError::SessionsNotFound => "Session not found",
+            AppError::SessionsNotFound => "This user is currently not online",
             AppError::SessionsNeedsMigration => "Your session needs to be migrated.",
         }
     }

@@ -27,7 +27,7 @@ pub async fn fetch_one_by_username<C: Context>(ctx: &C, username: &str) -> Servi
 
 pub async fn silence_user<C: Context>(
     ctx: &C,
-    to_silence: &Session,
+    to_silence: &mut Session,
     silence_reason: &str,
     silence_seconds: i64,
 ) -> ServiceResult<()> {

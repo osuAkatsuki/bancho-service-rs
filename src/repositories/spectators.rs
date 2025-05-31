@@ -31,6 +31,7 @@ pub async fn add_member<C: Context>(
 
     let mut redis = ctx.redis().await?;
     let member_count: [usize; 1] = redis::pipe()
+        .atomic()
         .hset(SPECTATING_KEY, session_id, host_session_id)
         .ignore()
         .sadd(&key, user_id)
@@ -51,6 +52,7 @@ pub async fn remove_member<C: Context>(
 
     let mut redis = ctx.redis().await?;
     let member_count: [usize; 1] = redis::pipe()
+        .atomic()
         .hdel(SPECTATING_KEY, session_id)
         .ignore()
         .srem(&key, user_id)

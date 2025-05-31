@@ -69,7 +69,7 @@ impl Default for RecipientInfo<'_> {
 
 pub async fn send<C: Context>(
     ctx: &C,
-    session: &Session,
+    session: &mut Session,
     recipient: Recipient<'_>,
     args: &IrcMessage<'_>,
 ) -> ServiceResult<MessageSendResult> {
@@ -155,7 +155,7 @@ pub async fn send<C: Context>(
 
 pub async fn send_bancho<C: Context>(
     ctx: &C,
-    session: &Session,
+    session: &mut Session,
     recipient: Recipient<'_>,
     message: IrcMessage<'_>,
 ) -> ServiceResult<Option<Vec<u8>>> {

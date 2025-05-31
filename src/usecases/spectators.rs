@@ -1,5 +1,5 @@
 use crate::common::context::Context;
-use crate::common::error::{ServiceResult, unexpected};
+use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::channels::ChannelName;
 use crate::models::sessions::Session;
 use crate::repositories::spectators;
@@ -30,13 +30,14 @@ pub async fn fetch_all_members<C: Context>(
     }
 }
 
-pub async fn join<C: Context>(
-    ctx: &C,
-    session: &Session,
-    host_session: Session,
-) -> ServiceResult<Vec<i64>> {
+pub async fn join<C: Context>(ctx: &C, session: &Session, host_id: i64) -> ServiceResult<Vec<i64>> {
     if let Some(host_session_id) = spectators::fetch_spectating(ctx, session.session_id).await? {
         leave(ctx, session, Some(host_session_id)).await?;
+    }
+
+    let host_session = sessions::fetch_one_by_user_id(ctx, host_id).await?;
+    if !session.is_publicly_visible() {
+        return Err(AppError::InteractionBlocked);
     }
 
     let member_count = spectators::add_member(

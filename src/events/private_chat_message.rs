@@ -9,7 +9,7 @@ use bancho_protocol::messages::client::PrivateChatMessage;
 
 pub async fn handle(
     ctx: &RequestContext,
-    session: &Session,
+    session: &mut Session,
     args: PrivateChatMessage<'_>,
 ) -> EventResult {
     let recipient_name = args.message.recipient;

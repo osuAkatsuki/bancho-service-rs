@@ -27,6 +27,7 @@ pub struct MultiplayerMatch {
     pub random_seed: i32,
 }
 
+#[derive(Copy, Clone)]
 pub struct MultiplayerMatchSlot {
     pub status: SlotStatus,
     pub team: MatchTeam,
@@ -46,10 +47,9 @@ impl MultiplayerMatch {
     }
 
     pub fn to_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match {
-        let freemods = if self.freemod_enabled {
-            Some(slots.to_mods())
-        } else {
-            None
+        let freemods = match self.freemod_enabled {
+            true => Some(slots.to_mods()),
+            false => None,
         };
         Match {
             id: self.ingame_match_id(),
