@@ -56,6 +56,7 @@ pub async fn remove_member<C: Context>(
         .hdel(SPECTATING_KEY, session_id)
         .ignore()
         .srem(&key, user_id)
+        .ignore()
         .scard(key)
         .query_async(redis.deref_mut())
         .await?;

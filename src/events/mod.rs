@@ -7,9 +7,26 @@ pub mod lobby_join;
 pub mod lobby_leave;
 pub mod login;
 pub mod logout;
+pub mod match_change_mods;
+pub mod match_change_settings;
+pub mod match_change_slot;
+pub mod match_change_team;
 pub mod match_create;
+pub mod match_failed;
+pub mod match_has_beatmap;
+pub mod match_invite;
 pub mod match_join;
 pub mod match_leave;
+pub mod match_loaded;
+pub mod match_lock_slot;
+pub mod match_no_beatmap;
+pub mod match_not_ready;
+pub mod match_player_complete;
+pub mod match_ready;
+pub mod match_request_skip;
+pub mod match_start;
+pub mod match_transfer_host;
+pub mod match_update_score;
 pub mod private_chat_message;
 pub mod public_chat_message;
 pub mod receive_updates;
@@ -23,24 +40,6 @@ pub mod stop_spectating;
 pub mod toggle_private_dms;
 pub mod update_stats_request;
 pub mod user_stats_request;
-/*pub mod match_change_slot;
-pub mod match_ready;
-pub mod match_lock_slot;
-pub mod match_change_settings;
-pub mod match_start;
-pub mod match_update_score;
-pub mod match_player_complete;
-pub mod match_change_mods;
-pub mod match_loaded;
-pub mod match_no_beatmap;
-pub mod match_not_ready;
-pub mod match_failed;
-pub mod match_has_beatmap;
-pub mod match_request_skip;
-pub mod match_transfer_host;
-pub mod match_change_team;
-pub mod match_invite;
-pub mod match_change_password;*/
 
 use crate::api::RequestContext;
 use crate::common::error::{AppError, ServiceResult};
@@ -139,13 +138,15 @@ pub async fn handle_event(
         MessageType::CreateMatch => event_handler!(match_create(ctx, session, event)),
         MessageType::JoinMatch => event_handler!(match_join(ctx, session, event)),
         MessageType::LeaveMatch => event_handler!(match_leave(ctx, session)),
-        /*MessageType::MatchChangeSlot => event_handler!(match_change_slot(ctx, session, event)),
+        MessageType::MatchChangeSlot => event_handler!(match_change_slot(ctx, session, event)),
         MessageType::MatchReady => event_handler!(match_ready(ctx, session)),
         MessageType::MatchLock => event_handler!(match_lock_slot(ctx, session, event)),
-        MessageType::MatchChangeSettings => event_handler!(match_change_settings(ctx, session, event)),
+        MessageType::MatchChangeSettings => {
+            event_handler!(match_change_settings(ctx, session, event))
+        }
         MessageType::StartMatch => event_handler!(match_start(ctx, session)),
         MessageType::UpdateMatchScore => event_handler!(match_update_score(ctx, session, event)),
-        MessageType::MatchPlayerComplete => event_handler!(match_player_complete(ctx, session, event)),
+        MessageType::MatchPlayerComplete => event_handler!(match_player_complete(ctx, session)),
         MessageType::MatchChangeMods => event_handler!(match_change_mods(ctx, session, event)),
         MessageType::MatchLoadComplete => event_handler!(match_loaded(ctx, session)),
         MessageType::MatchNoBeatmap => event_handler!(match_no_beatmap(ctx, session)),
@@ -155,8 +156,10 @@ pub async fn handle_event(
         MessageType::MatchSkipRequest => event_handler!(match_request_skip(ctx, session)),
         MessageType::MatchChangeHost => event_handler!(match_transfer_host(ctx, session, event)),
         MessageType::MatchChangeTeam => event_handler!(match_change_team(ctx, session)),
-        MessageType::MatchInvite => event_handler!(match_invite(ctx, session)),
-        MessageType::MatchChangePassword => event_handler!(match_change_password(ctx, session, event)),*/
+        MessageType::MatchInvite => event_handler!(match_invite(ctx, session, event)),
+        MessageType::MatchChangePassword => {
+            event_handler!(match_change_settings(ctx, session, event))
+        }
         /*MessageType::TournamentMatchInfoRequest => ,
         MessageType::TournamentJoinMatchChannel => ,
         MessageType::TournamentLeaveMatchChannel => ,*/

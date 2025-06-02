@@ -17,9 +17,11 @@ pub async fn get_channel_name<'a, C: Context>(
 ) -> ServiceResult<ChannelName<'a>> {
     match channel_name {
         "#spectator" => {
-            let host_session_id = spectators::fetch_spectating(ctx, session.session_id)
-                .await?
-                .ok_or(AppError::ChannelsUnauthorized)?;
+            let host_session_id =
+                match spectators::fetch_spectating(ctx, session.session_id).await? {
+                    Some(host_session_id) => host_session_id,
+                    None => session.session_id,
+                };
             Ok(ChannelName::Spectator(host_session_id))
         }
         "#multiplayer" => {

@@ -1,5 +1,6 @@
 pub mod channels;
 pub mod location;
+pub mod match_events;
 pub mod messages;
 pub mod multiplayer;
 pub mod presences;

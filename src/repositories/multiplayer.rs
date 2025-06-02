@@ -76,21 +76,43 @@ pub async fn create<C: Context>(
     Ok((mp_match, slots_from_json_with_index(slots)))
 }
 
+pub async fn delete<C: Context>(ctx: &C, match_id: i64) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let slots_key = make_slots_key(match_id);
+    redis::pipe()
+        .atomic()
+        .del(slots_key)
+        .ignore()
+        .hdel(KEY, match_id)
+        .ignore()
+        .exec_async(redis.deref_mut())
+        .await?;
+
+    sqlx::query("UPDATE matches SET end_time = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(match_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
 pub async fn join<C: Context>(
     ctx: &C,
     session_id: Uuid,
     user_id: i64,
     match_id: i64,
 ) -> anyhow::Result<Option<[MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE]>> {
-    let mut slots = fetch_all_slots_with_ids(ctx, match_id).await?;
-    let slot = match slots
+    let mut slots = fetch_all_slots(ctx, match_id).await?;
+    let (slot_id, slot) = match slots
         .iter_mut()
-        .find(|(_, slot)| slot.0.status == SlotStatus::Empty.bits())
+        .enumerate()
+        .find(|(_, slot)| slot.status == SlotStatus::Empty.bits())
     {
-        Some((_, slot)) => &mut slot.0,
+        Some((id, slot)) => {
+            slot.prepare(user_id);
+            (id, *slot)
+        }
         None => return Ok(None),
     };
-    slot.prepare(user_id);
 
     let mut redis = ctx.redis().await?;
     let slots_key = make_slots_key(match_id);
@@ -98,11 +120,11 @@ pub async fn join<C: Context>(
         .atomic()
         .hset(SESSIONS_MATCHES_KEY, session_id, match_id)
         .ignore()
-        .hset_multiple(slots_key, &slots)
+        .hset(slots_key, slot_id, Json(slot))
         .ignore()
         .exec_async(redis.deref_mut())
         .await?;
-    Ok(Some(slots_from_json_with_index(slots)))
+    Ok(Some(slots))
 }
 
 pub async fn leave<C: Context>(
@@ -111,18 +133,20 @@ pub async fn leave<C: Context>(
     user_id: i64,
     match_id: i64,
 ) -> anyhow::Result<Option<(usize, [MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE])>> {
-    let mut slots = fetch_all_slots_with_ids(ctx, match_id).await?;
-    match slots
+    let mut slots = fetch_all_slots(ctx, match_id).await?;
+    let (slot_id, slot) = match slots
         .iter_mut()
-        .find(|(_, slot)| slot.0.user_id.is_some_and(|id| id == user_id))
+        .filter(|slot| slot.user_id.is_some())
+        .enumerate()
+        .find(|(_, slot)| slot.user_id.is_some_and(|id| id == user_id))
     {
-        Some((_, slot)) => slot.0.clear(),
+        Some((id, slot)) => {
+            slot.clear();
+            (id, *slot)
+        }
         None => return Ok(None),
-    }
-    let user_count = slots
-        .iter()
-        .filter(|(_, slot)| slot.0.user_id.is_some())
-        .count();
+    };
+    let user_count = slots.iter().filter(|slot| slot.user_id.is_some()).count();
 
     let slots_key = make_slots_key(match_id);
     let mut pipe = redis::pipe();
@@ -132,11 +156,11 @@ pub async fn leave<C: Context>(
     if user_count == 0 {
         pipe.hdel(KEY, match_id).ignore().del(slots_key).ignore();
     } else {
-        pipe.hset_multiple(slots_key, &slots).ignore();
+        pipe.hset(slots_key, slot_id, Json(slot)).ignore();
     }
     let mut redis = ctx.redis().await?;
     pipe.exec_async(redis.deref_mut()).await?;
-    Ok(Some((user_count, slots_from_json_with_index(slots))))
+    Ok(Some((user_count, slots)))
 }
 
 pub async fn fetch_session_match_id<C: Context>(
@@ -197,17 +221,65 @@ pub async fn fetch_all_slots<C: Context>(
     Ok(slots_from_json(slots))
 }
 
-// utility
+pub async fn update<C: Context>(
+    ctx: &C,
+    mp_match: MultiplayerMatch,
+    update_persistent: bool,
+) -> anyhow::Result<MultiplayerMatch> {
+    let mut redis = ctx.redis().await?;
+    let _: () = redis.hset(KEY, mp_match.match_id, Json(&mp_match)).await?;
 
-async fn fetch_all_slots_with_ids<C: Context>(
+    if update_persistent {
+        let is_private = !mp_match.password.is_empty();
+        sqlx::query("UPDATE matches SET name = ?, private = ? WHERE id = ?")
+            .bind(&mp_match.name)
+            .bind(is_private)
+            .bind(mp_match.match_id)
+            .execute(ctx.db())
+            .await?;
+    }
+
+    Ok(mp_match)
+}
+
+pub async fn update_slot<C: Context>(
     ctx: &C,
     match_id: i64,
-) -> anyhow::Result<[(usize, Json<MultiplayerMatchSlot>); MULTIPLAYER_MAX_SIZE]> {
+    slot_id: usize,
+    slot: MultiplayerMatchSlot,
+) -> anyhow::Result<()> {
     let mut redis = ctx.redis().await?;
     let slots_key = make_slots_key(match_id);
-    let slots = redis.hgetall(slots_key).await?;
-    Ok(slots)
+    let _: () = redis.hset(slots_key, slot_id, Json(&slot)).await?;
+    Ok(())
 }
+
+pub async fn update_slots<const N: usize, C: Context>(
+    ctx: &C,
+    match_id: i64,
+    slots: [(usize, MultiplayerMatchSlot); N],
+) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let slots_key = make_slots_key(match_id);
+    let slots: [(usize, Json<MultiplayerMatchSlot>); N] =
+        std::array::from_fn(|i| (slots[i].0, Json(slots[i].1)));
+    let _: () = redis.hset_multiple(slots_key, &slots).await?;
+    Ok(())
+}
+
+pub async fn update_all_slots<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    slots: [MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE],
+) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let slots_key = make_slots_key(match_id);
+    let slots: [_; MULTIPLAYER_MAX_SIZE] = std::array::from_fn(|i| (i, Json(slots[i])));
+    let _: () = redis.hset_multiple(slots_key, &slots).await?;
+    Ok(())
+}
+
+// utility
 
 fn slots_from_json(
     json: [Json<MultiplayerMatchSlot>; MULTIPLAYER_MAX_SIZE],
@@ -215,6 +287,7 @@ fn slots_from_json(
     std::array::from_fn(|i| json[i].0)
 }
 
+/// NOTE: this requires the json array to be ordered correctly (0, 1, 2, ...)
 fn slots_from_json_with_index(
     json: [(usize, Json<MultiplayerMatchSlot>); MULTIPLAYER_MAX_SIZE],
 ) -> [MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE] {

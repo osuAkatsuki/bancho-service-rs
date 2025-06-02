@@ -37,7 +37,7 @@ pub async fn fetch_unread_messages<C: Context>(
 ) -> sqlx::Result<Vec<Message>> {
     const QUERY: &str = const_str::concat!(
         "SELECT m.id, m.sender_id, m.recipient_id, m.recipient_channel,",
-        "m.content, m.unread, m.created_at, users.username as sender_name ",
+        "m.content, m.unread, m.created_at, m.status, users.username as sender_name ",
         "FROM messages m INNER JOIN users ON sender_id = users.id ",
         "WHERE recipient_id = ? AND status = ? AND unread IS TRUE"
     );

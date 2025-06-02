@@ -28,6 +28,7 @@ pub struct MultiplayerMatch {
     pub team_type: u8,
     pub freemod_enabled: bool,
     pub random_seed: i32,
+    pub last_game_id: Option<i64>,
 }
 
 #[derive(Copy, Clone, Default, Deserialize, Serialize)]
@@ -38,6 +39,7 @@ pub struct MultiplayerMatchSlot {
     pub user_id: Option<i64>,
     pub loaded: bool,
     pub skipped: bool,
+    pub failed: bool,
     pub completed: bool,
 }
 
@@ -49,6 +51,7 @@ impl MultiplayerMatchSlot {
         self.user_id = Some(user_id);
         self.loaded = false;
         self.skipped = false;
+        self.failed = false;
         self.completed = false;
     }
     pub fn clear(&mut self) {
@@ -58,6 +61,7 @@ impl MultiplayerMatchSlot {
         self.user_id = None;
         self.loaded = false;
         self.skipped = false;
+        self.failed = false;
         self.completed = false;
     }
 }

@@ -8,7 +8,7 @@ use bancho_protocol::structures::{
     Match, MatchSlot, MatchTeam, MatchTeamType, Mods, SlotStatus, WinCondition,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MultiplayerMatch {
     pub match_id: i64,
     pub name: String,
@@ -25,6 +25,7 @@ pub struct MultiplayerMatch {
     pub team_type: MatchTeamType,
     pub freemod_enabled: bool,
     pub random_seed: i32,
+    pub last_game_id: Option<i64>,
 }
 
 #[derive(Copy, Clone)]
@@ -35,10 +36,15 @@ pub struct MultiplayerMatchSlot {
     pub user_id: Option<i64>,
     pub loaded: bool,
     pub skipped: bool,
+    pub failed: bool,
     pub completed: bool,
 }
 
 impl MultiplayerMatch {
+    pub fn as_entity(&self) -> Entity {
+        self.clone().into()
+    }
+
     pub fn ingame_match_id(&self) -> u16 {
         // We have match identifiers that require 64 bits
         // osu! only accepts 16 bits to represent your match identifier
@@ -91,6 +97,7 @@ impl Into<Entity> for MultiplayerMatch {
             team_type: self.team_type as _,
             freemod_enabled: self.freemod_enabled,
             random_seed: self.random_seed,
+            last_game_id: self.last_game_id,
         }
     }
 }
@@ -115,6 +122,7 @@ impl TryFrom<Entity> for MultiplayerMatch {
             team_type: MatchTeamType::try_from(value.team_type)?,
             freemod_enabled: value.freemod_enabled,
             random_seed: value.random_seed,
+            last_game_id: value.last_game_id,
         })
     }
 }
@@ -122,6 +130,10 @@ impl TryFrom<Entity> for MultiplayerMatch {
 pub type MultiplayerMatchSlots = [MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE];
 
 impl MultiplayerMatchSlot {
+    pub fn as_entity(&self) -> SlotEntity {
+        self.clone().into()
+    }
+
     pub fn from<const N: usize>(entities: [SlotEntity; N]) -> [MultiplayerMatchSlot; N] {
         std::array::from_fn(|i| MultiplayerMatchSlot {
             status: SlotStatus::from_bits_retain(entities[i].status),
@@ -130,6 +142,7 @@ impl MultiplayerMatchSlot {
             user_id: entities[i].user_id,
             loaded: entities[i].loaded,
             skipped: entities[i].skipped,
+            failed: entities[i].failed,
             completed: entities[i].completed,
         })
     }
@@ -144,6 +157,7 @@ impl From<SlotEntity> for MultiplayerMatchSlot {
             user_id: value.user_id,
             loaded: value.loaded,
             skipped: value.skipped,
+            failed: value.failed,
             completed: value.completed,
         }
     }
@@ -158,6 +172,7 @@ impl Into<SlotEntity> for MultiplayerMatchSlot {
             user_id: self.user_id,
             loaded: self.loaded,
             skipped: self.skipped,
+            failed: self.failed,
             completed: self.completed,
         }
     }

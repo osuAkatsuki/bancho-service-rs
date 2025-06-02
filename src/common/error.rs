@@ -23,8 +23,12 @@ pub enum AppError {
     MessagesUserAutoSilenced,
 
     MultiplayerNotFound,
+    MultiplayerUnauthorized,
     MultiplayerInvalidPassword,
     MultiplayerMatchFull,
+    MultiplayerInvalidSlotID,
+    MultiplayerSlotNotFound,
+    MultiplayerUserNotInMatch,
 
     PresencesNotFound,
 
@@ -70,8 +74,12 @@ impl AppError {
             AppError::MessagesUserAutoSilenced => "messages.user_auto_silenced",
 
             AppError::MultiplayerNotFound => "multiplayer.not_found",
+            AppError::MultiplayerUnauthorized => "multiplayer.unauthorized",
             AppError::MultiplayerInvalidPassword => "multiplayer.invalid_password",
             AppError::MultiplayerMatchFull => "multiplayer.match_full",
+            AppError::MultiplayerInvalidSlotID => "multiplayer.invalid_slot_id",
+            AppError::MultiplayerSlotNotFound => "multiplayer.slot_not_found",
+            AppError::MultiplayerUserNotInMatch => "multiplayer.user_not_in_match",
 
             AppError::PresencesNotFound => "presences.not_found",
 
@@ -114,10 +122,16 @@ impl AppError {
             }
 
             AppError::MultiplayerNotFound => "The multiplayer match could not be found.",
+            AppError::MultiplayerUnauthorized => {
+                "You do not have sufficient privileges to perform this action."
+            }
             AppError::MultiplayerInvalidPassword => {
                 "You have entered an invalid password for this match."
             }
             AppError::MultiplayerMatchFull => "The match has no free space left.",
+            AppError::MultiplayerInvalidSlotID => "The slot id is invalid.",
+            AppError::MultiplayerSlotNotFound => "The slot could not be found.",
+            AppError::MultiplayerUserNotInMatch => "The user is not the this match.",
 
             AppError::PresencesNotFound => "Presence not found",
 
