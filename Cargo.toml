@@ -8,7 +8,7 @@ anyhow = "1.0"
 async-trait = "0.1"
 axum = "0.8.4"
 bancho-service-macros = { path = "./macros" }
-bancho-protocol = { path = "../bancho-protocol" }
+bancho-protocol = { git = "https://github.com/infernalfire72/bancho-protocol" }
 bcrypt = "0.17.0"
 bitflags = "2.9.1"
 chrono = { version = "0.4", features = ["default", "serde"] }
