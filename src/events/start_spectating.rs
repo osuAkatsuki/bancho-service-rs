@@ -8,7 +8,7 @@ use bancho_protocol::concat_messages;
 use bancho_protocol::messages::Message;
 use bancho_protocol::messages::client::StartSpectating;
 use bancho_protocol::messages::server::{
-    Alert, FellowSpectatorJoined, SpectatorFrames, UserLogout,
+    Alert, ChannelJoinSuccess, FellowSpectatorJoined, SpectatorFrames, UserLogout,
 };
 use bancho_protocol::serde::osu_types::PrefixedVec;
 use bancho_protocol::structures::{ReplayAction, ReplayFrameBundle, ScoreFrame};
@@ -35,14 +35,17 @@ pub async fn handle(ctx: &RequestContext, session: &Session, args: StartSpectati
 
     match spectators::join(ctx, session, args.target_id as _).await {
         Ok(spectator_ids) => {
-            let fellow_spectators = spectator_ids
+            let mut fellow_spectators = spectator_ids
                 .into_iter()
                 .flat_map(|user_id| {
                     Message::serialize(FellowSpectatorJoined {
                         user_id: user_id as _,
                     })
                 })
-                .collect();
+                .collect::<Vec<_>>();
+            fellow_spectators.extend(Message::serialize(ChannelJoinSuccess {
+                name: "#spectator",
+            }));
             Ok(Some(fellow_spectators))
         }
         Err(e @ (AppError::InteractionBlocked | AppError::SessionsNotFound)) => {

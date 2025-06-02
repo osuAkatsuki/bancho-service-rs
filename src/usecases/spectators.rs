@@ -6,7 +6,7 @@ use crate::repositories::spectators;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{channels, sessions, streams};
 use bancho_protocol::messages::server::{
-    FellowSpectatorJoined, FellowSpectatorLeft, SpectatorJoined, SpectatorLeft,
+    ChannelKick, FellowSpectatorJoined, FellowSpectatorLeft, SpectatorJoined, SpectatorLeft,
 };
 use uuid::Uuid;
 
@@ -121,9 +121,17 @@ pub async fn leave<C: Context>(
     if member_count == 0 {
         // we were the last spectating user
         // Remove the host from the chat channel and also from the spectator stream
-        channels::leave(ctx, host_session_id, channel_name).await?;
         streams::leave(ctx, host_session_id, stream_name).await?;
+        channels::leave(ctx, host_session_id, channel_name).await?;
         streams::clear_stream(ctx, stream_name).await?;
+        streams::broadcast_message(
+            ctx,
+            host_stream_name,
+            ChannelKick { name: "#spectator" },
+            None,
+            None,
+        )
+        .await?;
     } else {
         // Notify other spectators that we have left
         let spectator_notification = FellowSpectatorLeft {

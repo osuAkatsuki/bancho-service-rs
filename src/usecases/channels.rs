@@ -5,7 +5,7 @@ use crate::models::channels::Channel;
 use crate::models::sessions::Session;
 use crate::repositories::channels;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{spectators, streams};
+use crate::usecases::{multiplayer, spectators, streams};
 use bancho_protocol::messages::server::ChannelInfo;
 use tracing::info;
 use uuid::Uuid;
@@ -25,7 +25,10 @@ pub async fn get_channel_name<'a, C: Context>(
             Ok(ChannelName::Spectator(host_session_id))
         }
         "#multiplayer" => {
-            todo!()
+            let match_id = multiplayer::fetch_session_match_id(ctx, session.session_id)
+                .await?
+                .ok_or(AppError::MultiplayerUserNotInMatch)?;
+            Ok(ChannelName::Multiplayer(match_id))
         }
         channel_name => Ok(ChannelName::Chat(channel_name)),
     }

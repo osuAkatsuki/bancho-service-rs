@@ -1,5 +1,6 @@
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::entities::channels::ChannelName;
 use crate::entities::match_events::MatchEventType;
 use crate::entities::multiplayer::MultiplayerMatchSlot as SlotEntity;
 use crate::models::Gamemode;
@@ -7,7 +8,7 @@ use crate::models::multiplayer::{MultiplayerMatch, MultiplayerMatchSlot, Multipl
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::repositories::{match_games, multiplayer};
-use crate::usecases::{match_events, sessions, streams};
+use crate::usecases::{channels, match_events, sessions, streams};
 use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::server::{
     MatchAllPlayersLoaded, MatchComplete, MatchCreated, MatchDisposed, MatchPlayerFailed,
@@ -47,6 +48,16 @@ pub async fn create<C: Context>(
         max_player_count,
     )
     .await?;
+
+    match_events::create(
+        ctx,
+        mp_match.match_id,
+        MatchEventType::MatchCreated,
+        Some(mp_match.host_user_id),
+        None,
+    )
+    .await?;
+
     let mp_match = MultiplayerMatch::try_from(mp_match)?;
     let slots = MultiplayerMatchSlot::from(slots);
 
@@ -57,12 +68,10 @@ pub async fn create<C: Context>(
         StreamName::Multiplayer(mp_match.match_id),
     )
     .await?;
-    match_events::create(
+    channels::join(
         ctx,
-        mp_match.match_id,
-        MatchEventType::MatchCreated,
-        Some(mp_match.host_user_id),
-        None,
+        host_session,
+        ChannelName::Multiplayer(mp_match.match_id),
     )
     .await?;
 
@@ -183,6 +192,7 @@ pub async fn join<C: Context>(
         StreamName::Multiplayer(mp_match.match_id),
     )
     .await?;
+    channels::join(ctx, session, ChannelName::Multiplayer(mp_match.match_id)).await?;
 
     broadcast_update(ctx, &mp_match, slots).await?;
     Ok((mp_match, slots))
@@ -229,6 +239,12 @@ pub async fn leave<C: Context>(
         ctx,
         session.session_id,
         StreamName::Multiplaying(mp_match.match_id),
+    )
+    .await?;
+    channels::leave(
+        ctx,
+        session.session_id,
+        ChannelName::Multiplayer(mp_match.match_id),
     )
     .await?;
 
