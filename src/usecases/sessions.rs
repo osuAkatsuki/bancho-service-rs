@@ -29,18 +29,23 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
         return Err(AppError::SessionsInvalidCredentials);
     }
 
-    let user = User::try_from(user)?;
+    let mut user = User::try_from(user)?;
     if !user.privileges.contains(Privileges::CanLogin) {
         return Err(AppError::SessionsLoginForbidden);
     }
 
-    // TODO: implement this
-    // args.client_info
+    let ip_address = ctx.request_ip.ip_addr;
+    //args.client_info.client_hashes.adapters.
+    
+    
+    if user.privileges.contains(Privileges::PendingVerification) {
+        
+        user.privileges.remove(Privileges::PendingVerification);
+    }
 
     let stats = stats::fetch_one(ctx, user.user_id, Gamemode::Standard).await?;
     let rank = stats::fetch_global_rank(ctx, user.user_id, Gamemode::Standard).await?;
 
-    let ip_address = ctx.request_ip.ip_addr;
     let location_info =
         location::get_location(ip_address, user.country, args.client_info.display_city).await;
 

@@ -1,5 +1,5 @@
 use crate::entities::channels::ChannelName;
-use crate::entities::messages::{Message as MessageEntity, MessageStatus};
+use crate::entities::messages::Message as MessageEntity;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use chrono::{DateTime, Utc};
@@ -25,9 +25,9 @@ pub struct Message {
     pub recipient_id: Option<i64>,
     pub recipient_channel: Option<String>,
     pub content: String,
-    pub unread: bool,
+    pub read_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
-    pub status: MessageStatus,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl From<MessageEntity> for Message {
@@ -39,9 +39,9 @@ impl From<MessageEntity> for Message {
             recipient_id: value.recipient_id,
             recipient_channel: value.recipient_channel,
             content: value.content,
-            unread: value.unread,
+            read_at: value.read_at,
             created_at: value.created_at,
-            status: MessageStatus::from(value.status),
+            deleted_at: value.deleted_at,
         }
     }
 }

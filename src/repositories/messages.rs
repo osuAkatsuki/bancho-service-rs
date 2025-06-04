@@ -1,6 +1,7 @@
+use chrono::Utc;
 use crate::common::context::Context;
 use crate::entities::channels::ChannelName;
-use crate::entities::messages::{Message, MessageStatus};
+use crate::entities::messages::Message;
 
 /*pub async fn fetch_history<C: Context>(
     ctx: &C,
@@ -37,21 +38,20 @@ pub async fn fetch_unread_messages<C: Context>(
 ) -> sqlx::Result<Vec<Message>> {
     const QUERY: &str = const_str::concat!(
         "SELECT m.id, m.sender_id, m.recipient_id, m.recipient_channel,",
-        "m.content, m.unread, m.created_at, m.status, users.username as sender_name ",
+        "m.content, m.read_at, m.created_at, m.deleted_at, users.username as sender_name ",
         "FROM messages m INNER JOIN users ON sender_id = users.id ",
-        "WHERE recipient_id = ? AND status = ? AND unread IS TRUE"
+        "WHERE recipient_id = ? AND deleted_at IS NULL AND read_at IS NULL"
     );
     sqlx::query_as(QUERY)
         .bind(recipient_id)
-        .bind(MessageStatus::Active.as_str())
         .fetch_all(ctx.db())
         .await
 }
 
 pub async fn mark_all_read<C: Context>(ctx: &C, recipient_id: i64) -> sqlx::Result<()> {
     const QUERY: &str = const_str::concat!(
-        "UPDATE messages SET unread = FALSE ",
-        "WHERE recipient_id = ? AND unread IS TRUE"
+        "UPDATE messages SET read_at = CURRENT_TIMESTAMP ",
+        "WHERE recipient_id = ? AND read_at IS NULL"
     );
     sqlx::query(QUERY)
         .bind(recipient_id)
@@ -70,15 +70,19 @@ pub async fn send<C: Context>(
 ) -> sqlx::Result<()> {
     let recipient_channel = recipient_channel.map(|channel_name| channel_name.to_string());
     const QUERY: &str = const_str::concat!(
-        "INSERT INTO messages (sender_id, recipient_id, recipient_channel, content, unread) ",
+        "INSERT INTO messages (sender_id, recipient_id, recipient_channel, content, read_at) ",
         "VALUES (?, ?, ?, ?, ?)"
     );
+    let read_at = match mark_as_unread {
+        true => None,
+        false => Some(Utc::now()),
+    };
     sqlx::query(QUERY)
         .bind(sender_id)
         .bind(recipient_id)
         .bind(recipient_channel)
         .bind(message_content)
-        .bind(mark_as_unread)
+        .bind(read_at)
         .execute(ctx.db())
         .await?;
     Ok(())
@@ -107,11 +111,10 @@ pub async fn delete_recent<C: Context>(
     delta_seconds: u64,
 ) -> sqlx::Result<()> {
     const QUERY: &str = const_str::concat!(
-        "UPDATE messages SET status = ? ",
+        "UPDATE messages SET deleted_at = CURRENT_TIMESTAMP ",
         "WHERE sender_id = ? AND created_at > (CURRENT_TIMESTAMP - ?)"
     );
     sqlx::query(QUERY)
-        .bind(MessageStatus::Deleted.as_str())
         .bind(sender_id)
         .bind(delta_seconds)
         .execute(ctx.db())
