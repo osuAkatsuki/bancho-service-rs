@@ -19,7 +19,7 @@ pub enum AppError {
     CommandsUnknownCommand,
     CommandsUnauthorized,
 
-    MessagesTooLong,
+    MessagesInvalidLength,
     MessagesUserAutoSilenced,
 
     MultiplayerNotFound,
@@ -40,6 +40,8 @@ pub enum AppError {
     SessionsInvalidCredentials,
     SessionsNotFound,
     SessionsNeedsMigration,
+
+    StreamsInvalidKey,
 }
 
 impl<E: Into<anyhow::Error>> From<E> for AppError {
@@ -70,7 +72,7 @@ impl AppError {
             AppError::CommandsUnknownCommand => "commands.unknown_command",
             AppError::CommandsUnauthorized => "commands.unauthorized",
 
-            AppError::MessagesTooLong => "messages.too_long",
+            AppError::MessagesInvalidLength => "messages.invalid_length",
             AppError::MessagesUserAutoSilenced => "messages.user_auto_silenced",
 
             AppError::MultiplayerNotFound => "multiplayer.not_found",
@@ -91,6 +93,8 @@ impl AppError {
             AppError::SessionsInvalidCredentials => "sessions.invalid_credentials",
             AppError::SessionsNotFound => "sessions.not_found",
             AppError::SessionsNeedsMigration => "sessions.needs_migration",
+
+            AppError::StreamsInvalidKey => "streams.invalid_key",
         }
     }
 
@@ -116,7 +120,9 @@ impl AppError {
                 "You do not have sufficient privileges to use this command."
             }
 
-            AppError::MessagesTooLong => "Your message was too long. It has not been sent.",
+            AppError::MessagesInvalidLength => {
+                "Your message was too short/long. It has not been sent."
+            }
             AppError::MessagesUserAutoSilenced => {
                 "You have sent too many messages in a short period of time."
             }
@@ -145,6 +151,8 @@ impl AppError {
             }
             AppError::SessionsNotFound => "This user is currently not online",
             AppError::SessionsNeedsMigration => "Your session needs to be migrated.",
+
+            AppError::StreamsInvalidKey => "Invalid Streams Key",
         }
     }
 }

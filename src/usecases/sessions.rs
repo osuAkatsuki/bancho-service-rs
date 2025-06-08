@@ -10,7 +10,9 @@ use crate::models::sessions::Session;
 use crate::models::users::User;
 use crate::repositories::streams::StreamName;
 use crate::repositories::{sessions, users};
-use crate::usecases::{channels, location, multiplayer, presences, spectators, stats, streams};
+use crate::usecases::{
+    channels, location, multiaccounts, multiplayer, presences, spectators, stats, streams,
+};
 use bancho_protocol::messages::server::UserLogout;
 use chrono::TimeDelta;
 use uuid::Uuid;
@@ -35,11 +37,26 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     }
 
     let ip_address = ctx.request_ip.ip_addr;
-    //args.client_info.client_hashes.adapters.
-    
-    
-    if user.privileges.contains(Privileges::PendingVerification) {
-        
+    let user_verification_pending = user.privileges.contains(Privileges::PendingVerification);
+
+    multiaccounts::create_entry(
+        ctx,
+        user.user_id,
+        user_verification_pending,
+        &args.client_info.client_hashes,
+    )
+    .await?;
+
+    /*multiaccounts::perform_checks(
+        ctx,
+        user.user_id,
+        user_verification_pending,
+        &args.client_info.client_hashes,
+    )
+    .await?;*/
+
+    if user_verification_pending {
+        users::verify_user(ctx, user.user_id).await?;
         user.privileges.remove(Privileges::PendingVerification);
     }
 
@@ -82,14 +99,21 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     Ok((Session::from(session), presence))
 }
 
-pub async fn fetch_one(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<Session> {
+pub async fn fetch_one<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Session> {
     match sessions::fetch_one(ctx, session_id).await {
         Ok(Some(session)) if session.is_expired() => {
             sessions::delete(ctx, session_id, session.user_id, &session.username).await?;
             Err(AppError::SessionsNotFound)
         }
         Ok(Some(session)) => Ok(Session::from(session)),
-        Ok(None) => try_migrate_session(ctx, session_id).await,
+        Ok(None) => Err(AppError::SessionsNotFound),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn fetch_all<C: Context>(ctx: &C) -> ServiceResult<impl Iterator<Item = Session>> {
+    match sessions::fetch_all(ctx).await {
+        Ok(sessions) => Ok(sessions.map(Session::from)),
         Err(e) => unexpected(e),
     }
 }
@@ -128,19 +152,7 @@ pub async fn fetch_many_by_user_id<C: Context>(
     }
 }
 
-// TODO: remove this once all sessions have been migrated
-pub async fn try_migrate_session<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Session> {
-    match sessions::fetch_one_fallback(ctx, session_id).await {
-        Ok(Some(session)) => {
-            sessions::delete_fallback(ctx, session).await?;
-            Err(AppError::SessionsNeedsMigration)
-        }
-        Ok(None) => Err(AppError::SessionsNotFound),
-        Err(e) => unexpected(e),
-    }
-}
-
-pub async fn extend(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<Session> {
+pub async fn extend<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Session> {
     let session = fetch_one(ctx, session_id).await?;
     match sessions::extend(ctx, session.into()).await {
         Ok(session) => Ok(Session::from(session)),
@@ -148,7 +160,7 @@ pub async fn extend(ctx: &RequestContext, session_id: Uuid) -> ServiceResult<Ses
     }
 }
 
-pub async fn delete(ctx: &RequestContext, session: &Session) -> ServiceResult<()> {
+pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()> {
     channels::leave_all(ctx, session.session_id).await?;
     spectators::leave(ctx, session, None).await?;
     spectators::close(ctx, session.session_id).await?;

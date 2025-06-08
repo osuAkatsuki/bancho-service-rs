@@ -1,5 +1,6 @@
 use crate::common::context::Context;
 use crate::entities::users::User;
+use crate::models::privileges::Privileges;
 use chrono::{TimeDelta, Utc};
 
 const TABLE_NAME: &str = "users";
@@ -56,6 +57,39 @@ pub async fn silence_user<C: Context>(
     sqlx::query(QUERY)
         .bind(silence_reason)
         .bind(silence_end)
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn verify_user<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET privileges = ? WHERE id = ?";
+    let privileges = Privileges::PubliclyVisible | Privileges::CanLogin;
+    sqlx::query(QUERY)
+        .bind(privileges.bits())
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn restrict<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET privileges = (privileges & ~(?)) WHERE id = ?";
+    let privileges = Privileges::PubliclyVisible;
+    sqlx::query(QUERY)
+        .bind(privileges.bits())
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn ban<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET privileges = (privileges & ~(?)) WHERE id = ?";
+    let privileges = Privileges::PubliclyVisible | Privileges::CanLogin;
+    sqlx::query(QUERY)
+        .bind(privileges.bits())
         .bind(user_id)
         .execute(ctx.db())
         .await?;

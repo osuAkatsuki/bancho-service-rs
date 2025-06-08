@@ -77,8 +77,9 @@ pub async fn send<C: Context>(
         return Ok(MessageSendResult::Ok);
     }
 
-    if args.text.len() > 500 {
-        return Err(AppError::MessagesTooLong);
+    let msg_content = args.text.trim();
+    if msg_content.is_empty() && msg_content.len() > 500 {
+        return Err(AppError::MessagesInvalidLength);
     }
 
     let message_count =
@@ -94,23 +95,23 @@ pub async fn send<C: Context>(
         session.user_id,
         recipient_info.recipient_channel,
         recipient_info.recipient_id,
-        args.text,
+        msg_content,
         recipient_info.mark_as_unread,
     )
     .await?;
 
-    let response = match commands::is_command_message(args.text) && recipient.can_process_commands()
-    {
-        true => commands::handle_command(ctx, session, args.text).await?,
-        false => CommandResponse::default(),
-    };
+    let response =
+        match commands::is_command_message(msg_content) && recipient.can_process_commands() {
+            true => commands::handle_command(ctx, session, msg_content).await?,
+            false => CommandResponse::default(),
+        };
     let properties = response.properties;
 
     if let Some(stream_name) = recipient.get_message_stream() {
         if properties.forward_message {
             let msg = IrcMessage {
                 sender: &session.username,
-                text: args.text,
+                text: msg_content,
                 recipient: args.recipient,
                 sender_id: session.user_id as _,
             };
@@ -191,7 +192,7 @@ pub async fn send_bancho<C: Context>(
             e @ (AppError::InteractionBlocked
             | AppError::ChannelsUnauthorized
             | AppError::CommandsUnauthorized
-            | AppError::MessagesTooLong
+            | AppError::MessagesInvalidLength
             | AppError::MessagesUserAutoSilenced
             | AppError::UsersNotFound),
         ) => {

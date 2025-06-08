@@ -53,12 +53,14 @@ pub enum BanchoRequest {
     HandleEvents(Uuid, axum::body::Bytes),
 }
 
+#[derive(Debug)]
 pub struct LoginArgs {
     pub identifier: String,
     pub secret: String,
     pub client_info: ClientInfo,
 }
 
+#[derive(Debug)]
 pub struct ClientInfo {
     pub osu_version: OsuVersion,
     pub utc_offset: i8,
@@ -142,6 +144,7 @@ impl FromStr for OsuVersion {
     }
 }
 
+#[derive(Debug)]
 pub struct ClientHashes {
     pub osu_path_md5: String,
     pub adapters: NetworkAdapters,
@@ -150,6 +153,7 @@ pub struct ClientHashes {
     pub disk_signature_md5: String,
 }
 
+#[derive(Debug)]
 pub struct NetworkAdapters {
     pub adapters: String,
 }
@@ -244,23 +248,27 @@ impl FromStr for ClientHashes {
     type Err = AppError;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let mut parts = input.splitn(5, ':');
+        let mut parts = input.splitn(6, ':');
         let osu_path_md5 = parts
             .next()
+            .filter(|path_md5| path_md5.len() == 32)
             .ok_or(AppError::DecodingRequestFailed)?
             .to_string();
         let adapters_str = parts.next().ok_or(AppError::DecodingRequestFailed)?;
         let adapters = NetworkAdapters::from_str(adapters_str)?;
         let adapters_md5 = parts
             .next()
+            .filter(|path_md5| path_md5.len() == 32)
             .ok_or(AppError::DecodingRequestFailed)?
             .to_string();
         let uninstall_md5 = parts
             .next()
+            .filter(|path_md5| path_md5.len() == 32)
             .ok_or(AppError::DecodingRequestFailed)?
             .to_string();
         let disk_signature_md5 = parts
             .next()
+            .filter(|path_md5| path_md5.len() == 32)
             .ok_or(AppError::DecodingRequestFailed)?
             .to_string();
         Ok(Self {

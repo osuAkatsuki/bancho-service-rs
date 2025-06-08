@@ -1,4 +1,4 @@
-use crate::api::RequestContext;
+use crate::common::context::Context;
 use crate::common::redis_json::Json;
 use crate::entities::bot;
 use crate::entities::presences::Presence;
@@ -8,8 +8,8 @@ use tracing::warn;
 
 const KEY: &'static str = "akatsuki:bancho:presences";
 
-pub async fn create(
-    ctx: &RequestContext,
+pub async fn create<C: Context>(
+    ctx: &C,
     user_id: i64,
     username: String,
     privileges: u8,
@@ -51,26 +51,26 @@ pub async fn create(
         longitude,
         utc_offset,
     };
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     let _: () = redis.hset(KEY, user_id, Json(&presence)).await?;
     Ok(presence)
 }
 
-pub async fn fetch_one(ctx: &RequestContext, user_id: i64) -> anyhow::Result<Option<Presence>> {
+pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<Option<Presence>> {
     if user_id == bot::BOT_ID {
         return Ok(Some(bot::presence()));
     }
 
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     let presence: Option<Json<Presence>> = redis.hget(KEY, user_id).await?;
     Ok(presence.map(Json::into_inner))
 }
 
-pub async fn fetch_multiple(
-    ctx: &RequestContext,
+pub async fn fetch_multiple<C: Context>(
+    ctx: &C,
     user_ids: &[i32],
 ) -> anyhow::Result<impl Iterator<Item = Option<Presence>>> {
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     let presences: Vec<Option<Json<Presence>>> = redis::cmd("HMGET")
         .arg(KEY)
         .arg(user_ids)
@@ -87,36 +87,36 @@ pub async fn fetch_multiple(
     Ok(presences)
 }
 
-pub async fn fetch_user_ids(ctx: &RequestContext) -> anyhow::Result<Vec<i32>> {
-    let mut redis = ctx.redis.get().await?;
+pub async fn fetch_user_ids<C: Context>(ctx: &C) -> anyhow::Result<Vec<i32>> {
+    let mut redis = ctx.redis().await?;
     let mut user_ids: Vec<i32> = redis.hkeys(KEY).await?;
     user_ids.push(bot::BOT_ID as _);
     Ok(user_ids)
 }
 
-pub async fn fetch_all(ctx: &RequestContext) -> anyhow::Result<impl Iterator<Item = Presence>> {
-    let mut redis = ctx.redis.get().await?;
+pub async fn fetch_all<C: Context>(ctx: &C) -> anyhow::Result<impl Iterator<Item = Presence>> {
+    let mut redis = ctx.redis().await?;
     let mut presences: Vec<Json<Presence>> = redis.hvals(KEY).await?;
     presences.push(Json(bot::presence()));
     Ok(presences.into_iter().map(Json::into_inner))
 }
 
-pub async fn update(ctx: &RequestContext, presence: Presence) -> anyhow::Result<Presence> {
+pub async fn update<C: Context>(ctx: &C, presence: Presence) -> anyhow::Result<Presence> {
     if presence.user_id == bot::BOT_ID {
         return Ok(bot::presence());
     }
 
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     let _: () = redis.hset(KEY, presence.user_id, Json(&presence)).await?;
     Ok(presence)
 }
 
-pub async fn delete(ctx: &RequestContext, user_id: i64) -> anyhow::Result<()> {
+pub async fn delete<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<()> {
     if user_id == bot::BOT_ID {
         warn!("Tried to delete bot presence, ignoring.");
         return Ok(());
     }
 
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     Ok(redis.hdel(KEY, user_id).await?)
 }

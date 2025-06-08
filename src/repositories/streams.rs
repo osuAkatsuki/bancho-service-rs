@@ -1,4 +1,5 @@
 use crate::common::context::Context;
+use crate::common::error::{AppError, ServiceResult};
 use crate::entities::channels::ChannelName;
 use crate::entities::streams::{MessageInfo, StreamMessage, StreamReadMessage, StreamReadReply};
 use hashbrown::HashMap;
@@ -6,6 +7,7 @@ use redis::AsyncCommands;
 use redis::aio::MultiplexedConnection;
 use redis::streams::{StreamRangeReply, StreamTrimOptions, StreamTrimmingMode};
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use uuid::Uuid;
 
 #[derive(Copy, Clone)]
@@ -33,6 +35,50 @@ pub enum StreamName<'a> {
     Multiplaying(i64),
 }
 
+impl<'a> StreamName<'a> {
+    pub fn from_key(stream_key: &'a str) -> ServiceResult<Self> {
+        const STREAM_KEY_BASE: &str = const_str::concat!(BASE_KEY, ":");
+        match stream_key.strip_prefix(STREAM_KEY_BASE) {
+            None => Err(AppError::StreamsInvalidKey),
+            Some(stream_name) => match stream_name {
+                "main" => Ok(StreamName::Main),
+                "lobby" => Ok(StreamName::Lobby),
+                "donator" => Ok(StreamName::Donator),
+                "staff" => Ok(StreamName::Staff),
+                "dev" => Ok(StreamName::Dev),
+                _ => match stream_name.strip_prefix("user:") {
+                    Some(session_id_str) => Ok(StreamName::User(Uuid::parse_str(session_id_str)?)),
+                    None => match stream_name.strip_prefix("channel:") {
+                        Some(channel_key) => {
+                            let channel_name = ChannelName::from_key(channel_key)?;
+                            Ok(StreamName::Channel(channel_name))
+                        }
+                        None => match stream_name.strip_prefix("spectator:") {
+                            Some(host_session_id_str) => {
+                                let host_session_id = Uuid::parse_str(host_session_id_str)?;
+                                Ok(StreamName::Spectator(host_session_id))
+                            }
+                            None => match stream_name.strip_prefix("multiplayer:") {
+                                Some(match_id_str) => {
+                                    let match_id = i64::from_str(match_id_str)?;
+                                    Ok(StreamName::Multiplayer(match_id))
+                                }
+                                None => match stream_name.strip_prefix("multiplaying:") {
+                                    Some(match_id_str) => {
+                                        let match_id = i64::from_str(match_id_str)?;
+                                        Ok(StreamName::Multiplaying(match_id))
+                                    }
+                                    None => Err(AppError::StreamsInvalidKey),
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        }
+    }
+}
+
 impl Display for StreamName<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -45,7 +91,7 @@ impl Display for StreamName<'_> {
             StreamName::Channel(channel_name) => write!(f, "channel:{channel_name}"),
             StreamName::Spectator(session_id) => write!(f, "spectator:{}", session_id),
             StreamName::Multiplayer(match_id) => write!(f, "multiplayer:{}", match_id),
-            StreamName::Multiplaying(match_id) => write!(f, "multiplayer:{}:playing", match_id),
+            StreamName::Multiplaying(match_id) => write!(f, "multiplaying:{}", match_id),
         }
     }
 }
@@ -65,7 +111,7 @@ pub async fn fetch_all<C: Context>(ctx: &C) -> anyhow::Result<Vec<String>> {
     let mut iter: redis::AsyncIter<String> = redis.scan_match(ALL_KEY).await?;
     let mut keys = vec![];
     while let Some(stream_name) = iter.next_item().await {
-        keys.push(stream_name);
+        keys.push(stream_name?);
     }
     Ok(keys)
 }
@@ -176,8 +222,13 @@ pub async fn get_latest_message_id<C: Context>(
     }
 }
 
-pub async fn trim_messages<C: Context>(ctx: &C, key: &str, min_id: &str) -> anyhow::Result<usize> {
+pub async fn trim_messages<C: Context>(
+    ctx: &C,
+    stream_name: StreamName<'_>,
+    min_id: &str,
+) -> anyhow::Result<usize> {
     let mut redis = ctx.redis().await?;
+    let key = make_key(stream_name);
     let removed_count = redis
         .xtrim_options(
             key,

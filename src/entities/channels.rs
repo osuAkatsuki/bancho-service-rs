@@ -1,5 +1,7 @@
+use crate::common::error::ServiceResult;
 use crate::repositories::streams::StreamName;
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use uuid::Uuid;
 
 #[derive(Copy, Clone)]
@@ -20,6 +22,22 @@ pub struct Channel {
 }
 
 impl<'a> ChannelName<'a> {
+    pub fn from_key(key: &'a str) -> ServiceResult<Self> {
+        match key.strip_prefix("#spectator_") {
+            Some(host_session_id) => {
+                let host_session_id = Uuid::from_str(host_session_id)?;
+                Ok(ChannelName::Spectator(host_session_id))
+            }
+            None => match key.strip_prefix("#multiplayer_") {
+                Some(match_id_str) => {
+                    let match_id = i64::from_str(match_id_str)?;
+                    Ok(ChannelName::Multiplayer(match_id))
+                }
+                None => Ok(ChannelName::Chat(key)),
+            },
+        }
+    }
+
     pub fn to_bancho(&self) -> &str {
         match self {
             ChannelName::Chat(channel_name) => channel_name,

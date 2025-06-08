@@ -42,6 +42,12 @@ pub async fn fetch_one<C: Context>(ctx: &C, session_id: Uuid) -> anyhow::Result<
     Ok(session.map(Json::into_inner))
 }
 
+pub async fn fetch_all<C: Context>(ctx: &C) -> anyhow::Result<impl Iterator<Item = Session>> {
+    let mut redis = ctx.redis().await?;
+    let sessions: Vec<Json<Session>> = redis.hvals(SESSIONS_KEY).await?;
+    Ok(sessions.into_iter().map(Json::into_inner))
+}
+
 pub async fn fetch_one_by_user_id<C: Context>(
     ctx: &C,
     user_id: i64,

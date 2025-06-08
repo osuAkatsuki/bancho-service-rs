@@ -7,8 +7,7 @@ use crate::repositories::streams;
 use crate::repositories::streams::StreamName;
 use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::serde::BinarySerialize;
-use chrono::TimeDelta;
-use tracing::error;
+use chrono::{DateTime, TimeDelta, Utc};
 use uuid::Uuid;
 
 pub async fn broadcast_message<C: Context, M: MessageArgs>(
@@ -115,34 +114,39 @@ pub async fn fetch_all<C: Context>(ctx: &C) -> ServiceResult<Vec<String>> {
     }
 }
 
-/// Trims stream messages to the given ttl
-pub async fn trim_stream<C: Context>(
+pub async fn get_latest_message_timestamp<C: Context>(
     ctx: &C,
-    stream_key: &str,
-    ttl_seconds: usize,
-) -> ServiceResult<usize> {
-    let now = chrono::Utc::now();
-    let min_id = now - TimeDelta::seconds(ttl_seconds as _);
-    let min_id = format!("{}-0", min_id.timestamp_millis());
-    match streams::trim_messages(ctx, stream_key, &min_id).await {
-        Ok(count) => Ok(count),
-        Err(e) => unexpected(e),
+    stream_name: StreamName<'_>,
+) -> ServiceResult<DateTime<Utc>> {
+    const EPOCH_START: DateTime<Utc> = DateTime::from_timestamp(0, 0).expect("invalid timestamp");
+
+    let message_id = streams::get_latest_message_id(ctx, stream_name).await?;
+    let msg_timestamp = message_id.split('-').next();
+    match msg_timestamp {
+        Some(timestamp) => {
+            let ts = timestamp.parse::<i64>()?;
+            match DateTime::from_timestamp(ts, 0) {
+                Some(timestamp) => Ok(timestamp),
+                None => Ok(EPOCH_START),
+            }
+        }
+        None => Ok(EPOCH_START),
     }
 }
 
-pub async fn trim_all_streams<C: Context>(
+/// Trims stream messages to the given ttl
+pub async fn trim_stream<C: Context>(
     ctx: &C,
+    stream_name: StreamName<'_>,
     ttl_seconds: usize,
-) -> ServiceResult<Vec<(String, usize)>> {
-    let streams = fetch_all(ctx).await?;
-    let mut results = Vec::with_capacity(streams.len());
-    for stream in streams {
-        match trim_stream(ctx, &stream, ttl_seconds).await {
-            Ok(count) => results.push((stream, count)),
-            Err(e) => error!(stream_name = stream, "Error trimming stream: {e:?}"),
-        }
+) -> ServiceResult<usize> {
+    let now = Utc::now();
+    let min_id = now - TimeDelta::seconds(ttl_seconds as _);
+    let min_id = format!("{}-0", min_id.timestamp_millis());
+    match streams::trim_messages(ctx, stream_name, &min_id).await {
+        Ok(count) => Ok(count),
+        Err(e) => unexpected(e),
     }
-    Ok(results)
 }
 
 pub async fn clear_stream<C: Context>(ctx: &C, stream_name: StreamName<'_>) -> ServiceResult<()> {

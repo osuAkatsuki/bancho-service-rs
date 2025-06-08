@@ -1,4 +1,5 @@
 use crate::api::RequestContext;
+use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::models::Gamemode;
 use crate::models::presences::Presence;
@@ -6,8 +7,8 @@ use crate::models::privileges::Privileges;
 use crate::repositories::presences;
 use bancho_protocol::structures::{Action, Country, Mods};
 
-pub async fn create_default(
-    ctx: &RequestContext,
+pub async fn create_default<C: Context>(
+    ctx: &C,
     user_id: i64,
     username: String,
     privileges: Privileges,
@@ -47,8 +48,8 @@ pub async fn create_default(
     .await
 }
 
-pub async fn create(
-    ctx: &RequestContext,
+pub async fn create<C: Context>(
+    ctx: &C,
     user_id: i64,
     username: String,
     privileges: Privileges,
@@ -98,7 +99,7 @@ pub async fn create(
     }
 }
 
-pub async fn fetch_one(ctx: &RequestContext, user_id: i64) -> ServiceResult<Presence> {
+pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<Presence> {
     match presences::fetch_one(ctx, user_id).await {
         Ok(Some(presence)) => Presence::try_from(presence),
         Ok(None) => Err(AppError::PresencesNotFound),
@@ -106,8 +107,8 @@ pub async fn fetch_one(ctx: &RequestContext, user_id: i64) -> ServiceResult<Pres
     }
 }
 
-pub async fn fetch_multiple(
-    ctx: &RequestContext,
+pub async fn fetch_multiple<C: Context>(
+    ctx: &C,
     user_ids: &[i32],
 ) -> ServiceResult<Vec<(i32, Option<Presence>)>> {
     match presences::fetch_multiple(ctx, user_ids).await {
@@ -130,21 +131,21 @@ pub async fn fetch_user_ids(ctx: &RequestContext) -> ServiceResult<Vec<i32>> {
     }
 }
 
-pub async fn fetch_all(ctx: &RequestContext) -> ServiceResult<Vec<Presence>> {
+pub async fn fetch_all<C: Context>(ctx: &C) -> ServiceResult<Vec<Presence>> {
     match presences::fetch_all(ctx).await {
         Ok(presences) => presences.map(Presence::try_from).collect(),
         Err(e) => unexpected(e),
     }
 }
 
-pub async fn update(ctx: &RequestContext, presence: Presence) -> ServiceResult<Presence> {
+pub async fn update<C: Context>(ctx: &C, presence: Presence) -> ServiceResult<Presence> {
     match presences::update(ctx, presence.clone().into()).await {
         Ok(_) => Ok(presence),
         Err(e) => unexpected(e),
     }
 }
 
-pub async fn delete(ctx: &RequestContext, user_id: i64) -> ServiceResult<()> {
+pub async fn delete<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
     match presences::delete(ctx, user_id).await {
         Ok(_) => Ok(()),
         Err(e) => unexpected(e),

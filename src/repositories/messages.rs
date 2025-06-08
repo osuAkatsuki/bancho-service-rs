@@ -1,7 +1,7 @@
-use chrono::Utc;
 use crate::common::context::Context;
 use crate::entities::channels::ChannelName;
 use crate::entities::messages::Message;
+use chrono::Utc;
 
 /*pub async fn fetch_history<C: Context>(
     ctx: &C,

@@ -1,0 +1,11 @@
+[package]
+name = "bancho-cron"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bancho-service = { path = "../.." }
+chrono = "0.4.41"
+const-str = "0.6.2"
+tokio = { version = "1.45.1", features = ["rt-multi-thread", "macros"] }
+tracing = "0.1"

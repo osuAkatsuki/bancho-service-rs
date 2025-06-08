@@ -20,6 +20,8 @@ pub struct AppSettings {
     pub redis_connection_timeout: Duration,
     pub redis_response_timeout: Duration,
     pub redis_wait_timeout: Duration,
+
+    pub discord_webhook_url: Option<String>,
 }
 
 impl AppSettings {
@@ -44,6 +46,8 @@ impl AppSettings {
         let redis_wait_timeout_secs = u64::from_env("REDIS_WAIT_TIMEOUT_SECS")?;
         let redis_wait_timeout = Duration::from_secs(redis_wait_timeout_secs);
 
+        let discord_webhook_url = env::var("DISCORD_WEBHOOK_URL").ok();
+
         Ok(AppSettings {
             level,
             app_port,
@@ -58,6 +62,8 @@ impl AppSettings {
             redis_connection_timeout,
             redis_response_timeout,
             redis_wait_timeout,
+
+            discord_webhook_url,
         })
     }
 

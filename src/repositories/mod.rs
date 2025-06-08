@@ -1,4 +1,6 @@
 pub mod channels;
+pub mod hardware_logs;
+pub mod ip_logs;
 pub mod match_events;
 pub mod match_games;
 pub mod messages;
