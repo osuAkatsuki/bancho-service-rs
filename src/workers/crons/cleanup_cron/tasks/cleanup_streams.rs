@@ -1,7 +1,7 @@
-use bancho_service::common::context::Context;
-use bancho_service::common::error::ServiceResult;
-use bancho_service::repositories::streams::StreamName;
-use bancho_service::usecases::streams;
+use crate::common::context::Context;
+use crate::common::error::ServiceResult;
+use crate::repositories::streams::StreamName;
+use crate::usecases::streams;
 use chrono::{TimeDelta, Utc};
 use std::ops::Add;
 use tracing::{error, info};

@@ -7,6 +7,7 @@ use std::time::Duration;
 use tracing::Level;
 
 pub struct AppSettings {
+    pub app_component: String,
     pub level: Level,
     pub app_host: IpAddr,
     pub app_port: u16,
@@ -28,6 +29,7 @@ impl AppSettings {
     pub fn load_from_env() -> anyhow::Result<Self> {
         let _ = dotenv::dotenv();
 
+        let app_component = env::var("APP_COMPONENT")?;
         let level = Level::from_env("LOG_LEVEL")?;
         let app_host = IpAddr::from_env("APP_HOST")?;
         let app_port = u16::from_env("APP_PORT")?;
@@ -49,6 +51,7 @@ impl AppSettings {
         let discord_webhook_url = env::var("DISCORD_WEBHOOK_URL").ok();
 
         Ok(AppSettings {
+            app_component,
             level,
             app_port,
             app_host,

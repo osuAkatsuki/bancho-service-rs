@@ -1,17 +1,32 @@
+pub mod osu;
+pub mod v1;
+
 use crate::common::axum_ip::IpAddrInfo;
 use crate::common::context::Context;
 use crate::common::redis_pool::{PoolResult, RedisPool};
 use crate::common::state::AppState;
 use crate::models::bancho::BanchoResponse;
+use crate::settings::AppSettings;
 use async_trait::async_trait;
 use axum::Router;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use axum::routing::post;
 use sqlx::{MySql, Pool};
+use std::net::SocketAddr;
+use tokio::net::TcpListener;
 
-pub mod osu;
-pub mod v1;
+pub async fn serve(settings: &AppSettings, state: AppState) -> anyhow::Result<()> {
+    let addr = SocketAddr::from((settings.app_host, settings.app_port));
+    let listener = TcpListener::bind(addr).await?;
+    let app = Router::new().merge(router()).with_state(state);
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
+    Ok(())
+}
 
 #[derive(Clone)]
 pub struct RequestContext {

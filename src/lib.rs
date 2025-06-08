@@ -8,3 +8,4 @@ pub mod models;
 pub mod repositories;
 pub mod settings;
 pub mod usecases;
+pub mod workers;
