@@ -75,7 +75,7 @@ pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
     let mut response = vec![
         concat_messages! {
             LoginResult{ user_id: session.user_id as _ },
-            ProtocolVersion { version: 20 },
+            ProtocolVersion { version: 19 },
             UserPrivileges { privileges: session.privileges.to_bancho() | Privileges::Supporter },
             ChannelInfoEnd,
             Alert{ message: WELCOME_MESSAGE },
