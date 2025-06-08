@@ -15,9 +15,11 @@ use axum::routing::post;
 use sqlx::{MySql, Pool};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
+use tracing::info;
 
 pub async fn serve(settings: &AppSettings, state: AppState) -> anyhow::Result<()> {
     let addr = SocketAddr::from((settings.app_host, settings.app_port));
+    info!("Listening on {addr}");
     let listener = TcpListener::bind(addr).await?;
     let app = Router::new().merge(router()).with_state(state);
     axum::serve(
