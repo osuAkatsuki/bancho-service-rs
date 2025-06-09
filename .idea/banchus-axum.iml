@@ -2,12 +2,12 @@
 <module type="EMPTY_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
-      <sourceFolder url="file://$MODULE_DIR$/macros/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/workers/bancho-cron/src" isTestSource="false" />
-      <excludeFolder url="file://$MODULE_DIR$/macros/target" />
+      <sourceFolder url="file://$MODULE_DIR$/bancho-service-macros/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/workers/bancho-cron/target" />
+      <excludeFolder url="file://$MODULE_DIR$/bancho-service-macros/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

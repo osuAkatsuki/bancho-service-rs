@@ -1,14 +1,27 @@
-[package]
-name = "bancho-service"
+[workspace]
+members = [
+    ".",
+    "bancho-service-macros",
+]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+
+[package]
+name = "bancho-service"
+version.workspace = true
+edition.workspace = true
+
+[workspace.dependencies]
+bancho-service-macros = { version = "=0.1.0", path = "bancho-service-macros" }
 
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
 axum = "0.8.4"
-bancho-service-macros = { path = "./macros" }
 bancho-protocol = { git = "https://github.com/infernalfire72/bancho-protocol" }
+bancho-service-macros = { workspace = true }
 bcrypt = "0.17.0"
 bitflags = "2.9.1"
 chrono = { version = "0.4", features = ["default", "serde"] }
