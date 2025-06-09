@@ -2,7 +2,7 @@ use crate::common::redis_pool::{RedisPool, RedisPoolManager};
 use crate::common::state::AppState;
 use crate::settings::AppSettings;
 use deadpool::Runtime;
-use redis::AsyncConnectionConfig;
+use redis::{AsyncConnectionConfig, Commands};
 use sqlx::mysql::MySqlPoolOptions;
 use sqlx::{MySql, Pool};
 
@@ -31,6 +31,8 @@ pub fn initialize_db(settings: &AppSettings) -> impl Future<Output = sqlx::Resul
 
 pub fn initialize_redis(settings: &AppSettings) -> anyhow::Result<RedisPool> {
     let redis_client = redis::Client::open(settings.redis_url.as_str())?;
+    let mut conn = redis_client.get_connection_with_timeout(settings.redis_wait_timeout)?;
+    let _: () = conn.ping()?;
     let redis_cfg = AsyncConnectionConfig::new()
         .set_connection_timeout(settings.redis_connection_timeout)
         .set_response_timeout(settings.redis_response_timeout);

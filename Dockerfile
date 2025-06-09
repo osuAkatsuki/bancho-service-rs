@@ -22,5 +22,5 @@ RUN apt-get update && \
     apt-get clean
 
 WORKDIR /app
-COPY --from=builder /app/target/release/bancho-service /usr/local/bin
-ENTRYPOINT ["/usr/local/bin/bancho-service"]
+COPY --from=builder /app/target/release/bancho-service /app
+ENTRYPOINT ["/app/bancho-service"]
