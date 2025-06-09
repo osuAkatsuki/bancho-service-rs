@@ -4,15 +4,20 @@ use discord_webhook2::message::Message;
 use discord_webhook2::webhook::DiscordWebhook;
 use iso8061_timestamp::Timestamp;
 
+const RESTRICT_COLOR: u32 = 0xFF5555;
 const INFO_COLOR: u32 = 0x6611FF;
 const WARN_COLOR: u32 = 0x00a2ff;
 
-pub async fn info(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
+pub async fn purple(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
     send(title, description, url, INFO_COLOR).await
 }
 
-pub async fn warn(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
+pub async fn blue(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
     send(title, description, url, WARN_COLOR).await
+}
+
+pub async fn red(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
+    send(title, description, url, RESTRICT_COLOR).await
 }
 
 pub async fn send(

@@ -17,7 +17,7 @@ pub struct HardwareLog {
 }
 
 #[derive(sqlx::FromRow)]
-pub struct MultiaccountQueryEntity {
+pub struct MatchingHardwareLog {
     #[sqlx(rename = "userid")]
     pub user_id: i64,
     pub username: String,

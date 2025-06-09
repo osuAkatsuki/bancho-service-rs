@@ -1,13 +1,14 @@
 use crate::common::context::Context;
-use crate::entities::hardware_logs::{HardwareLog, MultiaccountQueryEntity};
+use crate::entities::hardware_logs::{HardwareLog, MatchingHardwareLog};
 
-pub async fn fetch_potential_multiaccounts<C: Context>(
+/// Fetches hardware log entries not matching the user_id but matching either of the hashes
+pub async fn fetch_foreign_matching_hardware<C: Context>(
     ctx: &C,
     user_id: i64,
     mac: &str,
     unique_id: &str,
     disk_id: &str,
-) -> sqlx::Result<Vec<MultiaccountQueryEntity>> {
+) -> sqlx::Result<Vec<MatchingHardwareLog>> {
     const QUERY: &str = const_str::concat!(
         "SELECT hw.userid, u.username, u.privileges, ",
         "hw.mac, hw.unique_id, hw.disk_id, ",
@@ -29,20 +30,20 @@ pub async fn fetch_potential_multiaccounts<C: Context>(
         .await
 }
 
-pub async fn fetch_one<C: Context>(
+pub async fn fetch_own_matching_hardware<C: Context>(
     ctx: &C,
     user_id: i64,
     mac: &str,
     unique_id: &str,
     disk_id: &str,
-) -> sqlx::Result<HardwareLog> {
+) -> sqlx::Result<Vec<HardwareLog>> {
     const QUERY: &str = const_str::concat!(
         "SELECT userid, mac, unique_id, disk_id, ",
         "SUM(occurencies) AS occurencies, ",
         "MAX(activated) AS activated, ",
         "MAX(created_at) AS last_used ",
         "FROM hw_user ",
-        "WHERE userid = ? AND mac = ? AND unique_id = ? AND disk_id = ? ",
+        "WHERE userid = ? AND (mac = ? OR unique_id = ? OR disk_id = ?) ",
         "GROUP BY mac, unique_id, disk_id, userid"
     );
     sqlx::query_as(QUERY)
@@ -50,7 +51,7 @@ pub async fn fetch_one<C: Context>(
         .bind(mac)
         .bind(unique_id)
         .bind(disk_id)
-        .fetch_one(ctx.db())
+        .fetch_all(ctx.db())
         .await
 }
 

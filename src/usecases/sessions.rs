@@ -11,7 +11,7 @@ use crate::models::users::User;
 use crate::repositories::streams::StreamName;
 use crate::repositories::{sessions, users};
 use crate::usecases::{
-    channels, location, multiaccounts, multiplayer, presences, spectators, stats, streams,
+    channels, hardware_logs, location, multiplayer, presences, spectators, stats, streams,
 };
 use bancho_protocol::messages::server::UserLogout;
 use chrono::TimeDelta;
@@ -39,7 +39,7 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     let ip_address = ctx.request_ip.ip_addr;
     let user_verification_pending = user.privileges.contains(Privileges::PendingVerification);
 
-    multiaccounts::create_entry(
+    hardware_logs::create(
         ctx,
         user.user_id,
         user_verification_pending,
@@ -47,13 +47,14 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     )
     .await?;
 
-    /*multiaccounts::perform_checks(
+    hardware_logs::check_for_multiaccounts(
         ctx,
         user.user_id,
+        &user.username,
         user_verification_pending,
         &args.client_info.client_hashes,
     )
-    .await?;*/
+    .await?;
 
     if user_verification_pending {
         users::verify_user(ctx, user.user_id).await?;

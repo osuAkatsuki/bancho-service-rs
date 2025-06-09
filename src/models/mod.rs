@@ -2,6 +2,7 @@ use bancho_protocol::structures::{Mode, Mods};
 
 pub mod bancho;
 pub mod channels;
+pub mod hardware_logs;
 pub mod location;
 pub mod messages;
 pub mod multiplayer;
