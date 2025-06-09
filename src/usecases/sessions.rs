@@ -9,7 +9,7 @@ use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::models::users::User;
 use crate::repositories::streams::StreamName;
-use crate::repositories::{sessions, users};
+use crate::repositories::{ip_logs, sessions, users};
 use crate::usecases::{
     channels, hardware_logs, location, multiplayer, presences, spectators, stats, streams,
 };
@@ -39,6 +39,7 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     let ip_address = ctx.request_ip.ip_addr;
     let user_verification_pending = user.privileges.contains(Privileges::PendingVerification);
 
+    ip_logs::create(ctx, user.user_id, ip_address).await?;
     hardware_logs::create(
         ctx,
         user.user_id,
