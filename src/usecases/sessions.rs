@@ -27,7 +27,9 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
         Err(sqlx::Error::RowNotFound) => return Err(AppError::SessionsInvalidCredentials)
     };
 
-    if !bcrypt::verify(&args.secret, &user.password_md5)? {
+    if !bcrypt::verify(&args.secret, &user.password_md5)
+        .map_err(|_| AppError::SessionsInvalidCredentials)?
+    {
         return Err(AppError::SessionsInvalidCredentials);
     }
 
