@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bancho-service-cleanup-cron-production
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: bancho-service-cleanup-cron-production
+              image: osuakatsuki/bancho-service-rs:latest
+              imagePullPolicy: Always
+              env:
+                - name: KUBERNETES
+                  value: 'true'
+                - name: PULL_SECRETS_FROM_VAULT
+                  value: '1'
+                - name: VAULT_ADDR
+                  valueFrom:
+                    secretKeyRef:
+                      name: vault
+                      key: address
+                - name: VAULT_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: vault
+                      key: token
+                - name: APP_COMPONENT
+                  value: cleanup-cron
+          restartPolicy: OnFailure
+          imagePullSecrets:
+            - name: osuakatsuki-registry-secret
+        metadata:
+          labels:
+            sidecar.istio.io/inject: "false"
