@@ -8,5 +8,28 @@ pub async fn controller(ctx: RequestContext, request: BanchoRequest) -> BanchoRe
 }
 
 pub async fn index() -> &'static str {
-    "Running bancho-service v0.1"
+    r#"
+       _/_/    _/                    _/                          _/        _/
+    _/    _/  _/  _/      _/_/_/  _/_/_/_/    _/_/_/  _/    _/  _/  _/
+   _/_/_/_/  _/_/      _/    _/    _/      _/_/      _/    _/  _/_/      _/
+  _/    _/  _/  _/    _/    _/    _/          _/_/  _/    _/  _/  _/    _/
+ _/    _/  _/    _/    _/_/_/      _/_/  _/_/_/      _/_/_/  _/    _/  _/
+Click circle.. circle no click?
+
+                          .. o  .
+                         o.o o . o
+                        oo...
+                    __[]__
+  jackson--> _\:D/_/o_o_o_|__     u wot m8
+             \""""""""""""""/
+              \ . ..  .. . /
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                 ~~~~~~~
+                               ~~~  🏯  ~~~
+                             ~~~~  🏮  ~~~~
+                               ~~~  🇨🇳  ~~~
+                                 ~~~~~~~
+
+Serving one handed osu! gamers since the dawn of time© Akatsuki, 2025
+"#
 }
