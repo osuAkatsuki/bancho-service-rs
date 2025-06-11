@@ -48,7 +48,9 @@ impl AppSettings {
         let redis_wait_timeout_secs = u64::from_env("REDIS_WAIT_TIMEOUT_SECS")?;
         let redis_wait_timeout = Duration::from_secs(redis_wait_timeout_secs);
 
-        let discord_webhook_url = env::var("DISCORD_WEBHOOK_URL").ok();
+        let discord_webhook_url = env::var("DISCORD_WEBHOOK_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty());
 
         Ok(AppSettings {
             app_component,
