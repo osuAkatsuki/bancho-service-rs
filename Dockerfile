@@ -15,12 +15,14 @@ RUN cargo build --release --bin bancho-service
 
 # We do not need the Rust toolchain to run the binary!
 FROM debian:bookworm-slim AS runtime
-# Install openssl
+# Install openssl, pip and git
 RUN apt-get update && \
-    apt-get install -y openssl && \
+    apt-get install -y openssl python3-pip git && \
     apt-get autoremove -y && \
     apt-get clean
+RUN pip install --break-system-packages git+https://github.com/osuAkatsuki/akatsuki-cli
 
 WORKDIR /app
 COPY --from=builder /app/target/release/bancho-service /app
-ENTRYPOINT ["/app/bancho-service"]
+COPY scripts /app/scripts
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]
