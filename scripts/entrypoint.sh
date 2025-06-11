@@ -12,7 +12,7 @@ if [ -z "$APP_COMPONENT" ]; then
 fi
 
 if [[ $PULL_SECRETS_FROM_VAULT -eq 1 ]]; then
-  akatsuki vault get bancho-service $APP_ENV -o .env
+  akatsuki vault get bancho-service-rs $APP_ENV -o .env
   source .env
 fi
 
