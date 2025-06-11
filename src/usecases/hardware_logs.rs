@@ -6,7 +6,7 @@ use crate::models::hardware_logs::{
     AggregateHardwareInfo, AggregateHardwareMatch, AggregateMatchingHardwareResult,
     UserAggregateHardware,
 };
-use crate::repositories::{hardware_logs, users};
+use crate::repositories::hardware_logs;
 
 pub async fn create<C: Context>(
     ctx: &C,
@@ -83,12 +83,12 @@ pub async fn check_for_multiaccounts<C: Context>(
 }
 
 async fn do_verification_checks<C: Context>(
-    ctx: &C,
+    _ctx: &C,
     user_id: i64,
     username: &str,
     hw_matches: AggregateMatchingHardwareResult,
 ) -> ServiceResult<()> {
-    users::ban(ctx, user_id).await?;
+    // users::ban(ctx, user_id).await?;
     let notification = format!("[{username}]({user_id})");
     let _ = discord::red("User banned (Multiaccount)", &notification, None).await;
     for (match_user_id, hw_match) in hw_matches.user_matches {
@@ -98,7 +98,7 @@ async fn do_verification_checks<C: Context>(
                 true => {
                     // If the user is not restricted yet,
                     // restrict them and send the appropriate log message to discord
-                    users::restrict(ctx, match_user_id).await?;
+                    // users::restrict(ctx, match_user_id).await?;
                     let notification = format!(
                         "Restricted [{}]({}) for creating a multiaccount [{}]({})",
                         match_username, match_user_id, username, user_id,
@@ -167,7 +167,7 @@ async fn do_regular_checks<C: Context>(
                     .await;
                 }
             } else {
-                users::ban(ctx, user_id).await?;
+                // users::ban(ctx, user_id).await?;
                 let notification = format!(
                     "[{username}]({user_id}) logged in with [{match_username}]({match_user_id})'s hardware, who is restricted."
                 );
@@ -178,7 +178,7 @@ async fn do_regular_checks<C: Context>(
         } else {
             if !hw_match.user_privileges.is_publicly_visible() {
                 if match_usage_percent > 0.2 {
-                    users::ban(ctx, user_id).await?;
+                    // users::ban(ctx, user_id).await?;
                     let notification = format!(
                         "[{username}]({user_id}) logged in with hardware used more than 20% by [{match_username}]({match_user_id}), who is restricted."
                     );
