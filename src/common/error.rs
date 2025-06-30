@@ -1,10 +1,23 @@
+use axum::Json;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use serde::Serialize;
 use tracing::error;
 
 pub type ServiceResult<T> = Result<T, AppError>;
+pub type ServiceResponse<T> = ServiceResult<Json<T>>;
+
+#[track_caller]
+pub fn unexpected<T, E: Into<anyhow::Error>>(e: E) -> ServiceResult<T> {
+    let caller = std::panic::Location::caller();
+    error!("An unexpected error has occurred at {caller}: {}", e.into());
+    Err(AppError::Unexpected)
+}
 
 #[derive(Debug)]
 pub enum AppError {
     Unexpected,
+    Unauthorized,
     DecodingRequestFailed,
     InternalServerError(&'static str),
     UnsupportedClientVersion,
@@ -13,6 +26,7 @@ pub enum AppError {
 
     ChannelsNotFound,
     ChannelsUnauthorized,
+    ChannelsInvalidName,
 
     /// 0: Syntax, 1: Type Signature, 2: Typed Syntax
     CommandsInvalidSyntax(&'static str, &'static str, &'static str),
@@ -56,9 +70,10 @@ impl AppError {
         self.code()
     }
 
-    pub const fn code(&self) -> &str {
+    pub const fn code(&self) -> &'static str {
         match self {
             AppError::Unexpected => "unexpected",
+            AppError::Unauthorized => "unauthorized",
             AppError::DecodingRequestFailed => "decoding_request_failed",
             AppError::InternalServerError(_) => "internal_server_error",
             AppError::UnsupportedClientVersion => "unsupported_client_version",
@@ -67,6 +82,7 @@ impl AppError {
 
             AppError::ChannelsNotFound => "channels.not_found",
             AppError::ChannelsUnauthorized => "channels.unauthorized",
+            AppError::ChannelsInvalidName => "channels.invalid_name",
 
             AppError::CommandsInvalidSyntax(_, _, _) => "commands.invalid_syntax",
             AppError::CommandsUnknownCommand => "commands.unknown_command",
@@ -98,9 +114,10 @@ impl AppError {
         }
     }
 
-    pub const fn message(&self) -> &str {
+    pub const fn message(&self) -> &'static str {
         match self {
             AppError::Unexpected => "An unexpected error has occurred.",
+            AppError::Unauthorized => "You are not authorized to perform this action.",
             AppError::DecodingRequestFailed => "Failed to decode request",
             AppError::InternalServerError(_) => "An internal server error has occurred.",
             AppError::UnsupportedClientVersion => "Client is unsupported",
@@ -113,6 +130,7 @@ impl AppError {
             AppError::ChannelsUnauthorized => {
                 "You do not have permission to send messages to this channel."
             }
+            AppError::ChannelsInvalidName => "Invalid Channel Name (must start with `#`)",
 
             AppError::CommandsInvalidSyntax(_, _, _) => "Invalid Command Syntax",
             AppError::CommandsUnknownCommand => "Unknown Command",
@@ -157,11 +175,65 @@ impl AppError {
             AppError::StreamsInvalidKey => "Invalid Streams Key",
         }
     }
+
+    pub const fn http_status_code(&self) -> StatusCode {
+        match self {
+            AppError::DecodingRequestFailed
+            | AppError::ChannelsInvalidName
+            | AppError::CommandsInvalidSyntax(_, _, _)
+            | AppError::MessagesInvalidLength
+            | AppError::MultiplayerInvalidSlotID
+            | AppError::StreamsInvalidKey => StatusCode::BAD_REQUEST,
+
+            AppError::Unauthorized
+            | AppError::ChannelsUnauthorized
+            | AppError::CommandsUnauthorized
+            | AppError::MultiplayerUnauthorized
+            | AppError::MultiplayerInvalidPassword
+            | AppError::SessionsInvalidCredentials => StatusCode::UNAUTHORIZED,
+
+            AppError::UnsupportedClientVersion
+            | AppError::ClientTooOld
+            | AppError::InteractionBlocked
+            | AppError::MultiplayerMatchFull
+            | AppError::SessionsLoginForbidden
+            | AppError::SessionsLimitReached => StatusCode::FORBIDDEN,
+
+            AppError::ChannelsNotFound
+            | AppError::CommandsUnknownCommand
+            | AppError::MultiplayerNotFound
+            | AppError::MultiplayerSlotNotFound
+            | AppError::MultiplayerUserNotInMatch
+            | AppError::PresencesNotFound
+            | AppError::RelationshipsNotFound
+            | AppError::UsersNotFound
+            | AppError::SessionsNotFound => StatusCode::NOT_FOUND,
+            AppError::MessagesUserAutoSilenced => StatusCode::TOO_MANY_REQUESTS,
+
+            AppError::Unexpected | AppError::InternalServerError(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        }
+    }
+
+    pub const fn response_parts(&self) -> (StatusCode, Json<ErrorResponse>) {
+        let status = self.http_status_code();
+        let response = ErrorResponse {
+            code: self.code(),
+            message: self.message(),
+        };
+        (status, Json(response))
+    }
 }
 
-#[track_caller]
-pub fn unexpected<T, E: Into<anyhow::Error>>(e: E) -> ServiceResult<T> {
-    let caller = std::panic::Location::caller();
-    error!("An unexpected error has occurred at {caller}: {}", e.into());
-    Err(AppError::Unexpected)
+#[derive(Serialize)]
+pub struct ErrorResponse {
+    pub code: &'static str,
+    pub message: &'static str,
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        self.response_parts().into_response()
+    }
 }

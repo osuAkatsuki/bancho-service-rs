@@ -1,7 +1,7 @@
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::models::sessions::Session;
-use crate::models::users::User;
+use crate::models::users::{User, VerifiedStatus};
 use crate::repositories::streams::StreamName;
 use crate::repositories::users;
 use crate::usecases::{messages, sessions, streams};
@@ -59,4 +59,18 @@ pub async fn silence_user<C: Context>(
     };
     streams::broadcast_message(ctx, StreamName::Main, user_silenced, None, None).await?;
     Ok(())
+}
+
+pub async fn fetch_verified_status<C: Context>(
+    ctx: &C,
+    user_id: i64,
+) -> ServiceResult<VerifiedStatus> {
+    let user = fetch_one(ctx, user_id).await?;
+    if user.privileges.is_pending_verification() {
+        Ok(VerifiedStatus::PendingVerification)
+    } else if !user.privileges.is_publicly_visible() {
+        Ok(VerifiedStatus::Multiaccount)
+    } else {
+        Ok(VerifiedStatus::Verified)
+    }
 }

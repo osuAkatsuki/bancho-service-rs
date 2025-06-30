@@ -12,19 +12,6 @@ pub enum Whitelist {
     All = 3,
 }
 
-impl TryFrom<i8> for Whitelist {
-    type Error = AppError;
-    fn try_from(value: i8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Whitelist::None),
-            1 => Ok(Whitelist::Vanilla),
-            2 => Ok(Whitelist::Relax),
-            3 => Ok(Whitelist::All),
-            _ => Err(AppError::InternalServerError("invalid whitelist value")),
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct User {
     pub user_id: i64,
@@ -54,6 +41,26 @@ pub struct User {
     pub playstyle: i16,
     pub vanilla_pp_leaderboards: bool,
     pub has_free_username_change: bool,
+}
+
+#[repr(i8)]
+pub enum VerifiedStatus {
+    PendingVerification = -1,
+    Multiaccount = 0,
+    Verified = 1,
+}
+
+impl TryFrom<i8> for Whitelist {
+    type Error = AppError;
+    fn try_from(value: i8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Whitelist::None),
+            1 => Ok(Whitelist::Vanilla),
+            2 => Ok(Whitelist::Relax),
+            3 => Ok(Whitelist::All),
+            _ => Err(AppError::InternalServerError("invalid whitelist value")),
+        }
+    }
 }
 
 impl TryFrom<UserEntity> for User {

@@ -42,7 +42,7 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     }
 
     let ip_address = ctx.request_ip.ip_addr;
-    let user_verification_pending = user.privileges.contains(Privileges::PendingVerification);
+    let user_verification_pending = user.privileges.is_pending_verification();
 
     ip_logs::create(ctx, user.user_id, ip_address).await?;
     hardware_logs::create(
@@ -172,6 +172,11 @@ pub async fn fetch_primary_by_username<C: Context>(
 pub async fn is_online<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<bool> {
     let is_online = sessions::is_online(ctx, user_id).await?;
     Ok(is_online)
+}
+
+pub async fn fetch_count<C: Context>(ctx: &C) -> ServiceResult<u64> {
+    let online_count = sessions::fetch_count(ctx).await?;
+    Ok(online_count)
 }
 
 pub async fn extend<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Session> {
