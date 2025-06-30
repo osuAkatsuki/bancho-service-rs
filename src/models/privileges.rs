@@ -36,7 +36,11 @@ bitflags! {
 
 impl Privileges {
     pub fn is_publicly_visible(&self) -> bool {
-        self.contains(Privileges::PubliclyVisible)
+        self.contains(Privileges::PubliclyVisible | Privileges::CanLogin)
+    }
+
+    pub fn is_pending_verification(&self) -> bool {
+        self.contains(Privileges::PendingVerification)
     }
 
     pub fn is_donor(&self) -> bool {

@@ -42,7 +42,7 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     }
 
     let ip_address = ctx.request_ip.ip_addr;
-    let user_verification_pending = user.privileges.contains(Privileges::PendingVerification);
+    let user_verification_pending = user.privileges.is_pending_verification();
 
     ip_logs::create(ctx, user.user_id, ip_address).await?;
     hardware_logs::create(

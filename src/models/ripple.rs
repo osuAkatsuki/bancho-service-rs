@@ -2,7 +2,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct IsOnlineArgs {
-    pub id: i64,
+    #[serde(rename = "id")]
+    pub user_id: i64,
+}
+
+#[derive(Deserialize)]
+pub struct IsVerifiedArgs {
+    #[serde(rename = "u")]
+    pub user_id: i64,
 }
 
 #[derive(Serialize)]
@@ -32,4 +39,11 @@ pub struct OnlineUsersResponse {
     #[serde(flatten)]
     pub base: ResponseBase,
     pub result: u64,
+}
+
+#[derive(Default, Serialize)]
+pub struct VerifiedStatusResponse {
+    #[serde(flatten)]
+    pub base: ResponseBase,
+    pub result: i8,
 }
