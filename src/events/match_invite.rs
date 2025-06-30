@@ -12,7 +12,7 @@ pub async fn handle<C: Context>(ctx: &C, session: &Session, args: MatchInvite) -
     let match_id = multiplayer::fetch_session_match_id(ctx, session.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
-    let target_session = sessions::fetch_one_by_user_id(ctx, args.user_id as _).await?;
+    let target_session = sessions::fetch_primary_by_user_id(ctx, args.user_id as _).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
     let safe_password = mp_match.password.replace(" ", "_");

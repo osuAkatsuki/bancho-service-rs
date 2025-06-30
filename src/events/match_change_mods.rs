@@ -9,6 +9,6 @@ pub async fn handle<C: Context>(ctx: &C, session: &Session, args: MatchChangeMod
     let match_id = multiplayer::fetch_session_match_id(ctx, session.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
-    multiplayer::change_mods(ctx, match_id, args.mods, Some(session.user_id)).await?;
+    multiplayer::change_mods(ctx, match_id, args.mods, Some(session.identity())).await?;
     Ok(None)
 }

@@ -16,7 +16,7 @@ pub async fn handle(
     if recipient_name == bot::BOT_NAME {
         messages::send_bancho(ctx, session, Recipient::Bot, args.message).await
     } else {
-        let recipient_session = sessions::fetch_one_by_username(ctx, recipient_name).await;
+        let recipient_session = sessions::fetch_primary_by_username(ctx, recipient_name).await;
         let recipient = match recipient_session {
             Ok(ref recipient_session) => Recipient::UserSession(recipient_session),
             Err(AppError::SessionsNotFound) => Recipient::OfflineUser(recipient_name),

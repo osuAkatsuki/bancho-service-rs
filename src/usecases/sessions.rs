@@ -1,6 +1,6 @@
 use crate::api::RequestContext;
 use crate::common::context::Context;
-use crate::common::error::{AppError, ServiceResult, unexpected, unwrap_expect};
+use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::sessions::CreateSessionArgs;
 use crate::models::Gamemode;
 use crate::models::bancho::LoginArgs;
@@ -22,9 +22,10 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
         return Err(AppError::ClientTooOld);
     }
 
-    let user = unwrap_expect! {
-        users::fetch_one_by_username(ctx, &args.identifier).await,
-        Err(sqlx::Error::RowNotFound) => return Err(AppError::SessionsInvalidCredentials)
+    let user = match users::fetch_one_by_username(ctx, &args.identifier).await {
+        Ok(user) => user,
+        Err(sqlx::Error::RowNotFound) => return Err(AppError::SessionsInvalidCredentials),
+        Err(e) => return unexpected(e),
     };
 
     if !bcrypt::verify(&args.secret, &user.password_md5)
@@ -69,7 +70,8 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
 
     let location_info =
         location::get_location(ip_address, user.country, args.client_info.display_city).await;
-
+    let mut sessions = fetch_by_user_id(ctx, user.user_id).await?;
+    let already_logged_in = sessions.next().is_some();
     let session = sessions::create(
         ctx,
         CreateSessionArgs {
@@ -79,6 +81,7 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
             privileges: user.privileges.bits(),
             silence_end: user.silence_end,
             private_dms: args.client_info.pm_private,
+            primary: !already_logged_in,
         },
     )
     .await?;
@@ -122,38 +125,29 @@ pub async fn fetch_all<C: Context>(ctx: &C) -> ServiceResult<impl Iterator<Item 
     }
 }
 
-pub async fn fetch_one_by_user_id<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<Session> {
-    match sessions::fetch_one_by_user_id(ctx, user_id).await {
-        Ok(Some(session)) if session.is_expired() => {
-            sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;
-            Err(AppError::SessionsNotFound)
-        }
-        Ok(Some(session)) => Ok(Session::from(session)),
-        Ok(None) => Err(AppError::SessionsNotFound),
-        Err(e) => unexpected(e),
-    }
+pub async fn fetch_by_user_id<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<impl Iterator<Item = Session>> {
+    let sessions = sessions::fetch_by_user_id(ctx, user_id).await?;
+    Ok(sessions.map(Session::from))
 }
 
-pub async fn fetch_one_by_username<C: Context>(ctx: &C, username: &str) -> ServiceResult<Session> {
-    match sessions::fetch_one_by_username(ctx, username).await {
-        Ok(Some(session)) if session.is_expired() => {
-            sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;
-            Err(AppError::SessionsNotFound)
-        }
-        Ok(Some(session)) => Ok(Session::from(session)),
-        Ok(None) => Err(AppError::SessionsNotFound),
-        Err(e) => unexpected(e),
-    }
+pub async fn fetch_primary_by_user_id<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<Session> {
+    let mut host_sessions = fetch_by_user_id(ctx, user_id).await?;
+    host_sessions.find(|s| s.primary).ok_or(AppError::SessionsNotFound)
 }
 
-pub async fn fetch_many_by_user_id<C: Context>(
-    ctx: &C,
-    user_ids: &[i64],
-) -> ServiceResult<impl Iterator<Item = Uuid>> {
-    match sessions::fetch_many_by_user_id(ctx, user_ids).await {
-        Ok(session_ids) => Ok(session_ids),
-        Err(e) => unexpected(e),
-    }
+pub async fn fetch_by_username<C: Context>(ctx: &C, username: &str) -> ServiceResult<impl Iterator<Item = Session>> {
+    let sessions = sessions::fetch_by_username(ctx, username).await?;
+    Ok(sessions.map(Session::from))
+}
+
+pub async fn fetch_primary_by_username<C: Context>(ctx: &C, username: &str) -> ServiceResult<Session> {
+    let mut host_sessions = fetch_by_username(ctx, username).await?;
+    host_sessions.find(|s| s.primary).ok_or(AppError::SessionsNotFound)
+}
+
+pub async fn is_online<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<bool> {
+    let is_online = sessions::is_online(ctx, user_id).await?;
+    Ok(is_online)
 }
 
 pub async fn extend<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Session> {
@@ -165,6 +159,9 @@ pub async fn extend<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Sess
 }
 
 pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()> {
+    // TODO: if the user has multiple sessions,
+    // make another session their primary session
+
     channels::leave_all(ctx, session.session_id).await?;
     spectators::leave(ctx, session, None).await?;
     spectators::close(ctx, session.session_id).await?;

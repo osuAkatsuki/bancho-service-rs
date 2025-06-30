@@ -33,20 +33,26 @@ pub async fn handle(ctx: &RequestContext, session: &Session, args: StartSpectati
         return Ok(Some(alert));
     }
 
+    let spec_channel_notify = Message::serialize(ChannelJoinSuccess {
+        name: "#spectator",
+    });
     match spectators::join(ctx, session, args.target_id as _).await {
-        Ok(spectator_ids) => {
-            let mut fellow_spectators = spectator_ids
-                .into_iter()
-                .flat_map(|user_id| {
-                    Message::serialize(FellowSpectatorJoined {
-                        user_id: user_id as _,
-                    })
-                })
-                .collect::<Vec<_>>();
-            fellow_spectators.extend(Message::serialize(ChannelJoinSuccess {
-                name: "#spectator",
-            }));
-            Ok(Some(fellow_spectators))
+        Ok(spectators) => {
+            match spectators.len() == 1 {
+                // We are the only spectator
+                true => Ok(Some(spec_channel_notify)),
+                false => {
+                    let mut response = spectators
+                        .into_iter()
+                        .filter(|spectator| session.session_id.ne(&spectator.session_id))
+                        .flat_map(|spectator| Message::serialize(FellowSpectatorJoined {
+                            user_id: spectator.user_id as _,
+                        }))
+                        .collect::<Vec<_>>();
+                    response.extend(spec_channel_notify);
+                    Ok(Some(response))
+                }
+            }
         }
         Err(e @ (AppError::InteractionBlocked | AppError::SessionsNotFound)) => {
             let notification = concat_messages!(
