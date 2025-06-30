@@ -53,7 +53,7 @@ impl MultiplayerMatch {
         (self.match_id & 0xFFFF) as _
     }
 
-    pub fn to_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match {
+    pub fn to_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match<'_> {
         let freemods = match self.freemod_enabled {
             true => Some(slots.to_mods()),
             false => None,

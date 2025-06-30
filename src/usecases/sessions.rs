@@ -108,11 +108,16 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
 
 pub async fn fetch_one<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Session> {
     match sessions::fetch_one(ctx, session_id).await {
-        Ok(Some(session)) if session.is_expired() => {
-            sessions::delete(ctx, session_id, session.user_id, &session.username).await?;
-            Err(AppError::SessionsNotFound)
-        }
-        Ok(Some(session)) => Ok(Session::from(session)),
+        Ok(Some(session)) => {
+            let session = Session::from(session);
+            match session.is_expired() {
+                false => Ok(session),
+                true => {
+                    delete(ctx, &session).await?;
+                    Err(AppError::SessionsNotFound)
+                }
+            }
+        },
         Ok(None) => Err(AppError::SessionsNotFound),
         Err(e) => unexpected(e),
     }
@@ -172,22 +177,23 @@ pub async fn extend<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Sess
 }
 
 pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()> {
-    // TODO: if the user has multiple sessions,
-    // make another session their primary session
-
     channels::leave_all(ctx, session.session_id).await?;
     spectators::leave(ctx, session, None).await?;
     spectators::close(ctx, session.session_id).await?;
     multiplayer::leave(ctx, session, None).await?;
 
-    presences::delete(ctx, session.user_id).await?;
-    sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;
+    let new_primary_session = sessions::fetch_random_non_primary(ctx, session.user_id).await?;
+    let user_offline = new_primary_session.is_none();
+    sessions::delete(ctx, session.session_id, session.user_id, &session.username, new_primary_session).await?;
     streams::clear_stream(ctx, StreamName::User(session.session_id)).await?;
     streams::leave_all(ctx, session.session_id).await?;
 
-    // notify everyone
-    let logout_notification = UserLogout::new(session.user_id as _);
-    streams::broadcast_message(ctx, StreamName::Main, logout_notification, None, None).await?;
+    if user_offline {
+        presences::delete(ctx, session.user_id).await?;
+        // notify everyone
+        let logout_notification = UserLogout::new(session.user_id as _);
+        streams::broadcast_message(ctx, StreamName::Main, logout_notification, None, None).await?;
+    }
     Ok(())
 }
 

@@ -18,6 +18,13 @@ pub struct Session {
 }
 
 impl Session {
+    pub fn is_expired(&self) -> bool {
+        let now = Utc::now();
+        self.updated_at.timestamp() < (now.timestamp() - bancho_protocol::PING_TIMEOUT)
+    }
+}
+
+impl Session {
     pub fn identity(&self) -> SessionIdentity {
         SessionIdentity {
             session_id: self.session_id,

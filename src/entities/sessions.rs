@@ -21,14 +21,6 @@ pub struct Session {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-const SESSION_EXPIRY_SECONDS: i64 = 300;
-impl Session {
-    pub fn is_expired(&self) -> bool {
-        let now = chrono::Utc::now();
-        self.updated_at.timestamp() < (now.timestamp() - SESSION_EXPIRY_SECONDS)
-    }
-}
-
 pub struct CreateSessionArgs {
     pub user_id: i64,
     pub username: String,

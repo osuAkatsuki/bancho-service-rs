@@ -213,7 +213,7 @@ pub async fn leave<C: Context>(
 
     let mut mp_match = fetch_one(ctx, match_id).await?;
     let (user_count, slots) =
-        match multiplayer::leave(ctx, session.session_id, session.user_id, mp_match.match_id)
+        match multiplayer::leave(ctx, session.session_id, mp_match.match_id)
             .await?
         {
             Some((user_count, slots)) => (user_count, MultiplayerMatchSlot::from(slots)),
@@ -286,10 +286,10 @@ pub async fn update<C: Context>(
     check_host: Option<i64>,
 ) -> ServiceResult<MultiplayerMatch> {
     let mut mp_match = fetch_one(ctx, match_id).await?;
-    if let Some(check_host) = check_host {
-        if mp_match.host_user_id != check_host {
-            return Err(AppError::MultiplayerUnauthorized);
-        }
+    if let Some(check_host) = check_host
+        && mp_match.host_user_id != check_host
+    {
+        return Err(AppError::MultiplayerUnauthorized);
     }
 
     let update_name = mp_match.name != args.name;
@@ -337,10 +337,10 @@ pub async fn update<C: Context>(
     Ok(MultiplayerMatch::try_from(mp_match)?)
 }
 
-pub async fn fetch_user_slot<C: Context>(
+pub async fn fetch_session_slot<C: Context>(
     ctx: &C,
     match_id: i64,
-    user_id: i64,
+    session_id: Uuid,
 ) -> ServiceResult<(usize, MultiplayerMatchSlot)> {
     let slots = fetch_all_slots(ctx, match_id).await?;
     let slot = slots
@@ -348,7 +348,7 @@ pub async fn fetch_user_slot<C: Context>(
         .enumerate()
         .find(|(_, slot)| {
             slot.user
-                .is_some_and(|slot_user| slot_user.user_id == user_id)
+                .is_some_and(|slot_user| slot_user.session_id == session_id)
         })
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
     Ok(slot)
@@ -364,10 +364,10 @@ pub async fn transfer_host_to_slot<C: Context>(
         return Err(AppError::MultiplayerSlotNotFound);
     }
     let mut mp_match = fetch_one(ctx, match_id).await?;
-    if let Some(check_host) = check_host {
-        if mp_match.host_user_id != check_host {
-            return Err(AppError::MultiplayerUnauthorized);
-        }
+    if let Some(check_host) = check_host
+        && mp_match.host_user_id != check_host
+    {
+        return Err(AppError::MultiplayerUnauthorized);
     }
 
     let slots = fetch_all_slots(ctx, mp_match.match_id).await?;
@@ -398,10 +398,10 @@ pub async fn transfer_host_to_user<C: Context>(
     check_host: Option<i64>,
 ) -> ServiceResult<()> {
     let mut mp_match = fetch_one(ctx, match_id).await?;
-    if let Some(check_host) = check_host {
-        if mp_match.host_user_id != check_host {
-            return Err(AppError::MultiplayerUnauthorized);
-        }
+    if let Some(check_host) = check_host
+        && mp_match.host_user_id != check_host
+    {
+        return Err(AppError::MultiplayerUnauthorized);
     }
 
     let slots = fetch_all_slots(ctx, mp_match.match_id).await?;
@@ -429,11 +429,11 @@ pub async fn transfer_host_to_user<C: Context>(
     Ok(())
 }
 
-pub async fn swap_user_slots<C: Context>(
+pub async fn swap_session_slots<C: Context>(
     ctx: &C,
     match_id: i64,
     target_slot_id: usize,
-    user_id: i64,
+    session_id: Uuid,
 ) -> ServiceResult<()> {
     let mp_match = fetch_one(ctx, match_id).await?;
     let mut slots = fetch_all_slots(ctx, match_id).await?;
@@ -443,7 +443,7 @@ pub async fn swap_user_slots<C: Context>(
         .enumerate()
         .find(|(_, slot)| {
             slot.user
-                .is_some_and(|slot_user| slot_user.user_id == user_id)
+                .is_some_and(|slot_user| slot_user.session_id == session_id)
         })
         .map(|(id, slot)| (id, *slot))
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -465,14 +465,14 @@ pub async fn swap_user_slots<C: Context>(
     Ok(())
 }
 
-pub async fn set_user_slot_status<C: Context>(
+pub async fn set_session_slot_status<C: Context>(
     ctx: &C,
     match_id: i64,
-    user_id: i64,
+    session_id: Uuid,
     status: SlotStatus,
     check_host: Option<i64>,
 ) -> ServiceResult<()> {
-    let (slot_id, _) = fetch_user_slot(ctx, match_id, user_id).await?;
+    let (slot_id, _) = fetch_session_slot(ctx, match_id, session_id).await?;
     set_slot_status(ctx, match_id, slot_id, status, check_host).await
 }
 
@@ -488,23 +488,23 @@ pub async fn set_slot_status<C: Context>(
     }
 
     let mp_match = fetch_one(ctx, match_id).await?;
-    if let Some(check_host) = check_host {
-        if check_host != mp_match.host_user_id {
-            return Err(AppError::MultiplayerUnauthorized);
-        }
+    if let Some(check_host) = check_host
+        && check_host != mp_match.host_user_id
+    {
+        return Err(AppError::MultiplayerUnauthorized);
     }
 
     let slot = multiplayer::fetch_slot(ctx, match_id, slot_id).await?;
     let mut slot = slot.ok_or(AppError::MultiplayerSlotNotFound)?;
     let slot_locked = slot.status == SlotStatus::Locked.bits();
     let locking_slot = status == SlotStatus::Locked;
-    if let Some(slot_user) = slot.user {
-        if locking_slot {
-            slot.clear();
-            // kick the user
-            if let Ok(session) = sessions::fetch_one(ctx, slot_user.session_id).await {
-                leave(ctx, &session, Some(match_id)).await?;
-            }
+    if let Some(slot_user) = slot.user
+        && locking_slot
+    {
+        slot.clear();
+        // kick the user
+        if let Ok(session) = sessions::fetch_one(ctx, slot_user.session_id).await {
+            leave(ctx, &session, Some(match_id)).await?;
         }
     }
     if slot_locked && locking_slot {
@@ -519,7 +519,7 @@ pub async fn set_slot_status<C: Context>(
     Ok(())
 }
 
-pub async fn switch_teams<C: Context>(ctx: &C, match_id: i64, user_id: i64) -> ServiceResult<()> {
+pub async fn switch_teams<C: Context>(ctx: &C, match_id: i64, session_id: Uuid) -> ServiceResult<()> {
     let mp_match = fetch_one(ctx, match_id).await?;
     let mut slots = fetch_all_slots(ctx, match_id).await?;
     let (slot_id, slot) = slots
@@ -527,7 +527,7 @@ pub async fn switch_teams<C: Context>(ctx: &C, match_id: i64, user_id: i64) -> S
         .enumerate()
         .find(|(_, slot)| {
             slot.user
-                .is_some_and(|slot_user| slot_user.user_id == user_id)
+                .is_some_and(|slot_user| slot_user.session_id == session_id)
         })
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
     slot.team = match slot.team {
@@ -548,10 +548,10 @@ pub async fn start_game<C: Context>(
     let mut mp_match = multiplayer::fetch_one(ctx, match_id)
         .await?
         .ok_or(AppError::MultiplayerNotFound)?;
-    if let Some(check_host) = check_host {
-        if check_host != mp_match.host_user_id {
-            return Err(AppError::MultiplayerUnauthorized);
-        }
+    if let Some(check_host) = check_host
+        && check_host != mp_match.host_user_id
+    {
+        return Err(AppError::MultiplayerUnauthorized);
     }
     mp_match.in_progress = true;
     let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
@@ -750,10 +750,11 @@ pub async fn change_mods<C: Context>(
         .ok_or(AppError::MultiplayerNotFound)?;
     // if a user is making the request, check if they are the host or whether freemod is enabled
     // TODO: referees
-    if let Some(slot_user) = slot_user {
-        if mp_match.host_user_id != slot_user.user_id && !mp_match.freemod_enabled {
-            return Err(AppError::MultiplayerUnauthorized);
-        }
+    if let Some(slot_user) = slot_user
+        && mp_match.host_user_id != slot_user.user_id
+        && !mp_match.freemod_enabled
+    {
+        return Err(AppError::MultiplayerUnauthorized);
     }
 
     let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;

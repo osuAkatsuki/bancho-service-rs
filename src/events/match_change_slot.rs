@@ -13,6 +13,6 @@ pub async fn handle<C: Context>(ctx: &C, session: &Session, args: MatchChangeSlo
     let match_id = multiplayer::fetch_session_match_id(ctx, session.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
-    multiplayer::swap_user_slots(ctx, match_id, args.slot_id as _, session.user_id).await?;
+    multiplayer::swap_session_slots(ctx, match_id, args.slot_id as _, session.session_id).await?;
     Ok(None)
 }

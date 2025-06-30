@@ -130,13 +130,12 @@ pub async fn join<C: Context>(
 pub async fn leave<C: Context>(
     ctx: &C,
     session_id: Uuid,
-    user_id: i64,
     match_id: i64,
 ) -> anyhow::Result<Option<(usize, [MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE])>> {
     let mut slots = fetch_all_slots(ctx, match_id).await?;
     let (slot_id, slot) = match slots.iter_mut().enumerate().find(|(_, slot)| {
         slot.user
-            .is_some_and(|slot_user| slot_user.user_id == user_id)
+            .is_some_and(|slot_user| slot_user.session_id == session_id)
     }) {
         Some((id, slot)) => {
             slot.clear();
