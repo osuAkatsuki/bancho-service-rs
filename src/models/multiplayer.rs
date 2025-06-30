@@ -2,6 +2,7 @@ use crate::common::error::{AppError, ServiceResult};
 use crate::entities::multiplayer::{
     MultiplayerMatch as Entity, MultiplayerMatchSlot as SlotEntity,
 };
+use crate::entities::sessions::SessionIdentity;
 use crate::models::Gamemode;
 use crate::repositories::multiplayer::MULTIPLAYER_MAX_SIZE;
 use bancho_protocol::structures::{
@@ -33,7 +34,7 @@ pub struct MultiplayerMatchSlot {
     pub status: SlotStatus,
     pub team: MatchTeam,
     pub mods: Mods,
-    pub user_id: Option<i64>,
+    pub user: Option<SessionIdentity>,
     pub loaded: bool,
     pub skipped: bool,
     pub failed: bool,
@@ -52,7 +53,7 @@ impl MultiplayerMatch {
         (self.match_id & 0xFFFF) as _
     }
 
-    pub fn to_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match {
+    pub fn to_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match<'_> {
         let freemods = match self.freemod_enabled {
             true => Some(slots.to_mods()),
             false => None,
@@ -139,7 +140,7 @@ impl MultiplayerMatchSlot {
             status: SlotStatus::from_bits_retain(entities[i].status),
             team: MatchTeam::from_u8(entities[i].team),
             mods: Mods::from_bits_retain(entities[i].mods),
-            user_id: entities[i].user_id,
+            user: entities[i].user,
             loaded: entities[i].loaded,
             skipped: entities[i].skipped,
             failed: entities[i].failed,
@@ -154,7 +155,7 @@ impl From<SlotEntity> for MultiplayerMatchSlot {
             status: SlotStatus::from_bits_retain(value.status),
             team: MatchTeam::from_u8(value.team),
             mods: Mods::from_bits_retain(value.mods),
-            user_id: value.user_id,
+            user: value.user,
             loaded: value.loaded,
             skipped: value.skipped,
             failed: value.failed,
@@ -169,7 +170,7 @@ impl Into<SlotEntity> for MultiplayerMatchSlot {
             status: self.status.bits(),
             team: self.team as _,
             mods: self.mods.bits(),
-            user_id: self.user_id,
+            user: self.user,
             loaded: self.loaded,
             skipped: self.skipped,
             failed: self.failed,
@@ -188,7 +189,7 @@ impl<const N: usize> MatchSlotExt<N> for [MultiplayerMatchSlot; N] {
         std::array::from_fn(|i| MatchSlot {
             status: self[i].status,
             team: self[i].team,
-            user_id: self[i].user_id.unwrap_or_default() as _,
+            user_id: self[i].user.map_or(0, |slot_user| slot_user.user_id) as _,
         })
     }
 

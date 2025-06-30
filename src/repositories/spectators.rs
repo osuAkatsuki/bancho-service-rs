@@ -1,4 +1,6 @@
 use crate::common::context::Context;
+use crate::common::redis_json::Json;
+use crate::entities::sessions::SessionIdentity;
 use redis::AsyncCommands;
 use std::ops::DerefMut;
 use uuid::Uuid;
@@ -24,17 +26,16 @@ fn make_key(host_session_id: Uuid) -> String {
 pub async fn add_member<C: Context>(
     ctx: &C,
     host_session_id: Uuid,
-    session_id: Uuid,
-    user_id: i64,
+    member_identity: SessionIdentity,
 ) -> anyhow::Result<usize> {
     let key = make_key(host_session_id);
 
     let mut redis = ctx.redis().await?;
     let member_count: [usize; 1] = redis::pipe()
         .atomic()
-        .hset(SPECTATING_KEY, session_id, host_session_id)
+        .hset(SPECTATING_KEY, member_identity.session_id, host_session_id)
         .ignore()
-        .sadd(&key, user_id)
+        .sadd(&key, Json(member_identity))
         .ignore()
         .scard(key)
         .query_async(redis.deref_mut())
@@ -45,17 +46,16 @@ pub async fn add_member<C: Context>(
 pub async fn remove_member<C: Context>(
     ctx: &C,
     host_session_id: Uuid,
-    session_id: Uuid,
-    user_id: i64,
+    member_identity: SessionIdentity,
 ) -> anyhow::Result<usize> {
     let key = make_key(host_session_id);
 
     let mut redis = ctx.redis().await?;
     let member_count: [usize; 1] = redis::pipe()
         .atomic()
-        .hdel(SPECTATING_KEY, session_id)
+        .hdel(SPECTATING_KEY, member_identity.session_id)
         .ignore()
-        .srem(&key, user_id)
+        .srem(&key, Json(member_identity))
         .ignore()
         .scard(key)
         .query_async(redis.deref_mut())
@@ -66,10 +66,11 @@ pub async fn remove_member<C: Context>(
 pub async fn fetch_all_members<C: Context>(
     ctx: &C,
     host_session_id: Uuid,
-) -> anyhow::Result<Vec<i64>> {
+) -> anyhow::Result<impl Iterator<Item = SessionIdentity>> {
     let mut redis = ctx.redis().await?;
     let key = make_key(host_session_id);
-    Ok(redis.smembers(key).await?)
+    let identities: Vec<Json<SessionIdentity>> = redis.smembers(key).await?;
+    Ok(identities.into_iter().map(Json::into_inner))
 }
 
 pub async fn remove_members<C: Context>(ctx: &C, host_session_id: Uuid) -> anyhow::Result<()> {

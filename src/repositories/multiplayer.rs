@@ -1,6 +1,7 @@
 use crate::common::context::Context;
 use crate::common::redis_json::Json;
 use crate::entities::multiplayer::{MultiplayerMatch, MultiplayerMatchSlot};
+use crate::entities::sessions::SessionIdentity;
 use bancho_protocol::structures::SlotStatus;
 use redis::AsyncCommands;
 use std::ops::DerefMut;
@@ -15,8 +16,7 @@ fn make_slots_key(match_id: i64) -> String {
 
 pub async fn create<C: Context>(
     ctx: &C,
-    host_session_id: Uuid,
-    host_user_id: i64,
+    host_identity: SessionIdentity,
     name: &str,
     password: &str,
     beatmap_name: &str,
@@ -30,10 +30,10 @@ pub async fn create<C: Context>(
 )> {
     let mut mp_match = MultiplayerMatch {
         beatmap_id,
-        host_user_id,
         mode,
         name: name.to_string(),
         password: password.to_string(),
+        host_user_id: host_identity.user_id,
         beatmap_name: beatmap_name.to_string(),
         beatmap_md5: beatmap_md5.to_string(),
         ..Default::default()
@@ -51,10 +51,7 @@ pub async fn create<C: Context>(
             let mut slot = MultiplayerMatchSlot::default();
             match slot_id {
                 // Place the host into the first slot
-                0 => {
-                    slot.status = SlotStatus::NotReady.bits();
-                    slot.user_id = Some(host_user_id as _);
-                }
+                0 => slot.prepare(host_identity),
                 i if i >= max_player_count => slot.status = SlotStatus::Locked.bits(),
                 _ => slot.status = SlotStatus::Empty.bits(),
             }
@@ -65,7 +62,11 @@ pub async fn create<C: Context>(
     let slots_key = make_slots_key(mp_match.match_id);
     redis::pipe()
         .atomic()
-        .hset(SESSIONS_MATCHES_KEY, host_session_id, mp_match.match_id)
+        .hset(
+            SESSIONS_MATCHES_KEY,
+            host_identity.session_id,
+            mp_match.match_id,
+        )
         .ignore()
         .hset_multiple(slots_key, &slots)
         .ignore()
@@ -97,8 +98,7 @@ pub async fn delete<C: Context>(ctx: &C, match_id: i64) -> anyhow::Result<()> {
 
 pub async fn join<C: Context>(
     ctx: &C,
-    session_id: Uuid,
-    user_id: i64,
+    identity: SessionIdentity,
     match_id: i64,
 ) -> anyhow::Result<Option<[MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE]>> {
     let mut slots = fetch_all_slots(ctx, match_id).await?;
@@ -108,7 +108,7 @@ pub async fn join<C: Context>(
         .find(|(_, slot)| slot.status == SlotStatus::Empty.bits())
     {
         Some((id, slot)) => {
-            slot.prepare(user_id);
+            slot.prepare(identity);
             (id, *slot)
         }
         None => return Ok(None),
@@ -118,7 +118,7 @@ pub async fn join<C: Context>(
     let slots_key = make_slots_key(match_id);
     redis::pipe()
         .atomic()
-        .hset(SESSIONS_MATCHES_KEY, session_id, match_id)
+        .hset(SESSIONS_MATCHES_KEY, identity.session_id, match_id)
         .ignore()
         .hset(slots_key, slot_id, Json(slot))
         .ignore()
@@ -130,23 +130,20 @@ pub async fn join<C: Context>(
 pub async fn leave<C: Context>(
     ctx: &C,
     session_id: Uuid,
-    user_id: i64,
     match_id: i64,
 ) -> anyhow::Result<Option<(usize, [MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE])>> {
     let mut slots = fetch_all_slots(ctx, match_id).await?;
-    let (slot_id, slot) = match slots
-        .iter_mut()
-        .filter(|slot| slot.user_id.is_some())
-        .enumerate()
-        .find(|(_, slot)| slot.user_id.is_some_and(|id| id == user_id))
-    {
+    let (slot_id, slot) = match slots.iter_mut().enumerate().find(|(_, slot)| {
+        slot.user
+            .is_some_and(|slot_user| slot_user.session_id == session_id)
+    }) {
         Some((id, slot)) => {
             slot.clear();
             (id, *slot)
         }
         None => return Ok(None),
     };
-    let user_count = slots.iter().filter(|slot| slot.user_id.is_some()).count();
+    let user_count = slots.iter().filter(|slot| slot.user.is_some()).count();
 
     let slots_key = make_slots_key(match_id);
     let mut pipe = redis::pipe();

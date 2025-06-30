@@ -9,7 +9,7 @@ pub async fn controller(ctx: RequestContext, request: BanchoRequest) -> BanchoRe
 }
 
 pub async fn index() -> Html<&'static str> {
-    let response = r#"
+    const RESPONSE: &str = r#"
 <html><head><title>Bancho Server</title><style type='text/css'>body{width:30%;background:#222;color:#fff;}</style></head><body><pre>
        _/_/    _/                    _/                          _/        _/
     _/    _/  _/  _/      _/_/_/  _/_/_/_/    _/_/_/  _/    _/  _/  _/
@@ -38,5 +38,5 @@ Serving one handed osu! gamers since the dawn of time &copy; Akatsuki, 2025
 </body>
 </html>
 "#;
-    Html(response)
+    Html(RESPONSE)
 }

@@ -1,6 +1,7 @@
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::channels::ChannelName;
+use crate::entities::sessions::SessionIdentity;
 use crate::models::sessions::Session;
 use crate::repositories::spectators;
 use crate::repositories::streams::StreamName;
@@ -23,30 +24,33 @@ pub async fn fetch_spectating<C: Context>(
 pub async fn fetch_all_members<C: Context>(
     ctx: &C,
     host_session_id: Uuid,
-) -> ServiceResult<Vec<i64>> {
+) -> ServiceResult<Vec<SessionIdentity>> {
     match spectators::fetch_all_members(ctx, host_session_id).await {
-        Ok(members) => Ok(members),
+        Ok(members) => Ok(members.collect()),
         Err(e) => unexpected(e),
     }
 }
 
-pub async fn join<C: Context>(ctx: &C, session: &Session, host_id: i64) -> ServiceResult<Vec<i64>> {
-    if let Some(host_session_id) = spectators::fetch_spectating(ctx, session.session_id).await? {
-        leave(ctx, session, Some(host_session_id)).await?;
-    }
-
-    let host_session = sessions::fetch_one_by_user_id(ctx, host_id).await?;
+pub async fn join<C: Context>(
+    ctx: &C,
+    session: &Session,
+    host_id: i64,
+) -> ServiceResult<Vec<SessionIdentity>> {
     if !session.is_publicly_visible() {
         return Err(AppError::InteractionBlocked);
     }
 
-    let member_count = spectators::add_member(
-        ctx,
-        host_session.session_id,
-        session.session_id,
-        session.user_id,
-    )
-    .await?;
+    if let Some(host_session_id) = spectators::fetch_spectating(ctx, session.session_id).await? {
+        leave(ctx, session, Some(host_session_id)).await?;
+    }
+
+    let host_session = sessions::fetch_primary_by_user_id(ctx, host_id).await?;
+    if !host_session.is_publicly_visible() {
+        return Err(AppError::InteractionBlocked);
+    }
+
+    let member_count =
+        spectators::add_member(ctx, host_session.session_id, session.identity()).await?;
     if member_count == 0 {
         tracing::error!("Unexpected Spectators Member Count of 0");
     }
@@ -68,7 +72,7 @@ pub async fn join<C: Context>(ctx: &C, session: &Session, host_id: i64) -> Servi
         // Join the host to their spectator updates stream
         streams::join(ctx, host_session.session_id, stream_name).await?;
         channels::join(ctx, &host_session, channel_name).await?;
-        Ok(vec![session.user_id])
+        Ok(vec![session.identity()])
     } else {
         let spectator_notification = FellowSpectatorJoined {
             user_id: session.user_id as _,
@@ -81,7 +85,7 @@ pub async fn join<C: Context>(ctx: &C, session: &Session, host_id: i64) -> Servi
             None,
         )
         .await?;
-        let members = spectators::fetch_all_members(ctx, host_session.session_id).await?;
+        let members = fetch_all_members(ctx, host_session.session_id).await?;
         Ok(members)
     }
 }
@@ -101,9 +105,7 @@ pub async fn leave<C: Context>(
             }
         }
     };
-    let member_count =
-        spectators::remove_member(ctx, host_session_id, session.session_id, session.user_id)
-            .await?;
+    let member_count = spectators::remove_member(ctx, host_session_id, session.identity()).await?;
 
     let channel_name = ChannelName::Spectator(host_session_id);
     channels::leave(ctx, session.session_id, channel_name).await?;
@@ -150,18 +152,17 @@ pub async fn leave<C: Context>(
 }
 
 pub async fn close<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<()> {
-    let members = fetch_all_members(ctx, session_id).await?;
-    if members.is_empty() {
+    let spectators = fetch_all_members(ctx, session_id).await?;
+    if spectators.is_empty() {
         return Ok(());
     }
 
-    let sessions = sessions::fetch_many_by_user_id(ctx, &members).await?;
     let channel_name = ChannelName::Spectator(session_id);
     let stream_name = StreamName::Spectator(session_id);
-    for session_id in sessions {
-        spectators::remove_spectating(ctx, session_id).await?;
-        channels::leave(ctx, session_id, channel_name).await?;
-        streams::leave(ctx, session_id, stream_name).await?;
+    for spectator in spectators {
+        spectators::remove_spectating(ctx, spectator.session_id).await?;
+        channels::leave(ctx, spectator.session_id, channel_name).await?;
+        streams::leave(ctx, spectator.session_id, stream_name).await?;
     }
 
     spectators::remove_members(ctx, session_id).await?;

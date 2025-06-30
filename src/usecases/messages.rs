@@ -107,23 +107,23 @@ pub async fn send<C: Context>(
         };
     let properties = response.properties;
 
-    if let Some(stream_name) = recipient.get_message_stream() {
-        if properties.forward_message {
-            let msg = IrcMessage {
-                sender: &session.username,
-                text: msg_content,
-                recipient: args.recipient,
-                sender_id: session.user_id as _,
-            };
-            streams::broadcast_message(
-                ctx,
-                stream_name,
-                ChatMessage(&msg),
-                recipient_info.excluded_session_ids,
-                properties.read_privileges,
-            )
-            .await?;
-        }
+    if let Some(stream_name) = recipient.get_message_stream()
+        && properties.forward_message
+    {
+        let msg = IrcMessage {
+            sender: &session.username,
+            text: msg_content,
+            recipient: args.recipient,
+            sender_id: session.user_id as _,
+        };
+        streams::broadcast_message(
+            ctx,
+            stream_name,
+            ChatMessage(&msg),
+            recipient_info.excluded_session_ids,
+            properties.read_privileges,
+        )
+        .await?;
     }
 
     match response.answer {

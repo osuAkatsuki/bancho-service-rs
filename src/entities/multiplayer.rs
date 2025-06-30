@@ -1,3 +1,4 @@
+use crate::entities::sessions::SessionIdentity;
 use bancho_protocol::structures::SlotStatus;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -36,7 +37,7 @@ pub struct MultiplayerMatchSlot {
     pub status: u8,
     pub team: u8,
     pub mods: u32,
-    pub user_id: Option<i64>,
+    pub user: Option<SessionIdentity>,
     pub loaded: bool,
     pub skipped: bool,
     pub failed: bool,
@@ -44,11 +45,11 @@ pub struct MultiplayerMatchSlot {
 }
 
 impl MultiplayerMatchSlot {
-    pub fn prepare(&mut self, user_id: i64) {
+    pub fn prepare(&mut self, identity: SessionIdentity) {
         self.status = SlotStatus::NotReady.bits();
         self.team = 0;
         self.mods = 0;
-        self.user_id = Some(user_id);
+        self.user = Some(identity);
         self.loaded = false;
         self.skipped = false;
         self.failed = false;
@@ -58,7 +59,7 @@ impl MultiplayerMatchSlot {
         self.status = SlotStatus::Empty.bits();
         self.team = 0;
         self.mods = 0;
-        self.user_id = None;
+        self.user = None;
         self.loaded = false;
         self.skipped = false;
         self.failed = false;

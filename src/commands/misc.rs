@@ -22,7 +22,7 @@ pub async fn alert_user<C: Context>(
     _sender: &Session,
     args: AlertUserArgs,
 ) -> CommandResult {
-    let session = sessions::fetch_one_by_username(ctx, &args.username).await?;
+    let session = sessions::fetch_primary_by_username(ctx, &args.username).await?;
     let alert = Alert {
         message: &args.message,
     };

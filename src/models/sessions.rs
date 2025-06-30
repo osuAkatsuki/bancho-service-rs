@@ -1,4 +1,4 @@
-use crate::entities::sessions::Session as SessionEntity;
+use crate::entities::sessions::{Session as SessionEntity, SessionIdentity};
 use crate::models::privileges::Privileges;
 use chrono::{DateTime, Utc};
 use std::net::IpAddr;
@@ -13,10 +13,25 @@ pub struct Session {
     pub create_ip_address: IpAddr,
     pub private_dms: bool,
     pub silence_end: Option<DateTime<Utc>>,
+    pub primary: bool,
     pub updated_at: DateTime<Utc>,
 }
 
 impl Session {
+    pub fn is_expired(&self) -> bool {
+        let now = Utc::now();
+        self.updated_at.timestamp() < (now.timestamp() - bancho_protocol::PING_TIMEOUT)
+    }
+}
+
+impl Session {
+    pub fn identity(&self) -> SessionIdentity {
+        SessionIdentity {
+            session_id: self.session_id,
+            user_id: self.user_id,
+        }
+    }
+
     pub fn is_publicly_visible(&self) -> bool {
         self.privileges.is_publicly_visible()
     }
@@ -58,6 +73,7 @@ impl Into<SessionEntity> for Session {
             create_ip_address: self.create_ip_address,
             private_dms: self.private_dms,
             silence_end: self.silence_end,
+            primary: self.primary,
             updated_at: self.updated_at,
         }
     }
@@ -73,6 +89,7 @@ impl From<SessionEntity> for Session {
             create_ip_address: value.create_ip_address,
             private_dms: value.private_dms,
             silence_end: value.silence_end,
+            primary: value.primary,
             updated_at: value.updated_at,
         }
     }

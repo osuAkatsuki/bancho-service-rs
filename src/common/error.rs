@@ -39,7 +39,7 @@ pub enum AppError {
     SessionsLoginForbidden,
     SessionsInvalidCredentials,
     SessionsNotFound,
-    SessionsNeedsMigration,
+    SessionsLimitReached,
 
     StreamsInvalidKey,
 }
@@ -92,7 +92,7 @@ impl AppError {
             AppError::SessionsLoginForbidden => "sessions.login_forbidden",
             AppError::SessionsInvalidCredentials => "sessions.invalid_credentials",
             AppError::SessionsNotFound => "sessions.not_found",
-            AppError::SessionsNeedsMigration => "sessions.needs_migration",
+            AppError::SessionsLimitReached => "sessions.limit_reached",
 
             AppError::StreamsInvalidKey => "streams.invalid_key",
         }
@@ -137,7 +137,7 @@ impl AppError {
             AppError::MultiplayerMatchFull => "The match has no free space left.",
             AppError::MultiplayerInvalidSlotID => "The slot id is invalid.",
             AppError::MultiplayerSlotNotFound => "The slot could not be found.",
-            AppError::MultiplayerUserNotInMatch => "The user is not the this match.",
+            AppError::MultiplayerUserNotInMatch => "The user is not in this match.",
 
             AppError::PresencesNotFound => "Presence not found",
 
@@ -150,7 +150,9 @@ impl AppError {
                 "You have entered an invalid username or password."
             }
             AppError::SessionsNotFound => "This user is currently not online",
-            AppError::SessionsNeedsMigration => "Your session needs to be migrated.",
+            AppError::SessionsLimitReached => {
+                "You have reached the max amount of logins. Please wait a few minutes or log out in other clients."
+            }
 
             AppError::StreamsInvalidKey => "Invalid Streams Key",
         }
@@ -163,18 +165,3 @@ pub fn unexpected<T, E: Into<anyhow::Error>>(e: E) -> ServiceResult<T> {
     error!("An unexpected error has occurred at {caller}: {}", e.into());
     Err(AppError::Unexpected)
 }
-
-macro_rules! unwrap_expect {
-    (
-        $e:expr
-        $(, $($pat:pat => $result:expr),+ )?
-    ) => {
-        match $e {
-            $( $($pat => $result,)+ )?
-            Ok(v) => v,
-            Err(e) => return $crate::common::error::unexpected(e),
-        }
-    };
-}
-
-pub(crate) use unwrap_expect;

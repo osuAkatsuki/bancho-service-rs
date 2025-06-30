@@ -2,6 +2,12 @@ use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use uuid::Uuid;
 
+#[derive(Copy, Clone, Default, Debug, Deserialize, Serialize)]
+pub struct SessionIdentity {
+    pub session_id: Uuid,
+    pub user_id: i64,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Session {
     pub session_id: Uuid,
@@ -11,15 +17,8 @@ pub struct Session {
     pub create_ip_address: IpAddr,
     pub private_dms: bool,
     pub silence_end: Option<chrono::DateTime<chrono::Utc>>,
+    pub primary: bool,
     pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-const SESSION_EXPIRY_SECONDS: i64 = 300;
-impl Session {
-    pub fn is_expired(&self) -> bool {
-        let now = chrono::Utc::now();
-        self.updated_at.timestamp() < (now.timestamp() - SESSION_EXPIRY_SECONDS)
-    }
 }
 
 pub struct CreateSessionArgs {
@@ -29,6 +28,7 @@ pub struct CreateSessionArgs {
     pub private_dms: bool,
     pub silence_end: Option<chrono::DateTime<chrono::Utc>>,
     pub ip_address: IpAddr,
+    pub primary: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -8,9 +8,17 @@ use std::ops::DerefMut;
 use uuid::Uuid;
 
 const SESSIONS_KEY: &str = "akatsuki:bancho:sessions";
-const SESSIONS_USER_IDS_KEY: &str = "akatsuki:bancho:sessions:user_ids";
-const SESSIONS_USERNAMES_KEY: &str = "akatsuki:bancho:sessions:usernames";
+
+fn make_id_key(user_id: i64) -> String {
+    format!("akatsuki:bancho:sessions:user_ids:{user_id}")
+}
+fn make_username_key(username: &str) -> String {
+    let safe_username = safe_username(username);
+    format!("akatsuki:bancho:sessions:usernames:{safe_username}")
+}
+
 pub async fn create<C: Context>(ctx: &C, args: CreateSessionArgs) -> anyhow::Result<Session> {
+    let mut redis = ctx.redis().await?;
     let session = Session {
         session_id: Uuid::new_v4(),
         user_id: args.user_id,
@@ -19,17 +27,18 @@ pub async fn create<C: Context>(ctx: &C, args: CreateSessionArgs) -> anyhow::Res
         create_ip_address: args.ip_address,
         private_dms: args.private_dms,
         silence_end: args.silence_end,
+        primary: args.primary,
         updated_at: chrono::Utc::now(),
     };
-    let safe_username = safe_username(&session.username);
-    let mut redis = ctx.redis().await?;
+    let user_id_key = make_id_key(args.user_id);
+    let username_key = make_username_key(&session.username);
     redis::pipe()
         .atomic()
         .hset(SESSIONS_KEY, session.session_id, Json(&session))
         .ignore()
-        .hset(SESSIONS_USER_IDS_KEY, session.user_id, session.session_id)
+        .sadd(user_id_key, session.session_id)
         .ignore()
-        .hset(SESSIONS_USERNAMES_KEY, safe_username, session.session_id)
+        .sadd(username_key, session.session_id)
         .ignore()
         .exec_async(redis.deref_mut())
         .await?;
@@ -48,46 +57,54 @@ pub async fn fetch_all<C: Context>(ctx: &C) -> anyhow::Result<impl Iterator<Item
     Ok(sessions.into_iter().map(Json::into_inner))
 }
 
-pub async fn fetch_one_by_user_id<C: Context>(
+pub async fn fetch_many<C: Context>(
+    ctx: &C,
+    session_ids: &[Uuid],
+) -> anyhow::Result<impl Iterator<Item = Session> + use<C>> {
+    let sessions: Vec<Option<Json<Session>>> = match session_ids.is_empty() {
+        true => vec![],
+        false => {
+            let mut redis = ctx.redis().await?;
+            redis::cmd("HMGET")
+                .arg(SESSIONS_KEY)
+                .arg(&session_ids)
+                .query_async(redis.deref_mut())
+                .await?
+        }
+    };
+    Ok(sessions.into_iter().filter_map(|x| x.map(Json::into_inner)))
+}
+
+pub async fn fetch_user_session_count<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<u64> {
+    let mut redis = ctx.redis().await?;
+    let user_id_key = make_id_key(user_id);
+    Ok(redis.scard(user_id_key).await?)
+}
+
+pub async fn fetch_by_user_id<C: Context>(
     ctx: &C,
     user_id: i64,
-) -> anyhow::Result<Option<Session>> {
+) -> anyhow::Result<impl Iterator<Item = Session>> {
     let mut redis = ctx.redis().await?;
-    let session_id: Option<Uuid> = redis.hget(SESSIONS_USER_IDS_KEY, user_id).await?;
-    if let Some(session_id) = session_id {
-        let session: Option<Json<Session>> = redis.hget(SESSIONS_KEY, session_id).await?;
-        Ok(session.map(Json::into_inner))
-    } else {
-        Ok(None)
-    }
+    let user_id_key = make_id_key(user_id);
+    let session_ids: Vec<Uuid> = redis.smembers(user_id_key).await?;
+    fetch_many(ctx, &session_ids).await
 }
 
-pub async fn fetch_one_by_username<C: Context>(
+pub async fn fetch_by_username<C: Context>(
     ctx: &C,
     username: &str,
-) -> anyhow::Result<Option<Session>> {
+) -> anyhow::Result<impl Iterator<Item = Session>> {
     let mut redis = ctx.redis().await?;
-    let safe_username = safe_username(username);
-    let session_id: Option<Uuid> = redis.hget(SESSIONS_USERNAMES_KEY, safe_username).await?;
-    if let Some(session_id) = session_id {
-        let session: Option<Json<Session>> = redis.hget(SESSIONS_KEY, session_id).await?;
-        Ok(session.map(Json::into_inner))
-    } else {
-        Ok(None)
-    }
+    let username_key = make_username_key(username);
+    let session_ids: Vec<Uuid> = redis.smembers(username_key).await?;
+    fetch_many(ctx, &session_ids).await
 }
 
-pub async fn fetch_many_by_user_id<C: Context>(
-    ctx: &C,
-    user_ids: &[i64],
-) -> anyhow::Result<impl Iterator<Item = Uuid>> {
+pub async fn is_online<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<bool> {
     let mut redis = ctx.redis().await?;
-    let session_ids: Vec<Option<Uuid>> = redis::cmd("HMGET")
-        .arg(SESSIONS_USER_IDS_KEY)
-        .arg(user_ids)
-        .query_async(redis.deref_mut())
-        .await?;
-    Ok(session_ids.into_iter().filter_map(|x| x))
+    let user_id_key = make_id_key(user_id);
+    Ok(redis.exists(user_id_key).await?)
 }
 
 pub async fn extend<C: Context>(ctx: &C, mut session: Session) -> anyhow::Result<Session> {
@@ -103,25 +120,52 @@ pub async fn update<C: Context>(ctx: &C, session: Session) -> anyhow::Result<Ses
     Ok(session)
 }
 
+pub async fn fetch_random_non_primary<C: Context>(
+    ctx: &C,
+    user_id: i64,
+) -> anyhow::Result<Option<Session>> {
+    let mut redis = ctx.redis().await?;
+    let user_id_key = make_id_key(user_id);
+    // fetching 2 random sessions guarantees one of them is not a primary session
+    let session_ids: Vec<Uuid> = redis.srandmember_multiple(user_id_key, 2).await?;
+    if session_ids.len() != 2 {
+        return Ok(None);
+    }
+    let mut sessions = fetch_many(ctx, &session_ids).await?;
+    Ok(sessions.find(|x| !x.primary))
+}
+
 pub async fn delete<C: Context>(
     ctx: &C,
     session_id: Uuid,
     user_id: i64,
     username: &str,
-) -> anyhow::Result<()> {
+    new_primary_session: Option<Session>,
+) -> anyhow::Result<u64> {
     let mut redis = ctx.redis().await?;
-    let safe_username = safe_username(username);
-    redis::pipe()
-        .atomic()
+    let user_id_key = make_id_key(user_id);
+    let username_key = make_username_key(username);
+
+    let mut pipe = redis::pipe();
+    pipe.atomic()
         .hdel(SESSIONS_KEY, session_id)
         .ignore()
-        .hdel(SESSIONS_USER_IDS_KEY, user_id)
+        .srem(&user_id_key, session_id)
         .ignore()
-        .hdel(SESSIONS_USERNAMES_KEY, safe_username)
+        .srem(username_key, session_id)
         .ignore()
-        .exec_async(redis.deref_mut())
-        .await?;
-    Ok(())
+        .scard(user_id_key);
+    if let Some(mut new_primary_session) = new_primary_session {
+        new_primary_session.primary = true;
+        pipe.hset(
+            SESSIONS_KEY,
+            new_primary_session.session_id,
+            Json(new_primary_session),
+        )
+        .ignore();
+    }
+    let size: [u64; 1] = pipe.query_async(redis.deref_mut()).await?;
+    Ok(size[0])
 }
 
 pub async fn count<C: Context>(ctx: &C) -> anyhow::Result<usize> {

@@ -151,10 +151,10 @@ impl CommandHandlerProxy for CommandRouter {
                 let args = parts.next();
                 match self.get(cmd_name) {
                     Some(command) => {
-                        if let Some(required_privileges) = command.properties.required_privileges {
-                            if !session.has_all_privileges(required_privileges) {
-                                return Err(AppError::CommandsUnauthorized);
-                            }
+                        if let Some(required_privileges) = command.properties.required_privileges
+                            && !session.has_all_privileges(required_privileges)
+                        {
+                            return Err(AppError::CommandsUnauthorized);
                         }
                         command.handler.handle(ctx, &session, args).await
                     }

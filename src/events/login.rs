@@ -38,6 +38,7 @@ fn login_error(e: AppError) -> BanchoResponse {
         AppError::SessionsInvalidCredentials => LoginError::InvalidCredentials,
         AppError::ClientTooOld => LoginError::OldVersion,
         AppError::SessionsLoginForbidden => LoginError::Banned,
+        AppError::SessionsLimitReached => LoginError::OldVersion,
         _ => LoginError::UnexpectedError,
     };
     let data = concat_messages!(
@@ -75,7 +76,7 @@ pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
     let mut response = vec![
         concat_messages! {
             LoginResult{ user_id: session.user_id as _ },
-            ProtocolVersion { version: 19 },
+            ProtocolVersion { version: bancho_protocol::PROTOCOL_VERSION },
             UserPrivileges { privileges: session.privileges.to_bancho() | Privileges::Supporter },
             ChannelInfoEnd,
             Alert{ message: WELCOME_MESSAGE },
