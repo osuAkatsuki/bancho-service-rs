@@ -12,6 +12,12 @@ pub struct IsVerifiedArgs {
     pub user_id: i64,
 }
 
+#[derive(Deserialize)]
+pub struct FetchPlayerMatchDetailsArgs {
+    #[serde(rename = "id")]
+    pub user_id: i64,
+}
+
 #[derive(Serialize)]
 pub struct ResponseBase {
     pub message: &'static str,
@@ -46,4 +52,20 @@ pub struct VerifiedStatusResponse {
     #[serde(flatten)]
     pub base: ResponseBase,
     pub result: i8,
+}
+
+#[derive(Serialize)]
+pub struct PlayerMatchDetails {
+    pub match_name: String,
+    pub match_id: i64,
+    pub slot_id: u8,
+    pub game_id: i64,
+    pub team: u8,
+}
+
+#[derive(Default, Serialize)]
+pub struct PlayerMatchDetailsResponse {
+    #[serde(flatten)]
+    pub base: ResponseBase,
+    pub result: Option<PlayerMatchDetails>,
 }

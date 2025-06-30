@@ -10,4 +10,5 @@ pub fn router() -> Router<AppState> {
         .route("/onlineUsers", get(ripple::online_users))
         .route("/serverStatus", get(ripple::server_status))
         .route("/verifiedStatus", get(ripple::verified_status))
+        .route("/playerMatchDetails", get(ripple::player_match_details))
 }
