@@ -30,6 +30,8 @@ spec:
                       key: token
                 - name: APP_COMPONENT
                   value: cleanup-cron
+                - name: APP_ENV
+                  value: production
           restartPolicy: OnFailure
           imagePullSecrets:
             - name: osuakatsuki-registry-secret
