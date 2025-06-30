@@ -6,11 +6,30 @@ pub struct IsOnlineArgs {
 }
 
 #[derive(Serialize)]
-pub struct IsOnlineResponse {
+pub struct ResponseBase {
     pub message: &'static str,
-    pub result: bool,
     pub status: u16,
 }
 
-#[derive(Serialize)]
-pub struct OnlineUsersResponse {}
+impl Default for ResponseBase {
+    fn default() -> Self {
+        Self {
+            message: "ok",
+            status: 200,
+        }
+    }
+}
+
+#[derive(Default, Serialize)]
+pub struct IsOnlineResponse {
+    #[serde(flatten)]
+    pub base: ResponseBase,
+    pub result: bool,
+}
+
+#[derive(Default, Serialize)]
+pub struct OnlineUsersResponse {
+    #[serde(flatten)]
+    pub base: ResponseBase,
+    pub result: u64,
+}

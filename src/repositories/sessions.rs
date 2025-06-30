@@ -107,6 +107,11 @@ pub async fn is_online<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<bool
     Ok(redis.exists(user_id_key).await?)
 }
 
+pub async fn fetch_count<C: Context>(ctx: &C) -> anyhow::Result<u64> {
+    let mut redis = ctx.redis().await?;
+    Ok(redis.hlen(SESSIONS_KEY).await?)
+}
+
 pub async fn extend<C: Context>(ctx: &C, mut session: Session) -> anyhow::Result<Session> {
     session.updated_at = chrono::Utc::now();
     update(ctx, session).await

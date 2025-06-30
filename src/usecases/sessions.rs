@@ -174,6 +174,11 @@ pub async fn is_online<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<bool>
     Ok(is_online)
 }
 
+pub async fn fetch_count<C: Context>(ctx: &C) -> ServiceResult<u64> {
+    let online_count = sessions::fetch_count(ctx).await?;
+    Ok(online_count)
+}
+
 pub async fn extend<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Session> {
     let session = fetch_one(ctx, session_id).await?;
     match sessions::extend(ctx, session.into()).await {

@@ -11,12 +11,15 @@ pub async fn is_online(
 ) -> ServiceResponse<IsOnlineResponse> {
     let is_online = sessions::is_online(&ctx, args.id).await?;
     Ok(Json(IsOnlineResponse {
-        message: "ok",
-        status: 200,
         result: is_online,
+        ..Default::default()
     }))
 }
 
 pub async fn online_users(ctx: RequestContext) -> ServiceResponse<OnlineUsersResponse> {
-    Ok(Json(OnlineUsersResponse {}))
+    let online_count = sessions::fetch_count(&ctx).await?;
+    Ok(Json(OnlineUsersResponse {
+        result: online_count,
+        ..Default::default()
+    }))
 }
