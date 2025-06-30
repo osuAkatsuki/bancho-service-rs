@@ -213,9 +213,7 @@ pub async fn leave<C: Context>(
 
     let mut mp_match = fetch_one(ctx, match_id).await?;
     let (user_count, slots) =
-        match multiplayer::leave(ctx, session.session_id, mp_match.match_id)
-            .await?
-        {
+        match multiplayer::leave(ctx, session.session_id, mp_match.match_id).await? {
             Some((user_count, slots)) => (user_count, MultiplayerMatchSlot::from(slots)),
             None => return Ok(()),
         };
@@ -519,7 +517,11 @@ pub async fn set_slot_status<C: Context>(
     Ok(())
 }
 
-pub async fn switch_teams<C: Context>(ctx: &C, match_id: i64, session_id: Uuid) -> ServiceResult<()> {
+pub async fn switch_teams<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    session_id: Uuid,
+) -> ServiceResult<()> {
     let mp_match = fetch_one(ctx, match_id).await?;
     let mut slots = fetch_all_slots(ctx, match_id).await?;
     let (slot_id, slot) = slots

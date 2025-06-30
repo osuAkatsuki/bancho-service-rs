@@ -9,7 +9,13 @@ pub async fn handle<C: Context>(ctx: &C, session: &Session) -> EventResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, session.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
-    multiplayer::set_session_slot_status(ctx, match_id, session.session_id, SlotStatus::NotReady, None)
-        .await?;
+    multiplayer::set_session_slot_status(
+        ctx,
+        match_id,
+        session.session_id,
+        SlotStatus::NotReady,
+        None,
+    )
+    .await?;
     Ok(None)
 }

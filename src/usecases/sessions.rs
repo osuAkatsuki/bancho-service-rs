@@ -117,7 +117,7 @@ pub async fn fetch_one<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<S
                     Err(AppError::SessionsNotFound)
                 }
             }
-        },
+        }
         Ok(None) => Err(AppError::SessionsNotFound),
         Err(e) => unexpected(e),
     }
@@ -184,7 +184,14 @@ pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()>
 
     let new_primary_session = sessions::fetch_random_non_primary(ctx, session.user_id).await?;
     let user_offline = new_primary_session.is_none();
-    sessions::delete(ctx, session.session_id, session.user_id, &session.username, new_primary_session).await?;
+    sessions::delete(
+        ctx,
+        session.session_id,
+        session.user_id,
+        &session.username,
+        new_primary_session,
+    )
+    .await?;
     streams::clear_stream(ctx, StreamName::User(session.session_id)).await?;
     streams::leave_all(ctx, session.session_id).await?;
 

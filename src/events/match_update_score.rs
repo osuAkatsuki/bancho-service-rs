@@ -16,7 +16,8 @@ pub async fn handle<C: Context>(
     let match_id = multiplayer::fetch_session_match_id(ctx, session.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
-    let (slot_id, slot) = multiplayer::fetch_session_slot(ctx, match_id, session.session_id).await?;
+    let (slot_id, slot) =
+        multiplayer::fetch_session_slot(ctx, match_id, session.session_id).await?;
     if slot.status != SlotStatus::Playing {
         return Ok(None);
     }

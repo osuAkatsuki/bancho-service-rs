@@ -57,7 +57,10 @@ pub async fn fetch_all<C: Context>(ctx: &C) -> anyhow::Result<impl Iterator<Item
     Ok(sessions.into_iter().map(Json::into_inner))
 }
 
-pub async fn fetch_many<C: Context>(ctx: &C, session_ids: &[Uuid]) -> anyhow::Result<impl Iterator<Item = Session> + use<C>> {
+pub async fn fetch_many<C: Context>(
+    ctx: &C,
+    session_ids: &[Uuid],
+) -> anyhow::Result<impl Iterator<Item = Session> + use<C>> {
     let sessions: Vec<Option<Json<Session>>> = match session_ids.is_empty() {
         true => vec![],
         false => {
@@ -111,7 +114,10 @@ pub async fn update<C: Context>(ctx: &C, session: Session) -> anyhow::Result<Ses
     Ok(session)
 }
 
-pub async fn fetch_random_non_primary<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<Option<Session>> {
+pub async fn fetch_random_non_primary<C: Context>(
+    ctx: &C,
+    user_id: i64,
+) -> anyhow::Result<Option<Session>> {
     let mut redis = ctx.redis().await?;
     let user_id_key = make_id_key(user_id);
     // fetching 2 random sessions guarantees one of them is not a primary session
