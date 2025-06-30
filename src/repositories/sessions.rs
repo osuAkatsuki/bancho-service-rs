@@ -75,6 +75,12 @@ pub async fn fetch_many<C: Context>(
     Ok(sessions.into_iter().filter_map(|x| x.map(Json::into_inner)))
 }
 
+pub async fn fetch_user_session_count<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<u64> {
+    let mut redis = ctx.redis().await?;
+    let user_id_key = make_id_key(user_id);
+    Ok(redis.scard(user_id_key).await?)
+}
+
 pub async fn fetch_by_user_id<C: Context>(
     ctx: &C,
     user_id: i64,

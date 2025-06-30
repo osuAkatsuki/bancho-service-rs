@@ -39,7 +39,7 @@ pub enum AppError {
     SessionsLoginForbidden,
     SessionsInvalidCredentials,
     SessionsNotFound,
-    SessionsNeedsMigration,
+    SessionsLimitReached,
 
     StreamsInvalidKey,
 }
@@ -92,7 +92,7 @@ impl AppError {
             AppError::SessionsLoginForbidden => "sessions.login_forbidden",
             AppError::SessionsInvalidCredentials => "sessions.invalid_credentials",
             AppError::SessionsNotFound => "sessions.not_found",
-            AppError::SessionsNeedsMigration => "sessions.needs_migration",
+            AppError::SessionsLimitReached => "sessions.limit_reached",
 
             AppError::StreamsInvalidKey => "streams.invalid_key",
         }
@@ -150,7 +150,9 @@ impl AppError {
                 "You have entered an invalid username or password."
             }
             AppError::SessionsNotFound => "This user is currently not online",
-            AppError::SessionsNeedsMigration => "Your session needs to be migrated.",
+            AppError::SessionsLimitReached => {
+                "You have reached the max amount of logins. Please wait a few minutes or log out in other clients."
+            }
 
             AppError::StreamsInvalidKey => "Invalid Streams Key",
         }

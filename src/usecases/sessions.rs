@@ -17,6 +17,8 @@ use bancho_protocol::messages::server::UserLogout;
 use chrono::TimeDelta;
 use uuid::Uuid;
 
+pub const USER_SESSIONS_LIMIT: u64 = 20;
+
 pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Session, Presence)> {
     if args.client_info.osu_version.is_outdated() {
         return Err(AppError::ClientTooOld);
@@ -60,6 +62,11 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     )
     .await?;
 
+    let user_session_count = sessions::fetch_user_session_count(ctx, user.user_id).await?;
+    if user_session_count >= USER_SESSIONS_LIMIT {
+        return Err(AppError::SessionsLimitReached);
+    }
+
     if user_verification_pending {
         users::verify_user(ctx, user.user_id).await?;
         user.privileges.remove(Privileges::PendingVerification);
@@ -70,8 +77,7 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
 
     let location_info =
         location::get_location(ip_address, user.country, args.client_info.display_city).await;
-    let mut sessions = fetch_by_user_id(ctx, user.user_id).await?;
-    let already_logged_in = sessions.next().is_some();
+    let already_logged_in = user_session_count != 0;
     let session = sessions::create(
         ctx,
         CreateSessionArgs {
