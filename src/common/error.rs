@@ -163,18 +163,3 @@ pub fn unexpected<T, E: Into<anyhow::Error>>(e: E) -> ServiceResult<T> {
     error!("An unexpected error has occurred at {caller}: {}", e.into());
     Err(AppError::Unexpected)
 }
-
-macro_rules! unwrap_expect {
-    (
-        $e:expr
-        $(, $($pat:pat => $result:expr),+ )?
-    ) => {
-        match $e {
-            $( $($pat => $result,)+ )?
-            Ok(v) => v,
-            Err(e) => return $crate::common::error::unexpected(e),
-        }
-    };
-}
-
-pub(crate) use unwrap_expect;
