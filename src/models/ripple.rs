@@ -18,6 +18,16 @@ pub struct FetchPlayerMatchDetailsArgs {
     pub user_id: i64,
 }
 
+#[derive(Deserialize)]
+pub struct SendChatbotMessageArgs {
+    #[serde(rename = "k")]
+    pub key: String,
+    #[serde(rename = "to")]
+    pub channel: String,
+    #[serde(rename = "msg")]
+    pub content: String,
+}
+
 #[derive(Serialize)]
 pub struct ResponseBase {
     pub message: &'static str,

@@ -1,12 +1,18 @@
 use crate::api::RequestContext;
 use crate::common::error::{AppError, ServiceResponse};
+use crate::entities::bot;
+use crate::entities::channels::ChannelName;
 use crate::models::ripple::{
     FetchPlayerMatchDetailsArgs, IsOnlineArgs, IsOnlineResponse, IsVerifiedArgs,
-    OnlineUsersResponse, PlayerMatchDetailsResponse, VerifiedStatusResponse,
+    OnlineUsersResponse, PlayerMatchDetailsResponse, ResponseBase, SendChatbotMessageArgs,
+    VerifiedStatusResponse,
 };
-use crate::usecases::{ripple, sessions, users};
+use crate::settings::AppSettings;
+use crate::usecases::{channels, ripple, sessions, streams, users};
 use axum::Json;
 use axum::extract::Query;
+use bancho_protocol::messages::server::ChatMessage;
+use bancho_protocol::structures::IrcMessage;
 
 pub async fn is_online(
     ctx: RequestContext,
@@ -64,4 +70,32 @@ pub async fn player_match_details(
         Err(e) => return Err(e),
     }
     Ok(Json(response))
+}
+
+pub async fn send_chatbot_message(
+    ctx: RequestContext,
+    Query(args): Query<SendChatbotMessageArgs>,
+) -> ServiceResponse<ResponseBase> {
+    let settings = AppSettings::get();
+    if let Some(ref ci_key) = settings.app_ci_key
+        && args.key.ne(ci_key)
+    {
+        return Err(AppError::InternalServerError("ci key mismatch"));
+    }
+
+    if !args.channel.starts_with('#') {
+        return Err(AppError::InternalServerError("channel must start with #"));
+    }
+
+    let channel_name = ChannelName::Chat(&args.channel);
+    let channel = channels::fetch_one(&ctx, channel_name).await?;
+    let msg_stream = channel_name.get_message_stream();
+    let msg = IrcMessage {
+        sender: bot::BOT_NAME,
+        sender_id: bot::BOT_ID as _,
+        text: &args.content,
+        recipient: &channel.name,
+    };
+    streams::broadcast_message(&ctx, msg_stream, ChatMessage(&msg), None, None).await?;
+    Ok(Json(Default::default()))
 }
