@@ -10,10 +10,11 @@ use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::repositories::{match_games, multiplayer};
 use crate::usecases::{channels, match_events, sessions, streams};
+use bancho_protocol::concat_messages;
 use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::server::{
-    MatchAllPlayersLoaded, MatchComplete, MatchCreated, MatchDisposed, MatchPlayerFailed,
-    MatchPlayerSkipped, MatchSkip, MatchStart, MatchUpdate,
+    Alert, MatchAllPlayersLoaded, MatchComplete, MatchCreated, MatchDisposed, MatchJoinFailed,
+    MatchPlayerFailed, MatchPlayerSkipped, MatchSkip, MatchStart, MatchUpdate,
 };
 use bancho_protocol::serde::BinarySerialize;
 use bancho_protocol::structures::{Match, MatchTeam, Mods, SlotStatus};
@@ -503,6 +504,20 @@ pub async fn set_slot_status<C: Context>(
         // kick the user
         if let Ok(session) = sessions::fetch_one(ctx, slot_user.session_id).await {
             leave(ctx, &session, Some(match_id)).await?;
+            concat_messages!(
+                MatchJoinFailed,
+                Alert {
+                    message: "You have been kicked out of the match!",
+                }
+            );
+            streams::broadcast_message(
+                ctx,
+                StreamName::User(session.session_id),
+                MatchJoinFailed,
+                None,
+                None,
+            )
+            .await?;
         }
     }
     if slot_locked && locking_slot {
