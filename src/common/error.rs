@@ -137,7 +137,7 @@ impl AppError {
             AppError::MultiplayerMatchFull => "The match has no free space left.",
             AppError::MultiplayerInvalidSlotID => "The slot id is invalid.",
             AppError::MultiplayerSlotNotFound => "The slot could not be found.",
-            AppError::MultiplayerUserNotInMatch => "The user is not the this match.",
+            AppError::MultiplayerUserNotInMatch => "The user is not in this match.",
 
             AppError::PresencesNotFound => "Presence not found",
 

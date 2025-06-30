@@ -504,16 +504,16 @@ pub async fn set_slot_status<C: Context>(
         // kick the user
         if let Ok(session) = sessions::fetch_one(ctx, slot_user.session_id).await {
             leave(ctx, &session, Some(match_id)).await?;
-            concat_messages!(
+            let notification = concat_messages!(
                 MatchJoinFailed,
                 Alert {
                     message: "You have been kicked out of the match!",
-                }
+                },
             );
-            streams::broadcast_message(
+            streams::broadcast_data(
                 ctx,
                 StreamName::User(session.session_id),
-                MatchJoinFailed,
+                &notification,
                 None,
                 None,
             )
