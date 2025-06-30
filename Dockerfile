@@ -1,4 +1,7 @@
-FROM lukemathwalker/cargo-chef:latest-rust-latest AS chef
+FROM rust:latest AS chef
+# We only pay the installation cost once,
+# it will be cached from the second build onwards
+RUN cargo install cargo-chef
 WORKDIR /app
 
 FROM chef AS planner
