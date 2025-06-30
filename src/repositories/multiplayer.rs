@@ -1,11 +1,11 @@
 use crate::common::context::Context;
 use crate::common::redis_json::Json;
 use crate::entities::multiplayer::{MultiplayerMatch, MultiplayerMatchSlot};
+use crate::entities::sessions::SessionIdentity;
 use bancho_protocol::structures::SlotStatus;
 use redis::AsyncCommands;
 use std::ops::DerefMut;
 use uuid::Uuid;
-use crate::entities::sessions::SessionIdentity;
 
 const KEY: &str = "akatsuki:bancho:multiplayer";
 const SESSIONS_MATCHES_KEY: &str = "akatsuki:bancho:sessions:multiplayer";
@@ -62,7 +62,11 @@ pub async fn create<C: Context>(
     let slots_key = make_slots_key(mp_match.match_id);
     redis::pipe()
         .atomic()
-        .hset(SESSIONS_MATCHES_KEY, host_identity.session_id, mp_match.match_id)
+        .hset(
+            SESSIONS_MATCHES_KEY,
+            host_identity.session_id,
+            mp_match.match_id,
+        )
         .ignore()
         .hset_multiple(slots_key, &slots)
         .ignore()
@@ -130,11 +134,10 @@ pub async fn leave<C: Context>(
     match_id: i64,
 ) -> anyhow::Result<Option<(usize, [MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE])>> {
     let mut slots = fetch_all_slots(ctx, match_id).await?;
-    let (slot_id, slot) = match slots
-        .iter_mut()
-        .enumerate()
-        .find(|(_, slot)| slot.user.is_some_and(|slot_user| slot_user.user_id == user_id))
-    {
+    let (slot_id, slot) = match slots.iter_mut().enumerate().find(|(_, slot)| {
+        slot.user
+            .is_some_and(|slot_user| slot_user.user_id == user_id)
+    }) {
         Some((id, slot)) => {
             slot.clear();
             (id, *slot)

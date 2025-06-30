@@ -125,24 +125,37 @@ pub async fn fetch_all<C: Context>(ctx: &C) -> ServiceResult<impl Iterator<Item 
     }
 }
 
-pub async fn fetch_by_user_id<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<impl Iterator<Item = Session>> {
+pub async fn fetch_by_user_id<C: Context>(
+    ctx: &C,
+    user_id: i64,
+) -> ServiceResult<impl Iterator<Item = Session>> {
     let sessions = sessions::fetch_by_user_id(ctx, user_id).await?;
     Ok(sessions.map(Session::from))
 }
 
 pub async fn fetch_primary_by_user_id<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<Session> {
     let mut host_sessions = fetch_by_user_id(ctx, user_id).await?;
-    host_sessions.find(|s| s.primary).ok_or(AppError::SessionsNotFound)
+    host_sessions
+        .find(|s| s.primary)
+        .ok_or(AppError::SessionsNotFound)
 }
 
-pub async fn fetch_by_username<C: Context>(ctx: &C, username: &str) -> ServiceResult<impl Iterator<Item = Session>> {
+pub async fn fetch_by_username<C: Context>(
+    ctx: &C,
+    username: &str,
+) -> ServiceResult<impl Iterator<Item = Session>> {
     let sessions = sessions::fetch_by_username(ctx, username).await?;
     Ok(sessions.map(Session::from))
 }
 
-pub async fn fetch_primary_by_username<C: Context>(ctx: &C, username: &str) -> ServiceResult<Session> {
+pub async fn fetch_primary_by_username<C: Context>(
+    ctx: &C,
+    username: &str,
+) -> ServiceResult<Session> {
     let mut host_sessions = fetch_by_username(ctx, username).await?;
-    host_sessions.find(|s| s.primary).ok_or(AppError::SessionsNotFound)
+    host_sessions
+        .find(|s| s.primary)
+        .ok_or(AppError::SessionsNotFound)
 }
 
 pub async fn is_online<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<bool> {

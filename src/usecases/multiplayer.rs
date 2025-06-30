@@ -2,7 +2,8 @@ use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::channels::ChannelName;
 use crate::entities::match_events::MatchEventType;
-use crate::entities::multiplayer::{MultiplayerMatchSlot as SlotEntity};
+use crate::entities::multiplayer::MultiplayerMatchSlot as SlotEntity;
+use crate::entities::sessions::SessionIdentity;
 use crate::models::Gamemode;
 use crate::models::multiplayer::{MultiplayerMatch, MultiplayerMatchSlot, MultiplayerMatchSlots};
 use crate::models::sessions::Session;
@@ -17,7 +18,6 @@ use bancho_protocol::messages::server::{
 use bancho_protocol::serde::BinarySerialize;
 use bancho_protocol::structures::{Match, MatchTeam, Mods, SlotStatus};
 use uuid::Uuid;
-use crate::entities::sessions::SessionIdentity;
 
 pub async fn create<C: Context>(
     ctx: &C,
@@ -560,9 +560,19 @@ pub async fn start_game<C: Context>(
         if let Some(slot_user) = slot.user {
             if slot_status.intersects(SlotStatus::Ready | SlotStatus::NotReady) {
                 slot.status = SlotStatus::Playing.bits();
-                streams::join(ctx, slot_user.session_id, StreamName::Multiplaying(match_id)).await?;
+                streams::join(
+                    ctx,
+                    slot_user.session_id,
+                    StreamName::Multiplaying(match_id),
+                )
+                .await?;
             } else {
-                streams::leave(ctx, slot_user.session_id, StreamName::Multiplaying(match_id)).await?;
+                streams::leave(
+                    ctx,
+                    slot_user.session_id,
+                    StreamName::Multiplaying(match_id),
+                )
+                .await?;
             }
         }
     }
@@ -607,7 +617,7 @@ pub async fn start_game<C: Context>(
         None,
         None,
     )
-        .await?;
+    .await?;
     streams::broadcast_message(
         ctx,
         StreamName::Multiplaying(match_id),
@@ -718,7 +728,10 @@ pub async fn player_completed<C: Context>(ctx: &C, session: &Session) -> Service
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
     let (all_completed, _slot_id) =
-        change_playing_state(ctx, match_id, session.session_id, |slot| &mut slot.completed).await?;
+        change_playing_state(ctx, match_id, session.session_id, |slot| {
+            &mut slot.completed
+        })
+        .await?;
     if all_completed {
         end_game(ctx, match_id).await?;
     }

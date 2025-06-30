@@ -1,7 +1,7 @@
+use crate::entities::sessions::SessionIdentity;
 use bancho_protocol::structures::SlotStatus;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::entities::sessions::SessionIdentity;
 
 #[derive(sqlx::FromRow)]
 pub struct PersistentMatch {
@@ -45,10 +45,7 @@ pub struct MultiplayerMatchSlot {
 }
 
 impl MultiplayerMatchSlot {
-    pub fn prepare(
-        &mut self,
-        identity: SessionIdentity,
-    ) {
+    pub fn prepare(&mut self, identity: SessionIdentity) {
         self.status = SlotStatus::NotReady.bits();
         self.team = 0;
         self.mods = 0;

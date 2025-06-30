@@ -1,9 +1,9 @@
 use crate::common::context::Context;
+use crate::common::redis_json::Json;
+use crate::entities::sessions::SessionIdentity;
 use redis::AsyncCommands;
 use std::ops::DerefMut;
 use uuid::Uuid;
-use crate::common::redis_json::Json;
-use crate::entities::sessions::SessionIdentity;
 
 const SPECTATING_KEY: &'static str = "akatsuki:bancho:sessions:spectating";
 pub async fn fetch_spectating<C: Context>(

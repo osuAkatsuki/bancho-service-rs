@@ -1,6 +1,7 @@
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::channels::ChannelName;
+use crate::entities::sessions::SessionIdentity;
 use crate::models::sessions::Session;
 use crate::repositories::spectators;
 use crate::repositories::streams::StreamName;
@@ -9,7 +10,6 @@ use bancho_protocol::messages::server::{
     ChannelKick, FellowSpectatorJoined, FellowSpectatorLeft, SpectatorJoined, SpectatorLeft,
 };
 use uuid::Uuid;
-use crate::entities::sessions::SessionIdentity;
 
 pub async fn fetch_spectating<C: Context>(
     ctx: &C,
@@ -49,12 +49,8 @@ pub async fn join<C: Context>(
         return Err(AppError::InteractionBlocked);
     }
 
-    let member_count = spectators::add_member(
-        ctx,
-        host_session.session_id,
-        session.identity(),
-    )
-    .await?;
+    let member_count =
+        spectators::add_member(ctx, host_session.session_id, session.identity()).await?;
     if member_count == 0 {
         tracing::error!("Unexpected Spectators Member Count of 0");
     }
@@ -109,9 +105,7 @@ pub async fn leave<C: Context>(
             }
         }
     };
-    let member_count =
-        spectators::remove_member(ctx, host_session_id, session.identity())
-            .await?;
+    let member_count = spectators::remove_member(ctx, host_session_id, session.identity()).await?;
 
     let channel_name = ChannelName::Spectator(host_session_id);
     channels::leave(ctx, session.session_id, channel_name).await?;

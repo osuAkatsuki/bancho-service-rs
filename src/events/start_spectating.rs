@@ -33,9 +33,7 @@ pub async fn handle(ctx: &RequestContext, session: &Session, args: StartSpectati
         return Ok(Some(alert));
     }
 
-    let spec_channel_notify = Message::serialize(ChannelJoinSuccess {
-        name: "#spectator",
-    });
+    let spec_channel_notify = Message::serialize(ChannelJoinSuccess { name: "#spectator" });
     match spectators::join(ctx, session, args.target_id as _).await {
         Ok(spectators) => {
             match spectators.len() == 1 {
@@ -45,9 +43,11 @@ pub async fn handle(ctx: &RequestContext, session: &Session, args: StartSpectati
                     let mut response = spectators
                         .into_iter()
                         .filter(|spectator| session.session_id.ne(&spectator.session_id))
-                        .flat_map(|spectator| Message::serialize(FellowSpectatorJoined {
-                            user_id: spectator.user_id as _,
-                        }))
+                        .flat_map(|spectator| {
+                            Message::serialize(FellowSpectatorJoined {
+                                user_id: spectator.user_id as _,
+                            })
+                        })
                         .collect::<Vec<_>>();
                     response.extend(spec_channel_notify);
                     Ok(Some(response))
