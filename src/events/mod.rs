@@ -60,14 +60,12 @@ pub async fn handle_request(ctx: &RequestContext, request: BanchoRequest) -> Ban
         BanchoRequest::HandleEvents(session_id, request_data) => {
             match sessions::extend(ctx, session_id).await {
                 Ok(session) => handle_events(ctx, session, request_data).await,
-                Err(AppError::SessionsNotFound | AppError::SessionsNeedsMigration) => {
-                    BanchoResponse::error_raw(
-                        None,
-                        Message::serialize(Restart {
-                            milliseconds: RECONNECT_DELAY,
-                        }),
-                    )
-                }
+                Err(AppError::SessionsNotFound) => BanchoResponse::error_raw(
+                    None,
+                    Message::serialize(Restart {
+                        milliseconds: RECONNECT_DELAY,
+                    }),
+                ),
                 Err(e) => BanchoResponse::error(Some(session_id), e),
             }
         }
