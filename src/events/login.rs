@@ -28,9 +28,9 @@ enum LoginError {
     OldVersion = -2,
     Banned = -3,
     UnexpectedError = -5,
-    NeedSupporter = -6,
+    /*NeedSupporter = -6,
     PasswordReset = -7,
-    RequireVerification = -8,
+    RequireVerification = -8,*/
 }
 
 fn login_error(e: AppError) -> BanchoResponse {
