@@ -80,11 +80,11 @@ pub async fn send_chatbot_message(
     if let Some(ref ci_key) = settings.app_ci_key
         && args.key.ne(ci_key)
     {
-        return Err(AppError::InternalServerError("ci key mismatch"));
+        return Err(AppError::Unauthorized);
     }
 
     if !args.channel.starts_with('#') {
-        return Err(AppError::InternalServerError("channel must start with #"));
+        return Err(AppError::ChannelsInvalidName);
     }
 
     let channel_name = ChannelName::Chat(&args.channel);
