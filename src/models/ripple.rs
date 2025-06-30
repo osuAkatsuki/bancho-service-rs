@@ -29,12 +29,12 @@ pub struct SendChatbotMessageArgs {
 }
 
 #[derive(Serialize)]
-pub struct ResponseBase {
+pub struct BaseSuccessData {
     pub message: &'static str,
     pub status: u16,
 }
 
-impl Default for ResponseBase {
+impl Default for BaseSuccessData {
     fn default() -> Self {
         Self {
             message: "ok",
@@ -46,21 +46,21 @@ impl Default for ResponseBase {
 #[derive(Default, Serialize)]
 pub struct IsOnlineResponse {
     #[serde(flatten)]
-    pub base: ResponseBase,
+    pub base: BaseSuccessData,
     pub result: bool,
 }
 
 #[derive(Default, Serialize)]
 pub struct OnlineUsersResponse {
     #[serde(flatten)]
-    pub base: ResponseBase,
+    pub base: BaseSuccessData,
     pub result: u64,
 }
 
 #[derive(Default, Serialize)]
 pub struct VerifiedStatusResponse {
     #[serde(flatten)]
-    pub base: ResponseBase,
+    pub base: BaseSuccessData,
     pub result: i8,
 }
 
@@ -76,6 +76,6 @@ pub struct PlayerMatchDetails {
 #[derive(Default, Serialize)]
 pub struct PlayerMatchDetailsResponse {
     #[serde(flatten)]
-    pub base: ResponseBase,
+    pub base: BaseSuccessData,
     pub result: Option<PlayerMatchDetails>,
 }

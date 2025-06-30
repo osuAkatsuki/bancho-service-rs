@@ -4,7 +4,7 @@ use crate::entities::bot;
 use crate::entities::channels::ChannelName;
 use crate::models::ripple::{
     FetchPlayerMatchDetailsArgs, IsOnlineArgs, IsOnlineResponse, IsVerifiedArgs,
-    OnlineUsersResponse, PlayerMatchDetailsResponse, ResponseBase, SendChatbotMessageArgs,
+    OnlineUsersResponse, PlayerMatchDetailsResponse, BaseSuccessData, SendChatbotMessageArgs,
     VerifiedStatusResponse,
 };
 use crate::settings::AppSettings;
@@ -75,11 +75,9 @@ pub async fn player_match_details(
 pub async fn send_chatbot_message(
     ctx: RequestContext,
     Query(args): Query<SendChatbotMessageArgs>,
-) -> ServiceResponse<ResponseBase> {
+) -> ServiceResponse<BaseSuccessData> {
     let settings = AppSettings::get();
-    if let Some(ref ci_key) = settings.app_ci_key
-        && args.key.ne(ci_key)
-    {
+    if args.key != settings.app_ci_key {
         return Err(AppError::Unauthorized);
     }
 
