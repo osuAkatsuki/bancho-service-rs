@@ -94,3 +94,18 @@ impl TryFrom<u8> for Gamemode {
         }
     }
 }
+
+impl TryFrom<u8> for CustomGamemode {
+    type Error = std::io::Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        use std::io::{Error, ErrorKind};
+
+        match value {
+            0 => Ok(CustomGamemode::Vanilla),
+            1 => Ok(CustomGamemode::Relax),
+            2 => Ok(CustomGamemode::Autopilot),
+            _ => Err(Error::new(ErrorKind::InvalidData, "invalid gamemode")),
+        }
+    }
+}
