@@ -5,7 +5,7 @@ use crate::settings::AppSettings;
 use crate::workers::daemons::pubsub_consumer::handlers::{
     ban, change_username, disconnect, notification, silence, unban, update_cached_stats, wipe,
 };
-use tracing::warn;
+use tracing::{error, warn};
 
 // TODO: change return type to anyhow::Result<!> when its stabilized
 pub async fn serve(settings: &AppSettings) -> anyhow::Result<()> {
@@ -28,8 +28,8 @@ pub async fn serve(settings: &AppSettings) -> anyhow::Result<()> {
         tokio::spawn(async move {
             let msg = msg;
             let ctx = task_state;
-            let channel_name = msg.get_channel_name();
-            match channel_name {
+            let channel_name = msg.get_channel_name().to_string();
+            let handler_result = match channel_name.as_str() {
                 "peppy:ban" => ban::handle(ctx, msg).await,
                 "peppy:unban" => unban::handle(ctx, msg).await,
                 "peppy:silence" => silence::handle(ctx, msg).await,
@@ -42,6 +42,9 @@ pub async fn serve(settings: &AppSettings) -> anyhow::Result<()> {
                     warn!("Unknown pubsub channel message: {}", channel_name);
                     Ok(())
                 }
+            };
+            if let Err(e) = handler_result {
+                error!(channel_name, "Error handling pubsub event: {e:?}");
             }
         });
     }
