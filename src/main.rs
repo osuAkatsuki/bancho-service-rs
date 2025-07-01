@@ -1,7 +1,7 @@
 use bancho_service::api;
 use bancho_service::common::init;
 use bancho_service::settings::AppSettings;
-use bancho_service::workers::crons;
+use bancho_service::workers::{crons, daemons};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -10,6 +10,7 @@ async fn main() -> anyhow::Result<()> {
     match settings.app_component.as_str() {
         "api" => api::serve(settings).await,
         "cleanup-cron" => crons::cleanup_cron::serve(settings).await,
+        "pubsub-daemon" => daemons::pubsub_consumer::serve(settings).await,
         _ => panic!("Unknown app component"),
     }
 }

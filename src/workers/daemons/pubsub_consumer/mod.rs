@@ -5,11 +5,10 @@ use crate::settings::AppSettings;
 use crate::workers::daemons::pubsub_consumer::handlers::{
     ban, change_username, disconnect, notification, silence, unban, update_cached_stats, wipe,
 };
-use std::convert::Infallible;
 use tracing::warn;
 
 // TODO: change return type to anyhow::Result<!> when its stabilized
-pub async fn serve(settings: &AppSettings) -> anyhow::Result<Infallible> {
+pub async fn serve(settings: &AppSettings) -> anyhow::Result<()> {
     let redis_client = redis::Client::open(settings.redis_url.as_str())?;
     let mut redis_conn = redis_client.get_connection()?;
     let mut pubsub = redis_conn.as_pubsub();
