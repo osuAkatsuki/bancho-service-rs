@@ -22,7 +22,40 @@ pub enum Gamemode {
     StandardAutopilot = 8,
 }
 
+impl CustomGamemode {
+    pub const fn scoring_field(&self) -> &'static str {
+        match self {
+            CustomGamemode::Vanilla => "score",
+            CustomGamemode::Relax => "pp",
+            CustomGamemode::Autopilot => "pp",
+        }
+    }
+
+    pub const fn all() -> [Self; 3] {
+        [Self::Vanilla, Self::Relax, Self::Autopilot]
+    }
+}
+
 impl Gamemode {
+    pub fn from(mode: Mode, custom_gamemode: CustomGamemode) -> Gamemode {
+        match mode {
+            Mode::Standard => match custom_gamemode {
+                CustomGamemode::Vanilla => Gamemode::Standard,
+                CustomGamemode::Relax => Gamemode::StandardRelax,
+                CustomGamemode::Autopilot => Gamemode::StandardAutopilot,
+            },
+            Mode::Taiko => match custom_gamemode {
+                CustomGamemode::Relax => Gamemode::TaikoRelax,
+                _ => Gamemode::Taiko,
+            },
+            Mode::Catch => match custom_gamemode {
+                CustomGamemode::Relax => Gamemode::CatchRelax,
+                _ => Gamemode::Catch,
+            },
+            Mode::Mania => Gamemode::Mania,
+        }
+    }
+
     pub fn from_mode_and_mods(mode: Mode, mods: Mods) -> Gamemode {
         if mods.has_any(Mods::Relax) {
             match mode {

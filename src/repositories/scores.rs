@@ -1,6 +1,6 @@
 use crate::common::context::Context;
-use crate::entities::gamemodes::CustomGamemode;
-use crate::entities::scores::{FirstPlaceScore, NewFirstPlace};
+use crate::entities::gamemodes::{CustomGamemode, Gamemode};
+use crate::entities::scores::{FirstPlaceScore, NewFirstPlace, ValueScore};
 use bancho_protocol::structures::Mode;
 use sqlx::Arguments;
 use sqlx::mysql::MySqlArguments;
@@ -35,6 +35,7 @@ pub async fn fetch_first_places<C: Context>(
     Ok(first_places)
 }
 
+// TODO: move to usecases
 pub async fn remove_first_places<C: Context>(
     ctx: &C,
     user_id: i64,
@@ -53,12 +54,12 @@ pub async fn remove_first_places<C: Context>(
         let table = SCORES_TABLES[first_place.rx as usize];
         let query = format!(
             r#"
-SELECT s.id, s.userid FROM {table} s
-INNER JOIN {table} users u ON s.userid = u.id
-WHERE s.beatmap_md5 = ? AND s.play_mode = ?
-AND s.userid != ? AND s.completed = 3 AND u.privileges & 1
-ORDER BY s.{sort} DESC LIMIT 1
-"#
+                SELECT s.id, s.userid FROM {table} s
+                INNER JOIN {table} users u ON s.userid = u.id
+                WHERE s.beatmap_md5 = ? AND s.play_mode = ?
+                AND s.userid != ? AND s.completed = 3 AND u.privileges & 1
+                ORDER BY s.{sort} DESC LIMIT 1
+            "#
         );
 
         let new_first_place: Option<NewFirstPlace> = sqlx::query_as(&query)
@@ -94,6 +95,81 @@ pub async fn transfer_first_place<C: Context>(
 pub async fn remove_first_place<C: Context>(ctx: &C, score_id: i64) -> sqlx::Result<()> {
     sqlx::query("DELETE FROM scores_first WHERE scoreid = ?")
         .bind(score_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn fetch_user_scores<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    custom_gamemode: CustomGamemode,
+) -> sqlx::Result<Vec<ValueScore>> {
+    let scoring_col = custom_gamemode.scoring_field();
+    let table_name = SCORES_TABLES[custom_gamemode as usize];
+
+    let query = format!(
+        r#"
+            SELECT s.id AS score_id, (s.{scoring_col} + 0.0) AS score_value, s.play_mode AS mode,
+            s.time, s.userid AS user_id, s.beatmap_md5 FROM {table_name} s
+            LEFT JOIN beatmaps b USING(beatmap_md5)
+            WHERE s.userid = ? AND s.completed = 3
+            AND s.score > 0 AND b.ranked > 1
+        "#
+    );
+    sqlx::query_as(&query)
+        .bind(user_id)
+        .fetch_all(ctx.db())
+        .await
+}
+
+pub async fn fetch_first_place<C: Context>(
+    ctx: &C,
+    beatmap_md5: &str,
+    gamemode: Gamemode,
+) -> sqlx::Result<Option<ValueScore>> {
+    let mode = gamemode.to_bancho();
+    let custom_gamemode = gamemode.custom_gamemode();
+    let scoring_col = custom_gamemode.scoring_field();
+    let table_name = SCORES_TABLES[custom_gamemode as usize];
+
+    let query = format!(
+        r#"
+            SELECT s.id AS score_id, (s.{scoring_col} + 0.0) AS score_value, s.play_mode AS mode,
+            s.time, s.userid AS user_id, s.beatmap_md5 FROM scores_first
+            INNER JOIN {table_name} s ON s.id = scores_first.scoreid
+            INNER JOIN users ON users.id = scores_first.userid
+            WHERE scores_first.beatmap_md5 = ?
+            AND scores_first.mode = ?
+            AND scores_first.rx = ?
+            AND users.privileges & 3 = 3
+            LIMIT 1
+        "#
+    );
+
+    sqlx::query_as(&query)
+        .bind(beatmap_md5)
+        .bind(mode as u8)
+        .bind(custom_gamemode as u8)
+        .fetch_optional(ctx.db())
+        .await
+}
+
+pub async fn replace_first_place<C: Context>(
+    ctx: &C,
+    score_id: i64,
+    user_id: i64,
+    beatmap_md5: &str,
+    gamemode: Gamemode,
+) -> sqlx::Result<()> {
+    let mode = gamemode.to_bancho();
+    let custom_gamemode = gamemode.custom_gamemode();
+    sqlx::query("REPLACE INTO scores_first VALUES (?, ?, ?, ?, ?)")
+        .bind(beatmap_md5)
+        .bind(mode as u8)
+        .bind(custom_gamemode as u8)
+        .bind(score_id)
+        .bind(user_id)
         .execute(ctx.db())
         .await?;
     Ok(())

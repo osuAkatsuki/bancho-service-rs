@@ -8,15 +8,6 @@ use bancho_protocol::structures::IrcMessage;
 use redis::Msg;
 use tracing::info;
 
-pub const fn restriction_message(recipient: &str) -> IrcMessage<'_> {
-    IrcMessage {
-        recipient,
-        sender: bot::BOT_NAME,
-        sender_id: bot::BOT_ID as _,
-        text: "Your account is now in restricted mode. Visit the website for more information.",
-    }
-}
-
 pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     let user_id: i64 = msg.get_payload()?;
     info!(user_id, "Handling ban event for user");
@@ -26,7 +17,7 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     scores::remove_first_places(&ctx, user.user_id, None, None).await?;
 
     let sessions = sessions::fetch_by_user_id(&ctx, user_id).await?;
-    let restriction_message = restriction_message(&user.username);
+    let restriction_notification = restriction_message(&user.username);
     for mut session in sessions {
         if !user.privileges.can_login() {
             sessions::delete(&ctx, &session).await?;
@@ -39,7 +30,7 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
         streams::broadcast_message(
             &ctx,
             StreamName::User(session.session_id),
-            ChatMessage(&restriction_message),
+            ChatMessage(&restriction_notification),
             None,
             None,
         )
@@ -49,4 +40,13 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     info!(user_id, "Successfully handled ban event for user");
 
     Ok(())
+}
+
+pub const fn restriction_message(recipient: &str) -> IrcMessage<'_> {
+    IrcMessage {
+        recipient,
+        sender: bot::BOT_NAME,
+        sender_id: bot::BOT_ID as _,
+        text: "Your account is now in restricted mode. Visit the website for more information.",
+    }
 }
