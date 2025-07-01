@@ -236,7 +236,7 @@ pub async fn set_private_dms(
 /// Silences the given session for the given amount of seconds.
 pub async fn silence<C: Context>(
     ctx: &C,
-    session: &mut Session,
+    mut session: Session,
     silence_seconds: i64,
 ) -> ServiceResult<()> {
     session.silence_end = Some(chrono::Utc::now() + TimeDelta::seconds(silence_seconds));
