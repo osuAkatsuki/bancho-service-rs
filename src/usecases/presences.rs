@@ -1,7 +1,7 @@
 use crate::api::RequestContext;
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
-use crate::models::Gamemode;
+use crate::entities::gamemodes::Gamemode;
 use crate::models::presences::Presence;
 use crate::models::privileges::Privileges;
 use crate::repositories::presences;

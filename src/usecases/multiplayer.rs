@@ -1,10 +1,10 @@
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::channels::ChannelName;
+use crate::entities::gamemodes::Gamemode;
 use crate::entities::match_events::MatchEventType;
 use crate::entities::multiplayer::MultiplayerMatchSlot as SlotEntity;
 use crate::entities::sessions::SessionIdentity;
-use crate::models::Gamemode;
 use crate::models::multiplayer::{MultiplayerMatch, MultiplayerMatchSlot, MultiplayerMatchSlots};
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;

@@ -1,8 +1,10 @@
 use crate::api::RequestContext;
+use crate::common::context::Context;
 use crate::common::error::{ServiceResult, unexpected};
-use crate::models::Gamemode;
+use crate::entities::gamemodes::{CustomGamemode, Gamemode};
 use crate::models::stats::Stats;
 use crate::repositories::stats;
+use bancho_protocol::structures::{Country, Mode};
 
 pub async fn fetch_one(ctx: &RequestContext, user_id: i64, mode: Gamemode) -> ServiceResult<Stats> {
     match stats::fetch_one(ctx, user_id, mode as _).await {
@@ -19,6 +21,19 @@ pub async fn fetch_global_rank(
     match stats::fetch_global_rank(ctx, user_id, mode).await {
         Ok(Some(rank)) => Ok(rank + 1),
         Ok(None) => Ok(0),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn remove_from_leaderboard<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    country: Country,
+    mode: Option<Mode>,
+    custom_gamemode: Option<CustomGamemode>,
+) -> ServiceResult<()> {
+    match stats::remove_from_leaderboard(ctx, user_id, country, mode, custom_gamemode).await {
+        Ok(()) => Ok(()),
         Err(e) => unexpected(e),
     }
 }

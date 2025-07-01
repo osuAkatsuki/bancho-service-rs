@@ -1,8 +1,8 @@
 use crate::api::RequestContext;
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::entities::gamemodes::Gamemode;
 use crate::entities::sessions::CreateSessionArgs;
-use crate::models::Gamemode;
 use crate::models::bancho::LoginArgs;
 use crate::models::presences::Presence;
 use crate::models::privileges::Privileges;
@@ -182,6 +182,13 @@ pub async fn fetch_count<C: Context>(ctx: &C) -> ServiceResult<u64> {
 pub async fn extend<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Session> {
     let session = fetch_one(ctx, session_id).await?;
     match sessions::extend(ctx, session.into()).await {
+        Ok(session) => Ok(Session::from(session)),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn update<C: Context>(ctx: &C, session: Session) -> ServiceResult<Session> {
+    match sessions::update(ctx, session.into()).await {
         Ok(session) => Ok(Session::from(session)),
         Err(e) => unexpected(e),
     }

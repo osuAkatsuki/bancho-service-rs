@@ -39,6 +39,10 @@ impl Privileges {
         self.contains(Privileges::PubliclyVisible | Privileges::CanLogin)
     }
 
+    pub fn can_login(&self) -> bool {
+        self.contains(Privileges::CanLogin)
+    }
+
     pub fn is_pending_verification(&self) -> bool {
         self.contains(Privileges::PendingVerification)
     }
