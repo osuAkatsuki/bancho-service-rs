@@ -1,4 +1,3 @@
-use crate::api::RequestContext;
 use crate::common::context::Context;
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
 use crate::entities::stats::Stats;
@@ -12,7 +11,7 @@ user_id, mode, ranked_score, total_score, playcount, replays_watched,
 total_hits, level, avg_accuracy, pp, playtime, xh_count, x_count, sh_count,
 s_count, a_count, b_count, c_count, d_count, max_combo, latest_pp_awarded"#;
 
-pub async fn fetch_one(ctx: &RequestContext, user_id: i64, mode: i16) -> sqlx::Result<Stats> {
+pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64, mode: i16) -> sqlx::Result<Stats> {
     const QUERY: &str = const_str::concat!(
         "SELECT ",
         READ_FIELDS,
@@ -23,7 +22,7 @@ pub async fn fetch_one(ctx: &RequestContext, user_id: i64, mode: i16) -> sqlx::R
     sqlx::query_as(QUERY)
         .bind(user_id)
         .bind(mode)
-        .fetch_one(&ctx.db)
+        .fetch_one(ctx.db())
         .await
 }
 
@@ -50,13 +49,13 @@ fn make_country_key(mode: Mode, custom_gamemode: CustomGamemode, country: &str) 
     format!("ripple:{board}:{mode}:{country}")
 }
 
-pub async fn fetch_global_rank(
-    ctx: &RequestContext,
+pub async fn fetch_global_rank<C: Context>(
+    ctx: &C,
     user_id: i64,
     mode: Gamemode,
 ) -> anyhow::Result<Option<usize>> {
     let key = make_key(mode.to_bancho(), mode.custom_gamemode());
-    let mut redis = ctx.redis.get().await?;
+    let mut redis = ctx.redis().await?;
     Ok(redis.zrevrank(key, user_id).await?)
 }
 

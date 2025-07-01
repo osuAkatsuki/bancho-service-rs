@@ -10,6 +10,7 @@ use tracing::info;
 pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     let user_id: i64 = msg.get_payload()?;
     info!(user_id, "Handling silence event for user");
+
     let user = users::fetch_one(&ctx, user_id).await?;
     let seconds_left = match user.silence_end {
         None => 0,

@@ -1,4 +1,3 @@
-use crate::api::RequestContext;
 use crate::common::context::Context;
 use crate::common::error::{ServiceResult, unexpected};
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
@@ -6,15 +5,15 @@ use crate::models::stats::Stats;
 use crate::repositories::stats;
 use bancho_protocol::structures::{Country, Mode};
 
-pub async fn fetch_one(ctx: &RequestContext, user_id: i64, mode: Gamemode) -> ServiceResult<Stats> {
+pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64, mode: Gamemode) -> ServiceResult<Stats> {
     match stats::fetch_one(ctx, user_id, mode as _).await {
         Ok(stats) => Ok(Stats::from(stats)),
         Err(e) => unexpected(e),
     }
 }
 
-pub async fn fetch_global_rank(
-    ctx: &RequestContext,
+pub async fn fetch_global_rank<C: Context>(
+    ctx: &C,
     user_id: i64,
     mode: Gamemode,
 ) -> ServiceResult<usize> {
