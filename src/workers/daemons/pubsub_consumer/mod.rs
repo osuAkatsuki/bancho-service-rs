@@ -5,21 +5,28 @@ use crate::settings::AppSettings;
 use crate::workers::daemons::pubsub_consumer::handlers::{
     ban, change_username, disconnect, notification, silence, unban, update_cached_stats, wipe,
 };
-use tracing::{error, warn};
+use tracing::{error, info, warn};
+
+pub const PUBSUB_CHANNELS: [&str; 8] = [
+    "peppy:ban",
+    "peppy:unban",
+    "peppy:silence",
+    "peppy:disconnect",
+    "peppy:notification",
+    "peppy:change_username",
+    "peppy:update_cached_stats",
+    "peppy:wipe",
+];
 
 // TODO: change return type to anyhow::Result<!> when its stabilized
 pub async fn serve(settings: &AppSettings) -> anyhow::Result<()> {
     let redis_client = redis::Client::open(settings.redis_url.as_str())?;
     let mut redis_conn = redis_client.get_connection()?;
     let mut pubsub = redis_conn.as_pubsub();
-    pubsub.subscribe("peppy:ban")?;
-    pubsub.subscribe("peppy:unban")?;
-    pubsub.subscribe("peppy:silence")?;
-    pubsub.subscribe("peppy:disconnect")?;
-    pubsub.subscribe("peppy:notification")?;
-    pubsub.subscribe("peppy:change_username")?;
-    pubsub.subscribe("peppy:update_cached_stats")?;
-    pubsub.subscribe("peppy:wipe")?;
+    for channel in PUBSUB_CHANNELS {
+        info!(channel, "Subscribing to pubsub channel");
+        pubsub.subscribe(channel)?;
+    }
 
     let state = init::initialize_state(&settings).await?;
     loop {
