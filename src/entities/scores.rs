@@ -1,10 +1,12 @@
 #[derive(sqlx::FromRow)]
-pub struct ValueScore {
+pub struct MinimalScore {
     pub score_id: i64,
-    pub score_value: f32,
+    pub score: i64,
+    #[sqlx(rename = "pp")]
+    pub performance: f32,
     pub user_id: i64,
     pub beatmap_md5: String,
-    pub mode: u8,
+    pub mode: i8,
     pub time: i32,
 }
 

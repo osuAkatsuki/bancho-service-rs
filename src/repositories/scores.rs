@@ -1,6 +1,6 @@
 use crate::common::context::Context;
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
-use crate::entities::scores::{FirstPlaceScore, NewFirstPlace, ValueScore};
+use crate::entities::scores::{FirstPlaceScore, MinimalScore, NewFirstPlace};
 use bancho_protocol::structures::Mode;
 use sqlx::Arguments;
 use sqlx::mysql::MySqlArguments;
@@ -104,13 +104,11 @@ pub async fn fetch_user_scores<C: Context>(
     ctx: &C,
     user_id: i64,
     custom_gamemode: CustomGamemode,
-) -> sqlx::Result<Vec<ValueScore>> {
-    let scoring_col = custom_gamemode.scoring_field();
+) -> sqlx::Result<Vec<MinimalScore>> {
     let table_name = SCORES_TABLES[custom_gamemode as usize];
-
     let query = format!(
         r#"
-            SELECT s.id AS score_id, (s.{scoring_col} + 0.0) AS score_value, s.play_mode AS mode,
+            SELECT s.id AS score_id, s.score, s.pp, s.play_mode AS mode,
             s.time, s.userid AS user_id, s.beatmap_md5 FROM {table_name} s
             LEFT JOIN beatmaps b USING(beatmap_md5)
             WHERE s.userid = ? AND s.completed = 3
@@ -127,15 +125,14 @@ pub async fn fetch_first_place<C: Context>(
     ctx: &C,
     beatmap_md5: &str,
     gamemode: Gamemode,
-) -> sqlx::Result<Option<ValueScore>> {
+) -> sqlx::Result<Option<MinimalScore>> {
     let mode = gamemode.to_bancho();
     let custom_gamemode = gamemode.custom_gamemode();
-    let scoring_col = custom_gamemode.scoring_field();
     let table_name = SCORES_TABLES[custom_gamemode as usize];
 
     let query = format!(
         r#"
-            SELECT s.id AS score_id, (s.{scoring_col} + 0.0) AS score_value, s.play_mode AS mode,
+            SELECT s.id AS score_id, s.score, s.pp, s.play_mode AS mode,
             s.time, s.userid AS user_id, s.beatmap_md5 FROM scores_first
             INNER JOIN {table_name} s ON s.id = scores_first.scoreid
             INNER JOIN users ON users.id = scores_first.userid
@@ -146,7 +143,6 @@ pub async fn fetch_first_place<C: Context>(
             LIMIT 1
         "#
     );
-
     sqlx::query_as(&query)
         .bind(beatmap_md5)
         .bind(mode as u8)

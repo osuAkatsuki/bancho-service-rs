@@ -165,7 +165,7 @@ dependencies = [
 [[package]]
 name = "bancho-protocol"
 version = "0.1.0"
-source = "git+https://github.com/infernalfire72/bancho-protocol#a3c63c0379bbae58935bf1f3e89b2773567b5c57"
+source = "git+https://github.com/infernalfire72/bancho-protocol#28fe7d01e0b8a90e3f31f11091de2f4098212b06"
 dependencies = [
  "bancho-protocol-macros",
  "bitflags",
@@ -174,7 +174,7 @@ dependencies = [
 [[package]]
 name = "bancho-protocol-macros"
 version = "0.1.0"
-source = "git+https://github.com/infernalfire72/bancho-protocol#a3c63c0379bbae58935bf1f3e89b2773567b5c57"
+source = "git+https://github.com/infernalfire72/bancho-protocol#28fe7d01e0b8a90e3f31f11091de2f4098212b06"
 dependencies = [
  "proc-macro2",
  "quote",

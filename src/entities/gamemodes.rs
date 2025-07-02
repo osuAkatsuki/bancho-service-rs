@@ -1,3 +1,4 @@
+use crate::entities::scores::MinimalScore;
 use bancho_protocol::structures::{Mode, Mods};
 
 #[repr(u8)]
@@ -22,12 +23,32 @@ pub enum Gamemode {
     StandardAutopilot = 8,
 }
 
-impl CustomGamemode {
-    pub const fn scoring_field(&self) -> &'static str {
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Scoring {
+    Score,
+    Performance,
+}
+
+impl Scoring {
+    pub fn is_ranked_higher_than(&self, score: &MinimalScore, other: &MinimalScore) -> bool {
         match self {
-            CustomGamemode::Vanilla => "score",
-            CustomGamemode::Relax => "pp",
-            CustomGamemode::Autopilot => "pp",
+            Scoring::Score => {
+                score.score > other.score || (score.score == other.score && score.time < other.time)
+            }
+            Scoring::Performance => {
+                score.performance > other.performance
+                    || (score.performance == other.performance && score.time < other.time)
+            }
+        }
+    }
+}
+
+impl CustomGamemode {
+    pub const fn scoring(&self) -> Scoring {
+        match self {
+            CustomGamemode::Vanilla => Scoring::Score,
+            CustomGamemode::Relax => Scoring::Performance,
+            CustomGamemode::Autopilot => Scoring::Performance,
         }
     }
 
