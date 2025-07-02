@@ -222,8 +222,8 @@ pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()>
     Ok(())
 }
 
-pub async fn set_private_dms(
-    ctx: &RequestContext,
+pub async fn set_private_dms<C: Context>(
+    ctx: &C,
     session: &Session,
     private_dms: bool,
 ) -> ServiceResult<()> {
