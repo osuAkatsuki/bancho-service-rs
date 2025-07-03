@@ -51,9 +51,13 @@ pub enum VerifiedStatus {
 }
 
 impl User {
-    pub fn is_silenced(&self) -> bool {
-        self.silence_end
-            .is_some_and(|silence_end| silence_end > Utc::now())
+    pub fn silence_seconds_remaining(&self) -> i64 {
+        let now = Utc::now();
+        match self.silence_end {
+            None => 0,
+            Some(silence_end) if silence_end <= now => 0,
+            Some(silence_end) => (silence_end - now).num_seconds(),
+        }
     }
 }
 

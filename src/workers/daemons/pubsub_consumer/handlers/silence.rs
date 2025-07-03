@@ -4,7 +4,6 @@ use crate::repositories::streams::StreamName;
 use crate::usecases::{sessions, streams, users};
 use bancho_protocol::messages::Message;
 use bancho_protocol::messages::server::{SilenceEnd, UserSilenced};
-use chrono::Utc;
 use redis::Msg;
 use tracing::info;
 
@@ -13,13 +12,9 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     info!(user_id, "Handling silence event for user");
 
     let user = users::fetch_one(&ctx, user_id).await?;
-    let is_silenced = user.is_silenced();
-    let seconds_left = match is_silenced {
-        false => 0,
-        true => (user.silence_end.unwrap() - Utc::now()).num_seconds(),
-    };
+    let silence_seconds_remaining = user.silence_seconds_remaining();
     let silence_end = Message::serialize(SilenceEnd {
-        seconds_left: seconds_left as _,
+        seconds_left: silence_seconds_remaining as _,
     });
 
     let sessions = sessions::fetch_by_user_id(&ctx, user_id).await?;
@@ -36,7 +31,7 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
         .await?;
     }
 
-    if is_silenced {
+    if silence_seconds_remaining != 0 {
         streams::broadcast_message(
             &ctx,
             StreamName::Main,
