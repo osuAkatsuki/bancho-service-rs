@@ -30,3 +30,29 @@ pub async fn alert_user<C: Context>(
         .await?;
     Ok("Alert sent successfully.".to_owned())
 }
+
+// TODO: !addbn
+// TODO: !help
+// TODO: !addbn
+// TODO: !removebn
+// TODO: !roll
+// TODO: !alertall
+// TODO: !moderated
+// TODO: !kick
+// TODO: !silence
+// TODO: !unsilence
+// TODO: !ban
+// TODO: !unban
+// TODO: !restrict
+// TODO: !unrestrict
+// TODO: !system maintenance
+// TODO: !mapdl
+// TODO: !with
+// TODO: !last
+// TODO: !report
+// TODO: !freeze
+// TODO: !unfreeze
+// TODO: !map
+// TODO: !announce
+// TODO: !whitelist
+// TODO: !overwrite
