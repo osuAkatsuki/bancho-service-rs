@@ -66,3 +66,25 @@ pub async fn fetch_verified_status<C: Context>(
         Ok(VerifiedStatus::Verified)
     }
 }
+
+pub async fn change_username<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    new_username: &str,
+) -> ServiceResult<()> {
+    match users::change_username(ctx, user_id, new_username).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn queue_username_change<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    new_username: &str,
+) -> ServiceResult<()> {
+    match users::queue_username_change(ctx, user_id, new_username).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}

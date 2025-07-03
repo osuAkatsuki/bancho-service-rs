@@ -1,7 +1,9 @@
+use crate::common::chat::safe_username;
 use crate::common::context::Context;
 use crate::entities::users::User;
 use crate::models::privileges::Privileges;
 use chrono::{TimeDelta, Utc};
+use redis::AsyncCommands;
 
 const TABLE_NAME: &str = "users";
 const READ_FIELDS: &str = r#"
@@ -93,5 +95,36 @@ pub async fn ban<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
         .bind(user_id)
         .execute(ctx.db())
         .await?;
+    Ok(())
+}
+
+pub async fn change_username<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    new_username: &str,
+) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET username = ?, username_safe = ? WHERE id = ?";
+    let safe_username = safe_username(new_username);
+    sqlx::query(QUERY)
+        .bind(new_username)
+        .bind(safe_username)
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+fn make_queued_username_change_key(user_id: i64) -> String {
+    format!("ripple:change_username_pending:{user_id}")
+}
+
+pub async fn queue_username_change<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    new_username: &str,
+) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let queued_username_change_key = make_queued_username_change_key(user_id);
+    let _: () = redis.set(queued_username_change_key, new_username).await?;
     Ok(())
 }
