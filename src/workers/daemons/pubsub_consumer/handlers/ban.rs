@@ -13,7 +13,7 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     info!(user_id, "Handling ban event for user");
 
     let user = users::fetch_one(&ctx, user_id).await?;
-    stats::remove_from_leaderboard(&ctx, user.user_id, user.country, None, None).await?;
+    stats::remove_from_all_leaderboards(&ctx, user.user_id, user.country).await?;
     scores::remove_first_places(&ctx, user.user_id, None, None).await?;
 
     let sessions = sessions::fetch_by_user_id(&ctx, user_id).await?;

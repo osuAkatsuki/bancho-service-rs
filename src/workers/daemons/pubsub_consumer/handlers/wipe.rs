@@ -1,6 +1,6 @@
 use crate::common::error::{AppError, ServiceResult};
 use crate::common::state::AppState;
-use crate::entities::gamemodes::CustomGamemode;
+use crate::entities::gamemodes::{CustomGamemode, Gamemode};
 use crate::usecases::{scores, stats, users};
 use bancho_protocol::structures::Mode;
 use redis::Msg;
@@ -23,16 +23,10 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     let user = users::fetch_one(&ctx, user_id).await?;
     let mode = Mode::try_from(gm)?;
     let custom_mode = CustomGamemode::try_from(rx)?;
+    let gamemode = Gamemode::from(mode, custom_mode);
 
     scores::remove_first_places(&ctx, user.user_id, Some(mode), Some(custom_mode)).await?;
-    stats::remove_from_leaderboard(
-        &ctx,
-        user.user_id,
-        user.country,
-        Some(mode),
-        Some(custom_mode),
-    )
-    .await?;
+    stats::remove_from_leaderboard(&ctx, user.user_id, user.country, gamemode).await?;
 
     info!("Handling wipe event for user");
 

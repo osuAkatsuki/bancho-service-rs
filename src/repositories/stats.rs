@@ -42,7 +42,6 @@ pub async fn fetch_user_stats<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result
 
 const BOARDS: [&'static str; 3] = ["leaderboard", "relaxboard", "autoboard"];
 const MODES_STR: [&'static str; 4] = ["std", "taiko", "ctb", "mania"];
-const MODES: [Mode; 4] = [Mode::Standard, Mode::Taiko, Mode::Catch, Mode::Mania];
 
 fn make_key(mode: Mode, custom_gamemode: CustomGamemode) -> String {
     let board = BOARDS[custom_gamemode as usize];
@@ -71,33 +70,21 @@ pub async fn remove_from_leaderboard<C: Context>(
     ctx: &C,
     user_id: i64,
     user_country: Country,
-    mode: Option<Mode>,
-    custom_gamemode: Option<CustomGamemode>,
+    gamemode: Gamemode,
 ) -> anyhow::Result<()> {
-    let boards = match custom_gamemode {
-        Some(custom_gamemode) => &[custom_gamemode],
-        None => &CustomGamemode::all()[..],
-    };
-    let modes = match mode {
-        None => &MODES[..],
-        Some(mode) => &[mode],
-    };
+    let mode = gamemode.to_bancho();
+    let custom_mode = gamemode.custom_gamemode();
+    let key = make_key(mode, custom_mode);
+    let country_key = make_country_key(mode, custom_mode, user_country.code());
 
     let mut redis = ctx.redis().await?;
-    let mut pipe = redis::pipe();
-    let country_code = user_country.code();
-    for board in boards {
-        for mode in modes {
-            let key = make_key(*mode, *board);
-            let country_key = make_country_key(*mode, *board, country_code);
-            pipe.zrem(key, user_id)
-                .ignore()
-                .zrem(country_key, user_id)
-                .ignore();
-        }
-    }
-
-    pipe.exec_async(redis.deref_mut()).await?;
+    redis::pipe()
+        .zrem(key, user_id)
+        .ignore()
+        .zrem(country_key, user_id)
+        .ignore()
+        .exec_async(redis.deref_mut())
+        .await?;
     Ok(())
 }
 

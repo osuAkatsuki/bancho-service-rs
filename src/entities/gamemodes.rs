@@ -156,6 +156,19 @@ impl Gamemode {
             Gamemode::StandardAutopilot => Mode::Standard,
         }
     }
+
+    pub const fn all() -> [Self; 8] {
+        [
+            Gamemode::Standard,
+            Gamemode::Taiko,
+            Gamemode::Catch,
+            Gamemode::Mania,
+            Gamemode::StandardRelax,
+            Gamemode::TaikoRelax,
+            Gamemode::CatchRelax,
+            Gamemode::StandardAutopilot,
+        ]
+    }
 }
 
 impl TryFrom<u8> for Gamemode {

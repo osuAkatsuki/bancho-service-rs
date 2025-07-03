@@ -1,9 +1,9 @@
 use crate::common::context::Context;
 use crate::common::error::{ServiceResult, unexpected};
-use crate::entities::gamemodes::{CustomGamemode, Gamemode};
+use crate::entities::gamemodes::Gamemode;
 use crate::models::stats::Stats;
 use crate::repositories::stats;
-use bancho_protocol::structures::{Country, Mode};
+use bancho_protocol::structures::Country;
 
 pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64, mode: Gamemode) -> ServiceResult<Stats> {
     match stats::fetch_one(ctx, user_id, mode as _).await {
@@ -28,13 +28,23 @@ pub async fn remove_from_leaderboard<C: Context>(
     ctx: &C,
     user_id: i64,
     country: Country,
-    mode: Option<Mode>,
-    custom_gamemode: Option<CustomGamemode>,
+    gamemode: Gamemode,
 ) -> ServiceResult<()> {
-    match stats::remove_from_leaderboard(ctx, user_id, country, mode, custom_gamemode).await {
+    match stats::remove_from_leaderboard(ctx, user_id, country, gamemode).await {
         Ok(()) => Ok(()),
         Err(e) => unexpected(e),
     }
+}
+
+pub async fn remove_from_all_leaderboards<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    country: Country,
+) -> ServiceResult<()> {
+    for gamemode in Gamemode::all() {
+        stats::remove_from_leaderboard(ctx, user_id, country, gamemode).await?;
+    }
+    Ok(())
 }
 
 pub async fn add_to_leaderboards<C: Context>(
