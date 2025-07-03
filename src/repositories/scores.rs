@@ -5,8 +5,6 @@ use bancho_protocol::structures::Mode;
 use sqlx::Arguments;
 use sqlx::mysql::MySqlArguments;
 
-const SCORES_TABLES: [&str; 3] = ["scores", "scores_relax", "scores_ap"];
-
 pub async fn fetch_first_places<C: Context>(
     ctx: &C,
     user_id: i64,
@@ -35,46 +33,31 @@ pub async fn fetch_first_places<C: Context>(
     Ok(first_places)
 }
 
-// TODO: move to usecases
-pub async fn remove_first_places<C: Context>(
+pub async fn fetch_new_first_place<C: Context>(
     ctx: &C,
     user_id: i64,
-    mode: Option<Mode>,
-    custom_gamemode: Option<CustomGamemode>,
-) -> anyhow::Result<()> {
-    let first_places = fetch_first_places(ctx, user_id, mode, custom_gamemode).await?;
-    for first_place in first_places {
-        if first_place.mode > 3 || first_place.rx > 2 {
-            continue;
-        }
-        let sort = match first_place.rx {
-            0 => "score",
-            _ => "pp",
-        };
-        let table = SCORES_TABLES[first_place.rx as usize];
-        let query = format!(
-            r#"
+    beatmap_md5: &str,
+    gamemode: Gamemode,
+) -> sqlx::Result<Option<NewFirstPlace>> {
+    let mode = gamemode.to_bancho();
+    let custom_mode = gamemode.custom_gamemode();
+    let table = custom_mode.scores_table();
+    let sort_column = custom_mode.scoring().sort_column();
+    let query = format!(
+        r#"
                 SELECT s.id, s.userid FROM {table} s
-                INNER JOIN {table} users u ON s.userid = u.id
+                INNER JOIN users u ON s.userid = u.id
                 WHERE s.beatmap_md5 = ? AND s.play_mode = ?
                 AND s.userid != ? AND s.completed = 3 AND u.privileges & 1
-                ORDER BY s.{sort} DESC LIMIT 1
+                ORDER BY s.{sort_column} DESC LIMIT 1
             "#
-        );
-
-        let new_first_place: Option<NewFirstPlace> = sqlx::query_as(&query)
-            .bind(first_place.beatmap_md5)
-            .bind(first_place.mode)
-            .bind(user_id)
-            .fetch_optional(ctx.db())
-            .await?;
-        match new_first_place {
-            None => remove_first_place(ctx, first_place.scoreid).await?,
-            Some(new) => transfer_first_place(ctx, first_place.scoreid, new.id, new.userid).await?,
-        }
-    }
-
-    Ok(())
+    );
+    sqlx::query_as(&query)
+        .bind(beatmap_md5)
+        .bind(mode as u8)
+        .bind(user_id)
+        .fetch_optional(ctx.db())
+        .await
 }
 
 pub async fn transfer_first_place<C: Context>(
@@ -105,7 +88,7 @@ pub async fn fetch_user_scores<C: Context>(
     user_id: i64,
     custom_gamemode: CustomGamemode,
 ) -> sqlx::Result<Vec<MinimalScore>> {
-    let table_name = SCORES_TABLES[custom_gamemode as usize];
+    let table_name = custom_gamemode.scores_table();
     let query = format!(
         r#"
             SELECT s.id AS score_id, s.score, s.pp, s.play_mode AS mode,
@@ -128,7 +111,7 @@ pub async fn fetch_first_place<C: Context>(
 ) -> sqlx::Result<Option<MinimalScore>> {
     let mode = gamemode.to_bancho();
     let custom_gamemode = gamemode.custom_gamemode();
-    let table_name = SCORES_TABLES[custom_gamemode as usize];
+    let table_name = custom_gamemode.scores_table();
 
     let query = format!(
         r#"

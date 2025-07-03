@@ -41,6 +41,13 @@ impl Scoring {
             }
         }
     }
+
+    pub const fn sort_column(&self) -> &'static str {
+        match self {
+            Scoring::Score => "score",
+            Scoring::Performance => "pp",
+        }
+    }
 }
 
 impl CustomGamemode {
@@ -49,6 +56,14 @@ impl CustomGamemode {
             CustomGamemode::Vanilla => Scoring::Score,
             CustomGamemode::Relax => Scoring::Performance,
             CustomGamemode::Autopilot => Scoring::Performance,
+        }
+    }
+
+    pub const fn scores_table(&self) -> &'static str {
+        match self {
+            CustomGamemode::Vanilla => "scores",
+            CustomGamemode::Relax => "scores_relax",
+            CustomGamemode::Autopilot => "scores_ap",
         }
     }
 

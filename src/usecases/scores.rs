@@ -1,5 +1,5 @@
 use crate::common::context::Context;
-use crate::common::error::{ServiceResult, unexpected};
+use crate::common::error::ServiceResult;
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
 use crate::repositories::scores;
 use bancho_protocol::structures::Mode;
@@ -11,10 +11,21 @@ pub async fn remove_first_places<C: Context>(
     mode: Option<Mode>,
     custom_gamemode: Option<CustomGamemode>,
 ) -> ServiceResult<()> {
-    match scores::remove_first_places(ctx, user_id, mode, custom_gamemode).await {
-        Ok(()) => Ok(()),
-        Err(e) => unexpected(e),
+    let first_places = scores::fetch_first_places(ctx, user_id, mode, custom_gamemode).await?;
+    for first_place in first_places {
+        let mode = Mode::try_from(first_place.mode as u8)?;
+        let custom_mode = CustomGamemode::try_from(first_place.rx as u8)?;
+        let gamemode = Gamemode::from(mode, custom_mode);
+        let new_first_place =
+            scores::fetch_new_first_place(ctx, user_id, &first_place.beatmap_md5, gamemode).await?;
+        match new_first_place {
+            None => scores::remove_first_place(ctx, first_place.scoreid).await?,
+            Some(new) => {
+                scores::transfer_first_place(ctx, first_place.scoreid, new.id, new.userid).await?
+            }
+        }
     }
+    Ok(())
 }
 
 /// This assumes the user is publicly visible
