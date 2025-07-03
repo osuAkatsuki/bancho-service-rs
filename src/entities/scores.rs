@@ -14,8 +14,8 @@ pub struct MinimalScore {
 pub struct FirstPlaceScore {
     pub scoreid: i64,
     pub beatmap_md5: String,
-    pub mode: u8,
-    pub rx: u8,
+    pub mode: i8,
+    pub rx: i8,
 }
 
 #[derive(sqlx::FromRow)]
