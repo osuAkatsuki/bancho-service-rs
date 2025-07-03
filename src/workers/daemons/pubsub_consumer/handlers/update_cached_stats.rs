@@ -17,8 +17,8 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     let stats = stats::fetch_one(&ctx, user.user_id, presence.action.mode).await?;
     let global_rank = stats::fetch_global_rank(&ctx, user.user_id, presence.action.mode).await?;
     presence.stats = PresenceStats::from(stats, global_rank);
-
     let presence = presences::update(&ctx, presence).await?;
+
     let bancho_stats = presence.to_bancho_stats();
     if user.privileges.is_publicly_visible() {
         streams::broadcast_message(
