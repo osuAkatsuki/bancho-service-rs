@@ -26,15 +26,23 @@ pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64, mode: i16) -> sqlx::Re
         .await
 }
 
-const BOARDS: [&'static str; 3] = ["leaderboard", "relaxboard", "autoboard"];
+pub async fn fetch_user_stats<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<Vec<Stats>> {
+    const QUERY: &str = const_str::concat!(
+        "SELECT ",
+        READ_FIELDS,
+        " FROM ",
+        TABLE_NAME,
+        " WHERE user_id = ?"
+    );
+    sqlx::query_as(QUERY)
+        .bind(user_id)
+        .fetch_all(ctx.db())
+        .await
+}
 
+const BOARDS: [&'static str; 3] = ["leaderboard", "relaxboard", "autoboard"];
 const MODES_STR: [&'static str; 4] = ["std", "taiko", "ctb", "mania"];
 const MODES: [Mode; 4] = [Mode::Standard, Mode::Taiko, Mode::Catch, Mode::Mania];
-const CUSTOM_GAMEMODES: [CustomGamemode; 3] = [
-    CustomGamemode::Vanilla,
-    CustomGamemode::Relax,
-    CustomGamemode::Autopilot,
-];
 
 fn make_key(mode: Mode, custom_gamemode: CustomGamemode) -> String {
     let board = BOARDS[custom_gamemode as usize];
@@ -67,8 +75,8 @@ pub async fn remove_from_leaderboard<C: Context>(
     custom_gamemode: Option<CustomGamemode>,
 ) -> anyhow::Result<()> {
     let boards = match custom_gamemode {
-        Some(relax) => &[relax],
-        None => &CUSTOM_GAMEMODES[..],
+        Some(custom_gamemode) => &[custom_gamemode],
+        None => &CustomGamemode::all()[..],
     };
     let modes = match mode {
         None => &MODES[..],
@@ -90,5 +98,29 @@ pub async fn remove_from_leaderboard<C: Context>(
     }
 
     pipe.exec_async(redis.deref_mut()).await?;
+    Ok(())
+}
+
+pub async fn add_to_leaderboard<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    user_country: Country,
+    gamemode: Gamemode,
+    performance: u32,
+) -> anyhow::Result<()> {
+    let mode = gamemode.to_bancho();
+    let custom_mode = gamemode.custom_gamemode();
+    let key = make_key(mode, custom_mode);
+    let country_key = make_country_key(mode, custom_mode, user_country.code());
+
+    let mut redis = ctx.redis().await?;
+    redis::pipe()
+        .atomic()
+        .zadd(key, user_id, performance)
+        .ignore()
+        .zadd(country_key, user_id, performance)
+        .ignore()
+        .exec_async(redis.deref_mut())
+        .await?;
     Ok(())
 }

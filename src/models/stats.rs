@@ -1,9 +1,10 @@
+use crate::entities::gamemodes::Gamemode;
 use crate::entities::stats::Stats as Entity;
 
 #[derive(Debug)]
 pub struct Stats {
     pub user_id: i64,
-    pub mode: i16,
+    pub mode: Gamemode,
     pub ranked_score: u64,
     pub total_score: u64,
     pub playcount: u32,
@@ -29,7 +30,7 @@ impl From<Entity> for Stats {
     fn from(value: Entity) -> Self {
         Self {
             user_id: value.user_id,
-            mode: value.mode,
+            mode: Gamemode::from_value(value.mode),
             ranked_score: value.ranked_score,
             total_score: value.total_score,
             playcount: value.playcount,

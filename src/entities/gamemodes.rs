@@ -73,6 +73,20 @@ impl CustomGamemode {
 }
 
 impl Gamemode {
+    pub fn from_value(value: i16) -> Self {
+        match value {
+            0 => Self::Standard,
+            1 => Self::Taiko,
+            2 => Self::Catch,
+            3 => Self::Mania,
+            4 => Self::StandardRelax,
+            5 => Self::TaikoRelax,
+            6 => Self::CatchRelax,
+            8 => Self::StandardAutopilot,
+            _ => Self::Standard,
+        }
+    }
+
     pub fn from(mode: Mode, custom_gamemode: CustomGamemode) -> Gamemode {
         match mode {
             Mode::Standard => match custom_gamemode {

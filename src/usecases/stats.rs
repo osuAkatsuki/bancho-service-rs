@@ -36,3 +36,18 @@ pub async fn remove_from_leaderboard<C: Context>(
         Err(e) => unexpected(e),
     }
 }
+
+pub async fn add_to_leaderboards<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    country: Country,
+) -> ServiceResult<()> {
+    let stats = stats::fetch_user_stats(ctx, user_id).await?;
+    for mode_stats in stats {
+        let gamemode = Gamemode::from_value(mode_stats.mode);
+        if mode_stats.pp != 0 {
+            stats::add_to_leaderboard(ctx, user_id, country, gamemode, mode_stats.pp).await?;
+        }
+    }
+    Ok(())
+}

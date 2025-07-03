@@ -2,7 +2,7 @@ use crate::common::error::ServiceResult;
 use crate::common::state::AppState;
 use crate::entities::bot;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{scores, sessions, streams, users};
+use crate::usecases::{scores, sessions, stats, streams, users};
 use bancho_protocol::messages::server::ChatMessage;
 use bancho_protocol::structures::IrcMessage;
 use redis::Msg;
@@ -15,6 +15,7 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     let user = users::fetch_one(&ctx, user_id).await?;
     if user.privileges.is_publicly_visible() {
         scores::recalculate_user_first_places(&ctx, user.user_id).await?;
+        stats::add_to_leaderboards(&ctx, user.user_id, user.country).await?;
 
         let sessions = sessions::fetch_by_user_id(&ctx, user.user_id).await?;
         let unrestriction_notification = unrestriction_message(&user.username);
