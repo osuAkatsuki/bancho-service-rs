@@ -13,9 +13,10 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     info!(user_id, "Handling silence event for user");
 
     let user = users::fetch_one(&ctx, user_id).await?;
-    let seconds_left = match user.silence_end {
-        None => 0,
-        Some(silence_end) => (Utc::now() - silence_end).num_seconds(),
+    let is_silenced = user.is_silenced();
+    let seconds_left = match is_silenced {
+        false => 0,
+        true => (user.silence_end.unwrap() - Utc::now()).num_seconds(),
     };
     let silence_end = Message::serialize(SilenceEnd {
         seconds_left: seconds_left as _,
@@ -35,16 +36,18 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
         .await?;
     }
 
-    streams::broadcast_message(
-        &ctx,
-        StreamName::Main,
-        UserSilenced {
-            user_id: user.user_id as _,
-        },
-        None,
-        None,
-    )
-    .await?;
+    if is_silenced {
+        streams::broadcast_message(
+            &ctx,
+            StreamName::Main,
+            UserSilenced {
+                user_id: user.user_id as _,
+            },
+            None,
+            None,
+        )
+        .await?;
+    }
 
     info!(user_id, "Successfully handled silence event for user");
     Ok(())

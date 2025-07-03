@@ -50,6 +50,13 @@ pub enum VerifiedStatus {
     Verified = 1,
 }
 
+impl User {
+    pub fn is_silenced(&self) -> bool {
+        self.silence_end
+            .is_some_and(|silence_end| silence_end > Utc::now())
+    }
+}
+
 impl TryFrom<i8> for Whitelist {
     type Error = AppError;
     fn try_from(value: i8) -> Result<Self, Self::Error> {
