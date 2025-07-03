@@ -1,6 +1,6 @@
 use crate::common::context::Context;
+use crate::entities::gamemodes::Gamemode;
 use crate::events::EventResult;
-use crate::models::Gamemode;
 use crate::models::sessions::Session;
 use crate::usecases::multiplayer;
 use bancho_protocol::messages::MessageArgs;

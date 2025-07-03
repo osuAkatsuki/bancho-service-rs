@@ -9,7 +9,7 @@ use sqlx::{MySql, Pool};
 pub fn initialize_logging(settings: &AppSettings) {
     tracing_subscriber::fmt()
         .with_max_level(settings.level)
-        // .json()
+        .json()
         .with_timer(tracing_subscriber::fmt::time())
         .with_level(true)
         .compact()

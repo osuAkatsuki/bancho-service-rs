@@ -1,8 +1,8 @@
 use crate::api::RequestContext;
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::entities::gamemodes::Gamemode;
 use crate::entities::sessions::CreateSessionArgs;
-use crate::models::Gamemode;
 use crate::models::bancho::LoginArgs;
 use crate::models::presences::Presence;
 use crate::models::privileges::Privileges;
@@ -187,6 +187,13 @@ pub async fn extend<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Sess
     }
 }
 
+pub async fn update<C: Context>(ctx: &C, session: Session) -> ServiceResult<Session> {
+    match sessions::update(ctx, session.into()).await {
+        Ok(session) => Ok(Session::from(session)),
+        Err(e) => unexpected(e),
+    }
+}
+
 pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()> {
     channels::leave_all(ctx, session.session_id).await?;
     spectators::leave(ctx, session, None).await?;
@@ -215,8 +222,8 @@ pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()>
     Ok(())
 }
 
-pub async fn set_private_dms(
-    ctx: &RequestContext,
+pub async fn set_private_dms<C: Context>(
+    ctx: &C,
     session: &Session,
     private_dms: bool,
 ) -> ServiceResult<()> {
@@ -229,7 +236,7 @@ pub async fn set_private_dms(
 /// Silences the given session for the given amount of seconds.
 pub async fn silence<C: Context>(
     ctx: &C,
-    session: &mut Session,
+    mut session: Session,
     silence_seconds: i64,
 ) -> ServiceResult<()> {
     session.silence_end = Some(chrono::Utc::now() + TimeDelta::seconds(silence_seconds));

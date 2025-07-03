@@ -1,6 +1,6 @@
 use crate::common::error::AppError;
+use crate::entities::gamemodes::Gamemode;
 use crate::entities::presences::Presence as Entity;
-use crate::models::Gamemode;
 use crate::models::stats::Stats;
 use bancho_protocol::concat_messages;
 use bancho_protocol::messages::server::{UserPresence, UserStats};

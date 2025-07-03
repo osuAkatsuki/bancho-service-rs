@@ -1,6 +1,5 @@
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
-use crate::models::sessions::Session;
 use crate::models::users::{User, VerifiedStatus};
 use crate::repositories::streams::StreamName;
 use crate::repositories::users;
@@ -27,35 +26,28 @@ pub async fn fetch_one_by_username<C: Context>(ctx: &C, username: &str) -> Servi
 
 pub async fn silence_user<C: Context>(
     ctx: &C,
-    to_silence: &mut Session,
+    user_id: i64,
     silence_reason: &str,
     silence_seconds: i64,
 ) -> ServiceResult<()> {
-    users::silence_user(ctx, to_silence.user_id, silence_reason, silence_seconds).await?;
-    sessions::silence(ctx, to_silence, silence_seconds).await?;
-    messages::delete_recent(
-        ctx,
-        to_silence.user_id,
-        SILENCE_AUTO_DELETE_INTERVAL_SECONDS,
-    )
-    .await?;
+    users::silence_user(ctx, user_id, silence_reason, silence_seconds).await?;
+    messages::delete_recent(ctx, user_id, SILENCE_AUTO_DELETE_INTERVAL_SECONDS).await?;
 
-    // Tell the user that they have been silenced
-    let silence_end = SilenceEnd {
-        seconds_left: silence_seconds as _,
-    };
-    streams::broadcast_message(
-        ctx,
-        StreamName::User(to_silence.session_id),
-        silence_end,
-        None,
-        None,
-    )
-    .await?;
+    let sessions = sessions::fetch_by_user_id(ctx, user_id).await?;
+    for session in sessions {
+        let session_id = session.session_id;
+        sessions::silence(ctx, session, silence_seconds).await?;
+        // Tell the user that they have been silenced
+        let silence_end = SilenceEnd {
+            seconds_left: silence_seconds as _,
+        };
+        streams::broadcast_message(ctx, StreamName::User(session_id), silence_end, None, None)
+            .await?;
+    }
 
     // Tell all other users that the user has been silenced
     let user_silenced = UserSilenced {
-        user_id: to_silence.user_id as _,
+        user_id: user_id as _,
     };
     streams::broadcast_message(ctx, StreamName::Main, user_silenced, None, None).await?;
     Ok(())
@@ -72,5 +64,27 @@ pub async fn fetch_verified_status<C: Context>(
         Ok(VerifiedStatus::Multiaccount)
     } else {
         Ok(VerifiedStatus::Verified)
+    }
+}
+
+pub async fn change_username<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    new_username: &str,
+) -> ServiceResult<()> {
+    match users::change_username(ctx, user_id, new_username).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn queue_username_change<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    new_username: &str,
+) -> ServiceResult<()> {
+    match users::queue_username_change(ctx, user_id, new_username).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
     }
 }

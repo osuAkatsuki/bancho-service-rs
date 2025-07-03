@@ -7,6 +7,7 @@ pub mod messages;
 pub mod multiplayer;
 pub mod presences;
 pub mod relationships;
+pub mod scores;
 pub mod sessions;
 pub mod spectators;
 pub mod stats;

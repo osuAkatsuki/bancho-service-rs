@@ -1,9 +1,9 @@
 use crate::common::error::{AppError, ServiceResult};
+use crate::entities::gamemodes::Gamemode;
 use crate::entities::multiplayer::{
     MultiplayerMatch as Entity, MultiplayerMatchSlot as SlotEntity,
 };
 use crate::entities::sessions::SessionIdentity;
-use crate::models::Gamemode;
 use crate::repositories::multiplayer::MULTIPLAYER_MAX_SIZE;
 use bancho_protocol::structures::{
     Match, MatchSlot, MatchTeam, MatchTeamType, Mods, SlotStatus, WinCondition,

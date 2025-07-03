@@ -3,8 +3,8 @@ use crate::common::error::{AppError, ServiceResponse};
 use crate::entities::bot;
 use crate::entities::channels::ChannelName;
 use crate::models::ripple::{
-    FetchPlayerMatchDetailsArgs, IsOnlineArgs, IsOnlineResponse, IsVerifiedArgs,
-    OnlineUsersResponse, PlayerMatchDetailsResponse, BaseSuccessData, SendChatbotMessageArgs,
+    BaseSuccessData, FetchPlayerMatchDetailsArgs, IsOnlineArgs, IsOnlineResponse, IsVerifiedArgs,
+    OnlineUsersResponse, PlayerMatchDetailsResponse, SendChatbotMessageArgs,
     VerifiedStatusResponse,
 };
 use crate::settings::AppSettings;

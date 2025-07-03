@@ -1,11 +1,13 @@
 pub mod bot;
 pub mod channels;
+pub mod gamemodes;
 pub mod hardware_logs;
 pub mod match_events;
 pub mod messages;
 pub mod multiplayer;
 pub mod presences;
 pub mod relationships;
+pub mod scores;
 pub mod sessions;
 pub mod stats;
 pub mod streams;

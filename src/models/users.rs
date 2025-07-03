@@ -50,6 +50,17 @@ pub enum VerifiedStatus {
     Verified = 1,
 }
 
+impl User {
+    pub fn silence_seconds_remaining(&self) -> i64 {
+        let now = Utc::now();
+        match self.silence_end {
+            None => 0,
+            Some(silence_end) if silence_end <= now => 0,
+            Some(silence_end) => (silence_end - now).num_seconds(),
+        }
+    }
+}
+
 impl TryFrom<i8> for Whitelist {
     type Error = AppError;
     fn try_from(value: i8) -> Result<Self, Self::Error> {

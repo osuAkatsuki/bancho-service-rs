@@ -1,7 +1,6 @@
-use crate::api::RequestContext;
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
-use crate::models::Gamemode;
+use crate::entities::gamemodes::Gamemode;
 use crate::models::presences::Presence;
 use crate::models::privileges::Privileges;
 use crate::repositories::presences;
@@ -124,7 +123,7 @@ pub async fn fetch_multiple<C: Context>(
     }
 }
 
-pub async fn fetch_user_ids(ctx: &RequestContext) -> ServiceResult<Vec<i32>> {
+pub async fn fetch_user_ids<C: Context>(ctx: &C) -> ServiceResult<Vec<i32>> {
     match presences::fetch_user_ids(ctx).await {
         Ok(user_ids) => Ok(user_ids),
         Err(e) => unexpected(e),

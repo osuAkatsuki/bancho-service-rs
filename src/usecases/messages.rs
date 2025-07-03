@@ -13,6 +13,7 @@ use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::server::{Alert, ChatMessage, TargetSilenced};
 use bancho_protocol::serde::BinarySerialize;
 use bancho_protocol::structures::IrcMessage;
+use chrono::{TimeDelta, Utc};
 use tracing::error;
 use uuid::Uuid;
 
@@ -85,7 +86,14 @@ pub async fn send<C: Context>(
     let message_count =
         messages::message_count(ctx, session.user_id, CHAT_SPAM_RATE_INTERVAL).await?;
     if message_count >= CHAT_SPAM_RATE {
-        users::silence_user(ctx, session, CHAT_TIMEOUT_REASON, CHAT_TIMEOUT_SECONDS).await?;
+        session.silence_end = Some(Utc::now() + TimeDelta::seconds(CHAT_TIMEOUT_SECONDS));
+        users::silence_user(
+            ctx,
+            session.user_id,
+            CHAT_TIMEOUT_REASON,
+            CHAT_TIMEOUT_SECONDS,
+        )
+        .await?;
         return Err(AppError::MessagesUserAutoSilenced);
     }
 
