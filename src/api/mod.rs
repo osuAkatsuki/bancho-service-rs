@@ -4,9 +4,9 @@ pub mod v1;
 
 use crate::common::axum_ip::IpAddrInfo;
 use crate::common::context::Context;
-use crate::common::init;
 use crate::common::redis_pool::{PoolResult, RedisPool};
 use crate::common::state::AppState;
+use crate::lifecycle;
 use crate::models::bancho::BanchoResponse;
 use crate::settings::AppSettings;
 use async_trait::async_trait;
@@ -20,7 +20,7 @@ use tokio::net::TcpListener;
 use tracing::info;
 
 pub async fn serve(settings: &AppSettings) -> anyhow::Result<()> {
-    let state = init::initialize_state(&settings).await?;
+    let state = lifecycle::initialize_state(&settings).await?;
     let addr = SocketAddr::from((settings.app_host, settings.app_port));
     info!("Listening on {addr}");
     let listener = TcpListener::bind(addr).await?;

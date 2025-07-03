@@ -3,7 +3,6 @@ pub mod chat;
 pub mod context;
 pub mod env;
 pub mod error;
-pub mod init;
 pub mod location;
 pub mod redis_json;
 pub mod redis_pool;

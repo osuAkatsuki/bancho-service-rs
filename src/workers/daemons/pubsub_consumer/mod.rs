@@ -1,6 +1,6 @@
 pub mod handlers;
 
-use crate::common::init;
+use crate::lifecycle;
 use crate::settings::AppSettings;
 use crate::workers::daemons::pubsub_consumer::handlers::{
     ban, change_username, disconnect, notification, silence, unban, update_cached_stats, wipe,
@@ -28,7 +28,7 @@ pub async fn serve(settings: &AppSettings) -> anyhow::Result<()> {
         pubsub.subscribe(channel)?;
     }
 
-    let state = init::initialize_state(&settings).await?;
+    let state = lifecycle::initialize_state(&settings).await?;
     loop {
         let msg = pubsub.get_message()?;
         let task_state = state.clone();
