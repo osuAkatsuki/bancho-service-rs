@@ -2,6 +2,7 @@ use crate::common::error::ServiceResult;
 use crate::common::state::AppState;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{sessions, streams, users};
+use bancho_protocol::messages::Message;
 use bancho_protocol::messages::server::{SilenceEnd, UserSilenced};
 use chrono::Utc;
 use redis::Msg;
@@ -16,18 +17,18 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
         None => 0,
         Some(silence_end) => (Utc::now() - silence_end).num_seconds(),
     };
+    let silence_end = Message::serialize(SilenceEnd {
+        seconds_left: seconds_left as _,
+    });
+
     let sessions = sessions::fetch_by_user_id(&ctx, user_id).await?;
     for mut session in sessions {
         session.silence_end = user.silence_end;
         let session = sessions::update(&ctx, session).await?;
-
-        let silence_end = SilenceEnd {
-            seconds_left: seconds_left as _,
-        };
-        streams::broadcast_message(
+        streams::broadcast_data(
             &ctx,
             StreamName::User(session.session_id),
-            silence_end,
+            &silence_end,
             None,
             None,
         )

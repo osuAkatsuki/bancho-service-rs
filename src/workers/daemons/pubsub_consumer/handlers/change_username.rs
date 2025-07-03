@@ -3,7 +3,6 @@ use crate::common::redis_json::Json;
 use crate::common::state::AppState;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{presences, sessions, streams, users};
-use bancho_protocol::messages::server::UsernameChanged;
 use bancho_protocol::structures::Action;
 use redis::Msg;
 use serde::Deserialize;
@@ -27,8 +26,6 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
         "Handling change username event for user",
     );
     let user = users::fetch_one(&ctx, args.user_id).await?;
-    let old_username = &user.username;
-
     match presences::fetch_one(&ctx, user.user_id).await {
         Ok(presence)
             if presence.action.action == Action::Playing
@@ -39,7 +36,7 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
         Ok(mut presence) => {
             users::change_username(&ctx, user.user_id, &args.new_username).await?;
             presence.username = args.new_username.clone();
-            presences::update(&ctx, presence).await?;
+            let presence = presences::update(&ctx, presence).await?;
             let sessions = sessions::fetch_by_user_id(&ctx, user.user_id).await?;
             for mut session in sessions {
                 session.username = args.new_username.clone();
@@ -47,12 +44,11 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
             }
 
             if user.privileges.is_publicly_visible() {
-                let username_change_notification =
-                    UsernameChanged::new(old_username, &args.new_username);
-                streams::broadcast_message(
+                let username_change_notification = presence.user_panel();
+                streams::broadcast_data(
                     &ctx,
                     StreamName::Main,
-                    username_change_notification,
+                    &username_change_notification,
                     None,
                     None,
                 )
