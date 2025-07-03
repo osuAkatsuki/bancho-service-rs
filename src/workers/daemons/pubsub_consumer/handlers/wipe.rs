@@ -24,11 +24,11 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     let mode = Mode::try_from(gm)?;
     let custom_mode = CustomGamemode::try_from(rx)?;
     let gamemode = Gamemode::from(mode, custom_mode);
+    info!(user_id, "Handling wipe event for user");
 
     scores::remove_first_places(&ctx, user.user_id, Some(mode), Some(custom_mode)).await?;
     stats::remove_from_leaderboard(&ctx, user.user_id, user.country, gamemode).await?;
 
-    info!("Handling wipe event for user");
-
-    unimplemented!()
+    info!(user_id, "Successfully handled wipe event for user");
+    Ok(())
 }

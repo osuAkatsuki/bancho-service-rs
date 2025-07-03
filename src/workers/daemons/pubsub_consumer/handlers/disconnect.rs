@@ -33,5 +33,5 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
         reason = args.reason,
         "Successfully handled disconnect event for user"
     );
-    unimplemented!()
+    Ok(())
 }
