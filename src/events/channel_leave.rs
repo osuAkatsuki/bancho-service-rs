@@ -1,4 +1,5 @@
 use crate::api::RequestContext;
+use crate::common::error::AppError;
 use crate::events::EventResult;
 use crate::models::sessions::Session;
 use crate::usecases::channels;
@@ -12,10 +13,13 @@ pub async fn handle(
     match args.name {
         "#highlight" | "#userlog" => Ok(None),
         channel_name if !channel_name.starts_with('#') => Ok(None),
-        channel_name => {
-            let name = channels::get_channel_name(ctx, session, channel_name).await?;
-            channels::leave(ctx, session.session_id, name).await?;
-            Ok(None)
-        }
+        channel_name => match channels::get_channel_name(ctx, session, channel_name).await {
+            Ok(name) => {
+                channels::leave(ctx, session.session_id, name).await?;
+                Ok(None)
+            }
+            Err(AppError::MultiplayerUserNotInMatch) => Ok(None),
+            Err(e) => Err(e),
+        },
     }
 }
