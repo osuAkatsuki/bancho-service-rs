@@ -75,16 +75,17 @@ pub async fn remove_from_leaderboard<C: Context>(
     let mode = gamemode.to_bancho();
     let custom_mode = gamemode.custom_gamemode();
     let key = make_key(mode, custom_mode);
-    let country_key = make_country_key(mode, custom_mode, user_country.code());
 
     let mut redis = ctx.redis().await?;
-    redis::pipe()
-        .zrem(key, user_id)
-        .ignore()
-        .zrem(country_key, user_id)
-        .ignore()
-        .exec_async(redis.deref_mut())
-        .await?;
+    let mut pipe = redis::pipe();
+    pipe.atomic().zrem(key, user_id).ignore();
+
+    if user_country != Country::Unknown {
+        let country_key = make_country_key(mode, custom_mode, user_country.code());
+        pipe.zrem(country_key, user_id).ignore();
+    }
+
+    pipe.exec_async(redis.deref_mut()).await?;
     Ok(())
 }
 
@@ -98,16 +99,16 @@ pub async fn add_to_leaderboard<C: Context>(
     let mode = gamemode.to_bancho();
     let custom_mode = gamemode.custom_gamemode();
     let key = make_key(mode, custom_mode);
-    let country_key = make_country_key(mode, custom_mode, user_country.code());
 
     let mut redis = ctx.redis().await?;
-    redis::pipe()
-        .atomic()
-        .zadd(key, user_id, performance)
-        .ignore()
-        .zadd(country_key, user_id, performance)
-        .ignore()
-        .exec_async(redis.deref_mut())
-        .await?;
+    let mut pipe = redis::pipe();
+    pipe.atomic().zadd(key, user_id, performance).ignore();
+
+    if user_country != Country::Unknown {
+        let country_key = make_country_key(mode, custom_mode, user_country.code());
+        pipe.zadd(country_key, user_id, performance).ignore();
+    }
+
+    pipe.exec_async(redis.deref_mut()).await?;
     Ok(())
 }
