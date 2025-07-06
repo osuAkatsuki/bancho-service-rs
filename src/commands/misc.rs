@@ -1,10 +1,12 @@
 use crate::commands::{COMMAND_PREFIX, COMMAND_ROUTER, CommandResult};
 use crate::common::context::Context;
+use crate::entities::bot;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{sessions, streams};
-use bancho_protocol::messages::server::Alert;
+use bancho_protocol::messages::server::{Alert, ChatMessage};
+use bancho_protocol::structures::IrcMessage;
 use bancho_service_macros::{FromCommandArgs, command};
 
 #[derive(Debug, FromCommandArgs)]
@@ -61,6 +63,21 @@ pub async fn alert_all<C: Context>(ctx: &C, _sender: &Session, message: String) 
     let alert = Alert { message: &message };
     streams::broadcast_message(ctx, StreamName::Main, alert, None, None).await?;
     Ok("Alert sent successfully.".to_owned())
+}
+
+#[command(
+    "announce",
+    required_privileges = Privileges::AdminSendAlerts,
+)]
+pub async fn announce<C: Context>(ctx: &C, _sender: &Session, message: String) -> CommandResult {
+    let msg = IrcMessage {
+        sender_id: bot::BOT_ID as _,
+        sender: bot::BOT_NAME,
+        recipient: "#announce",
+        text: &message,
+    };
+    streams::broadcast_message(ctx, StreamName::Main, ChatMessage(&msg), None, None).await?;
+    Ok("Announcement sent successfully.".to_owned())
 }
 
 const MAX_ROLL: i32 = 1_000_000;

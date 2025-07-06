@@ -12,6 +12,7 @@ pub use from_args::FromCommandArgs;
 
 pub mod misc;
 pub mod mp;
+pub mod staff;
 
 use crate::commands;
 use crate::common::context::Context;
@@ -26,6 +27,7 @@ static COMMAND_ROUTER: CommandRouterInstance = LazyLock::new(commands![
     ],
     misc::alert_all,
     misc::alert_user,
+    misc::announce,
     misc::help,
     misc::roll,
 ]);
