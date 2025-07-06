@@ -1,4 +1,4 @@
-use crate::commands::CommandResult;
+use crate::commands::{COMMAND_PREFIX, COMMAND_ROUTER, CommandResult};
 use crate::common::context::Context;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
@@ -13,9 +13,31 @@ pub struct AlertUserArgs {
     pub message: String,
 }
 
+#[command("help")]
+pub async fn help<C: Context>(_ctx: &C, sender: &Session) -> CommandResult {
+    let mut response = "Available commands:\n".to_owned();
+    for (name, cmd) in COMMAND_ROUTER.commands.iter() {
+        match cmd.properties.required_privileges {
+            Some(required_privileges) if sender.has_all_privileges(required_privileges) => {
+                response.push_str(COMMAND_PREFIX);
+                response.push_str(name);
+                response.push('\n');
+            }
+            None => {
+                response.push_str(COMMAND_PREFIX);
+                response.push_str(name);
+                response.push('\n');
+            }
+            _ => {}
+        }
+    }
+
+    Ok(response)
+}
+
 #[command(
     "alert",
-    required_privileges = Privileges::AdminCaker,
+    required_privileges = Privileges::AdminSendAlerts,
 )]
 pub async fn alert_user<C: Context>(
     ctx: &C,
@@ -31,12 +53,25 @@ pub async fn alert_user<C: Context>(
     Ok("Alert sent successfully.".to_owned())
 }
 
-// TODO: !addbn
-// TODO: !help
+#[command(
+    "alertall",
+    required_privileges = Privileges::AdminSendAlerts,
+)]
+pub async fn alert_all<C: Context>(
+    ctx: &C,
+    _sender: &Session,
+    args: AlertUserArgs,
+) -> CommandResult {
+    let alert = Alert {
+        message: &args.message,
+    };
+    streams::broadcast_message(ctx, StreamName::Main, alert, None, None).await?;
+    Ok("Alert sent successfully.".to_owned())
+}
+
 // TODO: !addbn
 // TODO: !removebn
 // TODO: !roll
-// TODO: !alertall
 // TODO: !moderated
 // TODO: !kick
 // TODO: !silence

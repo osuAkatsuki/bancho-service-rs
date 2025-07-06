@@ -31,7 +31,7 @@ pub struct RegisteredCommand {
 pub type CommandRouterFactory = fn() -> CommandRouter;
 pub type CommandRouterInstance = std::sync::LazyLock<CommandRouter>;
 pub struct CommandRouter {
-    commands: HashMap<&'static str, RegisteredCommand>,
+    pub commands: HashMap<&'static str, RegisteredCommand>,
 }
 
 #[async_trait]
