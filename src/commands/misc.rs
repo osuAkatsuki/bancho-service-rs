@@ -57,16 +57,20 @@ pub async fn alert_user<C: Context>(
     "alertall",
     required_privileges = Privileges::AdminSendAlerts,
 )]
-pub async fn alert_all<C: Context>(
-    ctx: &C,
-    _sender: &Session,
-    args: AlertUserArgs,
-) -> CommandResult {
-    let alert = Alert {
-        message: &args.message,
-    };
+pub async fn alert_all<C: Context>(ctx: &C, _sender: &Session, message: String) -> CommandResult {
+    let alert = Alert { message: &message };
     streams::broadcast_message(ctx, StreamName::Main, alert, None, None).await?;
     Ok("Alert sent successfully.".to_owned())
+}
+
+const MAX_ROLL: i32 = 1_000_000;
+
+#[command("roll")]
+pub async fn roll<C: Context>(_ctx: &C, sender: &Session, max_roll: Option<i32>) -> CommandResult {
+    let max_roll = max_roll.unwrap_or(MAX_ROLL).min(MAX_ROLL).max(1);
+    let result = rand::random_range(1..=max_roll);
+    let response = format!("{} rolls {result} points!", sender.username);
+    Ok(response)
 }
 
 // TODO: !addbn

@@ -27,6 +27,7 @@ static COMMAND_ROUTER: CommandRouterInstance = LazyLock::new(commands![
     misc::alert_all,
     misc::alert_user,
     misc::help,
+    misc::roll,
 ]);
 
 pub struct CommandResponse {
