@@ -10,4 +10,5 @@ pub mod relationships;
 pub mod ripple;
 pub mod sessions;
 pub mod stats;
+pub mod tillerino;
 pub mod users;
