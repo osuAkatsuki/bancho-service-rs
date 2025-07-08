@@ -81,12 +81,12 @@ macro_rules! commands {
     ) => {
         || {
             use $crate::commands::{Command, CommandRouter, RegisteredCommand};
-            fn _a<B: 'static + Command>(c: B) -> (&'static str, RegisteredCommand) {
+            fn into_pair<B: 'static + Command>(c: B) -> (&'static str, RegisteredCommand) {
                 (B::PROPERTIES.name, RegisteredCommand::new(c))
             }
 
             #[allow(unused_mut)]
-            let mut router = CommandRouter::from([ $(_a($c)),* ]);
+            let mut router = CommandRouter::from([ $(into_pair($c)),* ]);
             $(router.nest($p, $cc);)*
             router
         }
