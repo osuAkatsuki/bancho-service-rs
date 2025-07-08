@@ -24,6 +24,8 @@ pub enum AppError {
     ClientTooOld,
     InteractionBlocked,
 
+    BeatmapsNotFound,
+
     ChannelsNotFound,
     ChannelsUnauthorized,
     ChannelsInvalidName,
@@ -80,6 +82,8 @@ impl AppError {
             AppError::ClientTooOld => "client_too_old",
             AppError::InteractionBlocked => "interaction_blocked",
 
+            AppError::BeatmapsNotFound => "beatmaps.not_found",
+
             AppError::ChannelsNotFound => "channels.not_found",
             AppError::ChannelsUnauthorized => "channels.unauthorized",
             AppError::ChannelsInvalidName => "channels.invalid_name",
@@ -125,6 +129,8 @@ impl AppError {
             AppError::InteractionBlocked => {
                 "You do not have permission to interact with this user."
             }
+
+            AppError::BeatmapsNotFound => "Beatmap could not be found.",
 
             AppError::ChannelsNotFound => "Channel not found",
             AppError::ChannelsUnauthorized => {
@@ -199,7 +205,8 @@ impl AppError {
             | AppError::SessionsLoginForbidden
             | AppError::SessionsLimitReached => StatusCode::FORBIDDEN,
 
-            AppError::ChannelsNotFound
+            AppError::BeatmapsNotFound
+            | AppError::ChannelsNotFound
             | AppError::CommandsUnknownCommand
             | AppError::MultiplayerNotFound
             | AppError::MultiplayerSlotNotFound

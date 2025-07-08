@@ -23,6 +23,7 @@ pub struct AppSettings {
     pub redis_wait_timeout: Duration,
 
     pub app_ci_key: String,
+    pub beatmaps_service_base_url: String,
     pub performance_service_base_url: String,
 
     pub discord_webhook_url: Option<String>,
@@ -52,6 +53,7 @@ impl AppSettings {
         let redis_wait_timeout = Duration::from_secs(redis_wait_timeout_secs);
 
         let app_ci_key = env::var("APP_CI_KEY")?;
+        let beatmaps_service_base_url = env::var("BEATMAPS_SERVICE_BASE_URL")?;
         let performance_service_base_url = env::var("PERFORMANCE_SERVICE_BASE_URL")?;
         let discord_webhook_url = env::var("DISCORD_WEBHOOK_URL")
             .ok()
@@ -74,6 +76,7 @@ impl AppSettings {
             redis_wait_timeout,
 
             app_ci_key,
+            beatmaps_service_base_url,
             performance_service_base_url,
             discord_webhook_url,
         })
