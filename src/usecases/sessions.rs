@@ -17,7 +17,8 @@ use bancho_protocol::messages::server::UserLogout;
 use chrono::TimeDelta;
 use uuid::Uuid;
 
-pub const USER_SESSIONS_LIMIT: u64 = 20;
+pub const USER_SESSIONS_LIMIT: u64 = 2;
+pub const TOURNAMENT_STAFF_SESSIONS_LIMIT: u64 = 20;
 
 pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Session, Presence)> {
     if args.client_info.osu_version.is_outdated() {
@@ -63,7 +64,9 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     .await?;
 
     let user_session_count = sessions::fetch_user_session_count(ctx, user.user_id).await?;
-    if user_session_count >= USER_SESSIONS_LIMIT {
+    if (!user.privileges.is_tournament_staff() && user_session_count >= USER_SESSIONS_LIMIT)
+        || user_session_count >= TOURNAMENT_STAFF_SESSIONS_LIMIT
+    {
         return Err(AppError::SessionsLimitReached);
     }
 
