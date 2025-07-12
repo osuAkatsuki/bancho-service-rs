@@ -27,12 +27,14 @@ pub const COMMAND_PREFIX: &str = "!";
 static COMMAND_ROUTER: CommandRouterInstance = LazyLock::new(commands![
     include = [
         "mp" => mp::COMMANDS,
+        "system" => system::COMMANDS,
     ],
     misc::alert_all,
     misc::alert_user,
     misc::announce,
     misc::help,
     misc::roll,
+    misc::pp_with,
 ]);
 
 pub struct CommandResponse {
@@ -43,12 +45,7 @@ impl Default for CommandResponse {
     fn default() -> CommandResponse {
         CommandResponse {
             answer: None,
-            properties: CommandProperties {
-                name: "",
-                forward_message: true,
-                required_privileges: None,
-                read_privileges: None,
-            },
+            properties: CommandProperties::default(),
         }
     }
 }
