@@ -7,6 +7,7 @@ use std::time::Duration;
 use tracing::Level;
 
 pub struct AppSettings {
+    pub app_env: String,
     pub app_component: String,
     pub level: Level,
     pub app_host: IpAddr,
@@ -33,6 +34,7 @@ impl AppSettings {
     pub fn load_from_env() -> anyhow::Result<Self> {
         let _ = dotenv::dotenv();
 
+        let app_env = env::var("APP_ENV")?;
         let app_component = env::var("APP_COMPONENT")?;
         let level = Level::from_env("LOG_LEVEL")?;
         let app_host = IpAddr::from_env("APP_HOST")?;
@@ -60,6 +62,7 @@ impl AppSettings {
             .filter(|url| !url.trim().is_empty());
 
         Ok(AppSettings {
+            app_env,
             app_component,
             level,
             app_port,
