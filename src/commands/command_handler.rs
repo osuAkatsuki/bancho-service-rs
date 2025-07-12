@@ -55,6 +55,17 @@ impl Context for CommandContext<'_> {
     }
 }
 
+impl Default for CommandProperties {
+    fn default() -> Self {
+        CommandProperties {
+            name: "",
+            forward_message: true,
+            required_privileges: None,
+            read_privileges: None,
+        }
+    }
+}
+
 #[async_trait]
 impl<C: Command> CommandHandlerProxy for C {
     async fn handle(
