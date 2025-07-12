@@ -54,6 +54,13 @@ impl<'a> Recipient<'a> {
         }
     }
 
+    pub fn is_bot(&self) -> bool {
+        match self {
+            Recipient::Bot => true,
+            _ => false,
+        }
+    }
+
     pub fn get_message_stream(self) -> Option<StreamName<'a>> {
         match self {
             Recipient::Channel(channel_name) => Some(channel_name.get_message_stream()),
