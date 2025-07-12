@@ -1,3 +1,4 @@
+use crate::adapters::beatmaps_service;
 use crate::commands::{COMMAND_PREFIX, COMMAND_ROUTER, CommandResult};
 use crate::common::context::Context;
 use crate::entities::bot;
@@ -5,7 +6,9 @@ use crate::models::performance::PerformanceRequestArgs;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{multiplayer, performance, sessions, spectators, streams, tillerino};
+use crate::usecases::{
+    beatmaps, multiplayer, performance, presences, sessions, spectators, streams, tillerino,
+};
 use bancho_protocol::messages::server::{Alert, ChatMessage};
 use bancho_protocol::structures::IrcMessage;
 use bancho_service_macros::{FromCommandArgs, command};
@@ -93,16 +96,35 @@ pub async fn roll<C: Context>(_ctx: &C, sender: &Session, max_roll: Option<i32>)
 
 #[command("mirror")]
 pub async fn map_mirror<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    match spectators::fetch_spectating(ctx, sender.session_id).await? {
-        Some(_) => todo!(),
-        None => {}
+    let mut beatmap_id = None;
+    if let Some(match_id) = multiplayer::fetch_session_match_id(ctx, sender.session_id).await? {
+        let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+        beatmap_id = Some(mp_match.beatmap_id);
+    } else if let Some(host_session_id) =
+        spectators::fetch_spectating(ctx, sender.session_id).await?
+    {
+        let session = sessions::fetch_one(ctx, host_session_id).await?;
+        let presence = presences::fetch_one(ctx, session.user_id).await?;
+        beatmap_id = Some(presence.action.beatmap_id);
     }
 
-    match multiplayer::fetch_session_match_id(ctx, sender.session_id).await? {
-        Some(_) => todo!(),
-        None => {}
-    }
-    Ok(todo!())
+    let (set_id, song_name) =
+        match beatmap_id {
+            Some(beatmap_id) => {
+                let beatmap = beatmaps_service::fetch_by_id(beatmap_id).await?;
+                (beatmap.beatmapset_id, beatmap.song_name)
+            }
+            None => match tillerino::fetch_last_np(ctx, sender.session_id).await? {
+                Some(np) => (np.beatmap_set_id, np.beatmap_song_name),
+                None => return Ok(
+                    "No map selected! Please use /np, spectate someone or join a multiplayer match"
+                        .to_owned(),
+                ),
+            },
+        };
+
+    let mirrors = beatmaps::generate_mirror_links(set_id, &song_name);
+    Ok(mirrors.join("\n"))
 }
 
 #[command("with")]

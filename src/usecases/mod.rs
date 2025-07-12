@@ -1,4 +1,5 @@
 pub mod bancho_settings;
+pub mod beatmaps;
 pub mod channels;
 pub mod hardware_logs;
 pub mod location;

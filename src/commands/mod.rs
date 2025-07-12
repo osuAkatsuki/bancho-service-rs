@@ -33,6 +33,7 @@ static COMMAND_ROUTER: CommandRouterInstance = LazyLock::new(commands![
     misc::alert_user,
     misc::announce,
     misc::help,
+    misc::map_mirror,
     misc::roll,
     misc::pp_with,
 ]);
