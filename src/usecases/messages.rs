@@ -113,11 +113,7 @@ pub async fn send<C: Context>(
     )
     .await?;
 
-    let response =
-        match commands::is_command_message(msg_content) && recipient.can_process_commands() {
-            true => commands::handle_command(ctx, session, msg_content).await?,
-            false => CommandResponse::default(),
-        };
+    let response = commands::try_handle_command(ctx, session, msg_content, &recipient).await?;
     let properties = response.properties;
 
     if let Some(stream_name) = recipient.get_message_stream()

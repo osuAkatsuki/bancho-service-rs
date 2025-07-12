@@ -64,3 +64,32 @@ pub async fn handle_command<C: Context>(
     let cmd_message = message_content.strip_prefix(COMMAND_PREFIX);
     COMMAND_ROUTER.handle(ctx, sender, cmd_message).await
 }
+
+pub async fn try_handle_command<C: Context>(
+    ctx: &C,
+    session: &Session,
+    message_content: &str,
+    recipient: &Recipient<'_>,
+) -> ServiceResult<CommandResponse> {
+    if !recipient.can_process_commands() {
+        return Ok(CommandResponse::default());
+    }
+
+    if is_command_message(message_content) {
+        handle_command(ctx, session, message_content).await
+    } else if let Some(np_message) = NowPlayingMessage::parse(message_content) {
+        tracing::info!("/np message received: {np_message:?}");
+        let np = tillerino::save_np(ctx, session.session_id, np_message).await?;
+        if recipient.is_bot() {
+            let response = performance::fetch_pp_message(PerformanceRequestArgs::from(np)).await?;
+            Ok(CommandResponse {
+                answer: Some(response),
+                properties: Default::default(),
+            })
+        } else {
+            Ok(CommandResponse::default())
+        }
+    } else {
+        Ok(CommandResponse::default())
+    }
+}
