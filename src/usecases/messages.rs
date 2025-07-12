@@ -68,6 +68,24 @@ impl Default for RecipientInfo<'_> {
     }
 }
 
+pub async fn check_spam<C: Context>(ctx: &C, session: &mut Session) -> ServiceResult<()> {
+    let message_count =
+        messages::message_count(ctx, session.user_id, CHAT_SPAM_RATE_INTERVAL).await?;
+    if message_count < CHAT_SPAM_RATE {
+        return Ok(());
+    }
+
+    session.silence_end = Some(Utc::now() + TimeDelta::seconds(CHAT_TIMEOUT_SECONDS));
+    users::silence_user(
+        ctx,
+        session.user_id,
+        CHAT_TIMEOUT_REASON,
+        CHAT_TIMEOUT_SECONDS,
+    )
+    .await?;
+    Err(AppError::MessagesUserAutoSilenced)
+}
+
 pub async fn send<C: Context>(
     ctx: &C,
     session: &mut Session,
@@ -83,20 +101,7 @@ pub async fn send<C: Context>(
         return Err(AppError::MessagesInvalidLength);
     }
 
-    let message_count =
-        messages::message_count(ctx, session.user_id, CHAT_SPAM_RATE_INTERVAL).await?;
-    if message_count >= CHAT_SPAM_RATE {
-        session.silence_end = Some(Utc::now() + TimeDelta::seconds(CHAT_TIMEOUT_SECONDS));
-        users::silence_user(
-            ctx,
-            session.user_id,
-            CHAT_TIMEOUT_REASON,
-            CHAT_TIMEOUT_SECONDS,
-        )
-        .await?;
-        return Err(AppError::MessagesUserAutoSilenced);
-    }
-
+    check_spam(ctx, session).await?;
     let recipient_info = get_recipient_info(ctx, session, recipient).await?;
     messages::send(
         ctx,
