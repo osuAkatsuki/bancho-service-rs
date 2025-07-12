@@ -2,7 +2,8 @@ use crate::common::context::Context;
 use crate::entities::bancho_settings::BanchoSetting;
 
 pub async fn fetch<C: Context>(ctx: &C, key: &str) -> sqlx::Result<BanchoSetting> {
-    const QUERY: &str = "SELECT id, name, value_int, value_str FROM bancho_settings WHERE name = ?";
+    const QUERY: &str =
+        "SELECT id, name, value_int, value_string FROM bancho_settings WHERE name = ?";
     sqlx::query_as(QUERY).bind(key).fetch_one(ctx.db()).await
 }
 
