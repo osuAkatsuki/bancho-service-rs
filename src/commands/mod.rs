@@ -1,23 +1,26 @@
 mod command_handler;
 mod from_args;
-
+pub mod misc;
+pub mod mp;
+pub mod staff;
+pub mod system;
 use command_handler::CommandHandlerProxy;
+
 pub use command_handler::{
     Command, CommandProperties, CommandRouter, CommandRouterFactory, CommandRouterInstance,
     RegisteredCommand,
 };
-use std::sync::LazyLock;
-
 pub use from_args::FromCommandArgs;
-
-pub mod misc;
-pub mod mp;
-pub mod staff;
 
 use crate::commands;
 use crate::common::context::Context;
 use crate::common::error::ServiceResult;
+use crate::models::messages::Recipient;
+use crate::models::performance::PerformanceRequestArgs;
 use crate::models::sessions::Session;
+use crate::models::tillerino::NowPlayingMessage;
+use crate::usecases::{performance, tillerino};
+use std::sync::LazyLock;
 
 pub const COMMAND_PREFIX: &str = "!";
 

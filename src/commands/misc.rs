@@ -1,10 +1,11 @@
 use crate::commands::{COMMAND_PREFIX, COMMAND_ROUTER, CommandResult};
 use crate::common::context::Context;
 use crate::entities::bot;
+use crate::models::performance::PerformanceRequestArgs;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{sessions, streams};
+use crate::usecases::{multiplayer, performance, sessions, spectators, streams, tillerino};
 use bancho_protocol::messages::server::{Alert, ChatMessage};
 use bancho_protocol::structures::IrcMessage;
 use bancho_service_macros::{FromCommandArgs, command};
@@ -90,25 +91,43 @@ pub async fn roll<C: Context>(_ctx: &C, sender: &Session, max_roll: Option<i32>)
     Ok(response)
 }
 
-// TODO: !addbn
-// TODO: !removebn
-// TODO: !roll
-// TODO: !moderated
-// TODO: !kick
-// TODO: !silence
-// TODO: !unsilence
-// TODO: !ban
-// TODO: !unban
-// TODO: !restrict
-// TODO: !unrestrict
-// TODO: !system maintenance
-// TODO: !mapdl
-// TODO: !with
-// TODO: !last
-// TODO: !report
-// TODO: !freeze
-// TODO: !unfreeze
-// TODO: !map
-// TODO: !announce
-// TODO: !whitelist
-// TODO: !overwrite
+#[command("mirror")]
+pub async fn map_mirror<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
+    match spectators::fetch_spectating(ctx, sender.session_id).await? {
+        Some(_) => todo!(),
+        None => {}
+    }
+
+    match multiplayer::fetch_session_match_id(ctx, sender.session_id).await? {
+        Some(_) => todo!(),
+        None => {}
+    }
+    Ok(todo!())
+}
+
+#[command("with")]
+pub async fn pp_with<C: Context>(ctx: &C, sender: &Session, args: String) -> CommandResult {
+    let last_np = tillerino::fetch_last_np(ctx, sender.session_id).await?;
+    match last_np {
+        Some(last_np) => {
+            let request = PerformanceRequestArgs::from_extra(last_np, &args)?;
+            Ok(performance::fetch_pp_message(request).await?)
+        }
+        None => Ok("You haven't /np'ed a map yet! Please use /np".to_owned()),
+    }
+}
+
+#[command("last")]
+pub async fn last_user_score<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
+    Ok(todo!())
+}
+
+#[command("report")]
+pub async fn report_user<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
+    Ok(todo!())
+}
+
+#[command("overwrite")]
+pub async fn overwrite_score<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
+    Ok(todo!())
+}
