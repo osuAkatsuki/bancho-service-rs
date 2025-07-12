@@ -1,5 +1,5 @@
 use crate::commands;
-use crate::commands::{COMMAND_PREFIX, CommandResponse};
+use crate::commands::COMMAND_PREFIX;
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::bot;
