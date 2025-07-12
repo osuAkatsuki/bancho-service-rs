@@ -1,3 +1,4 @@
+pub mod bancho_settings;
 pub mod bot;
 pub mod channels;
 pub mod gamemodes;
