@@ -1,3 +1,4 @@
+pub mod bancho_settings;
 pub mod bot;
 pub mod channels;
 pub mod gamemodes;
@@ -11,4 +12,5 @@ pub mod scores;
 pub mod sessions;
 pub mod stats;
 pub mod streams;
+pub mod tillerino;
 pub mod users;

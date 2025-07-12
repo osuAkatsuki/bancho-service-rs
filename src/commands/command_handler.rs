@@ -31,7 +31,7 @@ pub struct RegisteredCommand {
 pub type CommandRouterFactory = fn() -> CommandRouter;
 pub type CommandRouterInstance = std::sync::LazyLock<CommandRouter>;
 pub struct CommandRouter {
-    commands: HashMap<&'static str, RegisteredCommand>,
+    pub commands: HashMap<&'static str, RegisteredCommand>,
 }
 
 #[async_trait]
@@ -52,6 +52,17 @@ impl Context for CommandContext<'_> {
     }
     async fn redis(&self) -> PoolResult {
         self.0.redis().await
+    }
+}
+
+impl Default for CommandProperties {
+    fn default() -> Self {
+        CommandProperties {
+            name: "",
+            forward_message: true,
+            required_privileges: None,
+            read_privileges: None,
+        }
     }
 }
 
@@ -81,12 +92,12 @@ macro_rules! commands {
     ) => {
         || {
             use $crate::commands::{Command, CommandRouter, RegisteredCommand};
-            fn _a<B: 'static + Command>(c: B) -> (&'static str, RegisteredCommand) {
+            fn into_pair<B: 'static + Command>(c: B) -> (&'static str, RegisteredCommand) {
                 (B::PROPERTIES.name, RegisteredCommand::new(c))
             }
 
             #[allow(unused_mut)]
-            let mut router = CommandRouter::from([ $(_a($c)),* ]);
+            let mut router = CommandRouter::from([ $(into_pair($c)),* ]);
             $(router.nest($p, $cc);)*
             router
         }

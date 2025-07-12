@@ -1,30 +1,41 @@
 mod command_handler;
 mod from_args;
-
+pub mod misc;
+pub mod mp;
+pub mod staff;
+pub mod system;
 use command_handler::CommandHandlerProxy;
+
 pub use command_handler::{
     Command, CommandProperties, CommandRouter, CommandRouterFactory, CommandRouterInstance,
     RegisteredCommand,
 };
-use std::sync::LazyLock;
-
 pub use from_args::FromCommandArgs;
-
-pub mod misc;
-pub mod mp;
 
 use crate::commands;
 use crate::common::context::Context;
 use crate::common::error::ServiceResult;
+use crate::models::messages::Recipient;
+use crate::models::performance::PerformanceRequestArgs;
 use crate::models::sessions::Session;
+use crate::models::tillerino::NowPlayingMessage;
+use crate::usecases::{performance, tillerino};
+use std::sync::LazyLock;
 
 pub const COMMAND_PREFIX: &str = "!";
 
 static COMMAND_ROUTER: CommandRouterInstance = LazyLock::new(commands![
     include = [
         "mp" => mp::COMMANDS,
+        "system" => system::COMMANDS,
     ],
+    misc::alert_all,
     misc::alert_user,
+    misc::announce,
+    misc::help,
+    misc::map_mirror,
+    misc::roll,
+    misc::pp_with,
 ]);
 
 pub struct CommandResponse {
@@ -35,12 +46,7 @@ impl Default for CommandResponse {
     fn default() -> CommandResponse {
         CommandResponse {
             answer: None,
-            properties: CommandProperties {
-                name: "",
-                forward_message: true,
-                required_privileges: None,
-                read_privileges: None,
-            },
+            properties: CommandProperties::default(),
         }
     }
 }
@@ -58,4 +64,33 @@ pub async fn handle_command<C: Context>(
     // Message does not start with command prefix, ignore
     let cmd_message = message_content.strip_prefix(COMMAND_PREFIX);
     COMMAND_ROUTER.handle(ctx, sender, cmd_message).await
+}
+
+pub async fn try_handle_command<C: Context>(
+    ctx: &C,
+    session: &Session,
+    message_content: &str,
+    recipient: &Recipient<'_>,
+) -> ServiceResult<CommandResponse> {
+    if !recipient.can_process_commands() {
+        return Ok(CommandResponse::default());
+    }
+
+    if is_command_message(message_content) {
+        handle_command(ctx, session, message_content).await
+    } else if let Some(np_message) = NowPlayingMessage::parse(message_content) {
+        tracing::info!("/np message received: {np_message:?}");
+        let np = tillerino::save_np(ctx, session.session_id, np_message).await?;
+        if recipient.is_bot() {
+            let response = performance::fetch_pp_message(PerformanceRequestArgs::from(np)).await?;
+            Ok(CommandResponse {
+                answer: Some(response),
+                properties: Default::default(),
+            })
+        } else {
+            Ok(CommandResponse::default())
+        }
+    } else {
+        Ok(CommandResponse::default())
+    }
 }

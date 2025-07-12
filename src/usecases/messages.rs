@@ -1,5 +1,5 @@
 use crate::commands;
-use crate::commands::{COMMAND_PREFIX, CommandResponse};
+use crate::commands::COMMAND_PREFIX;
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::bot;
@@ -68,6 +68,24 @@ impl Default for RecipientInfo<'_> {
     }
 }
 
+pub async fn check_spam<C: Context>(ctx: &C, session: &mut Session) -> ServiceResult<()> {
+    let message_count =
+        messages::message_count(ctx, session.user_id, CHAT_SPAM_RATE_INTERVAL).await?;
+    if message_count < CHAT_SPAM_RATE {
+        return Ok(());
+    }
+
+    session.silence_end = Some(Utc::now() + TimeDelta::seconds(CHAT_TIMEOUT_SECONDS));
+    users::silence_user(
+        ctx,
+        session.user_id,
+        CHAT_TIMEOUT_REASON,
+        CHAT_TIMEOUT_SECONDS,
+    )
+    .await?;
+    Err(AppError::MessagesUserAutoSilenced)
+}
+
 pub async fn send<C: Context>(
     ctx: &C,
     session: &mut Session,
@@ -83,20 +101,7 @@ pub async fn send<C: Context>(
         return Err(AppError::MessagesInvalidLength);
     }
 
-    let message_count =
-        messages::message_count(ctx, session.user_id, CHAT_SPAM_RATE_INTERVAL).await?;
-    if message_count >= CHAT_SPAM_RATE {
-        session.silence_end = Some(Utc::now() + TimeDelta::seconds(CHAT_TIMEOUT_SECONDS));
-        users::silence_user(
-            ctx,
-            session.user_id,
-            CHAT_TIMEOUT_REASON,
-            CHAT_TIMEOUT_SECONDS,
-        )
-        .await?;
-        return Err(AppError::MessagesUserAutoSilenced);
-    }
-
+    check_spam(ctx, session).await?;
     let recipient_info = get_recipient_info(ctx, session, recipient).await?;
     messages::send(
         ctx,
@@ -108,11 +113,7 @@ pub async fn send<C: Context>(
     )
     .await?;
 
-    let response =
-        match commands::is_command_message(msg_content) && recipient.can_process_commands() {
-            true => commands::handle_command(ctx, session, msg_content).await?,
-            false => CommandResponse::default(),
-        };
+    let response = commands::try_handle_command(ctx, session, msg_content, &recipient).await?;
     let properties = response.properties;
 
     if let Some(stream_name) = recipient.get_message_stream()
