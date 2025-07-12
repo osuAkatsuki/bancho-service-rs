@@ -4,6 +4,7 @@ pub mod hardware_logs;
 pub mod location;
 pub mod messages;
 pub mod multiplayer;
+pub mod performance;
 pub mod presences;
 pub mod privileges;
 pub mod relationships;
