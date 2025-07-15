@@ -52,6 +52,8 @@ pub enum AppError {
 
     UsersNotFound,
 
+    ScoresNotFound,
+
     SessionsLoginForbidden,
     SessionsInvalidCredentials,
     SessionsNotFound,
@@ -108,6 +110,8 @@ impl AppError {
             AppError::RelationshipsNotFound => "relationships.not_found",
 
             AppError::UsersNotFound => "users.not_found",
+
+            AppError::ScoresNotFound => "scores.not_found",
 
             AppError::SessionsLoginForbidden => "sessions.login_forbidden",
             AppError::SessionsInvalidCredentials => "sessions.invalid_credentials",
@@ -169,6 +173,8 @@ impl AppError {
 
             AppError::UsersNotFound => "This user does not exist.",
 
+            AppError::ScoresNotFound => "No score could be found.",
+
             AppError::SessionsLoginForbidden => "Your account is not allowed to login.",
             AppError::SessionsInvalidCredentials => {
                 "You have entered an invalid username or password."
@@ -214,6 +220,7 @@ impl AppError {
             | AppError::PresencesNotFound
             | AppError::RelationshipsNotFound
             | AppError::UsersNotFound
+            | AppError::ScoresNotFound
             | AppError::SessionsNotFound => StatusCode::NOT_FOUND,
             AppError::MessagesUserAutoSilenced => StatusCode::TOO_MANY_REQUESTS,
 
