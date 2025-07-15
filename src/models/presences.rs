@@ -28,14 +28,18 @@ impl PresenceAction {
         }
     }
 
-    pub fn to_bancho(&self) -> UserAction<'_> {
+    pub fn has_mode_changed(&self, other: &Self) -> bool {
+        self.mode != other.mode
+    }
+
+    pub fn as_bancho(&self) -> UserAction<'_> {
         UserAction {
             action: self.action,
             info_text: &self.info_text,
             beatmap_md5: &self.beatmap_md5,
             beatmap_id: self.beatmap_id,
             mods: self.mods,
-            mode: self.mode.to_bancho(),
+            mode: self.mode.as_bancho(),
         }
     }
 }
@@ -89,7 +93,7 @@ impl Presence {
     pub fn to_bancho_stats(&self) -> UserStats<'_> {
         UserStats {
             user_id: self.user_id as _,
-            action: self.action.to_bancho(),
+            action: self.action.as_bancho(),
             ranked_score: self.stats.ranked_score as _,
             total_score: self.stats.total_score as _,
             accuracy: (self.stats.accuracy / 100.0) as _,
@@ -106,7 +110,7 @@ impl Presence {
                 &self.username,
                 self.location.utc_offset,
                 self.location.country,
-                self.action.mode.to_bancho(),
+                self.action.mode.as_bancho(),
                 self.privileges,
                 self.location.latitude,
                 self.location.longitude,
