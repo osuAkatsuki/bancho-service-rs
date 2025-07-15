@@ -6,8 +6,9 @@ use crate::models::performance::PerformanceRequestArgs;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
+use crate::settings::AppSettings;
 use crate::usecases::{
-    beatmaps, multiplayer, performance, presences, sessions, spectators, streams, tillerino,
+    beatmaps, multiplayer, performance, presences, scores, sessions, spectators, streams, tillerino,
 };
 use bancho_protocol::messages::server::{Alert, ChatMessage};
 use bancho_protocol::structures::IrcMessage;
@@ -140,8 +141,23 @@ pub async fn pp_with<C: Context>(ctx: &C, sender: &Session, args: String) -> Com
 }
 
 #[command("last")]
-pub async fn last_user_score<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
-    Ok(todo!())
+pub async fn last_user_score<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
+    let presence = presences::fetch_one(ctx, sender.user_id).await?;
+    let last_score =
+        scores::fetch_last_user_score(ctx, sender.user_id, presence.action.mode.custom_gamemode())
+            .await?;
+    let settings = AppSettings::get();
+    let response = format!(
+        "{} | [{}/b/{} {}] {} | {:.2}% {:.2}pp",
+        sender.username,
+        settings.frontend_base_url,
+        last_score.beatmap_id,
+        last_score.song_name,
+        last_score.mods,
+        last_score.accuracy,
+        last_score.performance,
+    );
+    Ok(response)
 }
 
 #[command("report")]

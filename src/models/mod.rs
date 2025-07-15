@@ -9,6 +9,7 @@ pub mod presences;
 pub mod privileges;
 pub mod relationships;
 pub mod ripple;
+pub mod scores;
 pub mod sessions;
 pub mod stats;
 pub mod tillerino;
