@@ -22,7 +22,7 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
 
     let user = users::fetch_one(&ctx, user_id).await?;
     let mode = Mode::try_from(gm)?;
-    let custom_mode = CustomGamemode::try_from(rx)?;
+    let custom_mode = CustomGamemode::from(rx);
     let gamemode = Gamemode::from(mode, custom_mode);
     info!(user_id, "Handling wipe event for user");
 

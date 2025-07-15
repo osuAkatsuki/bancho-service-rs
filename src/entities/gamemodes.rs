@@ -2,14 +2,6 @@ use crate::entities::scores::MinimalScore;
 use bancho_protocol::structures::{Mode, Mods};
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum CustomGamemode {
-    Vanilla = 0,
-    Relax = 1,
-    Autopilot = 2,
-}
-
-#[repr(u8)]
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum Gamemode {
     #[default]
@@ -21,6 +13,15 @@ pub enum Gamemode {
     TaikoRelax = 5,
     CatchRelax = 6,
     StandardAutopilot = 8,
+}
+
+#[repr(u8)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
+pub enum CustomGamemode {
+    #[default]
+    Vanilla = 0,
+    Relax = 1,
+    Autopilot = 2,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -50,7 +51,27 @@ impl Scoring {
     }
 }
 
+impl From<u8> for CustomGamemode {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Self::Relax,
+            2 => Self::Autopilot,
+            _ => Self::Vanilla,
+        }
+    }
+}
+
 impl CustomGamemode {
+    pub const fn from_mods(mods: Mods) -> Self {
+        if mods.intersects(Mods::Relax) {
+            Self::Relax
+        } else if mods.intersects(Mods::Autopilot) {
+            Self::Autopilot
+        } else {
+            Self::Vanilla
+        }
+    }
+
     pub const fn scoring(&self) -> Scoring {
         match self {
             CustomGamemode::Vanilla => Scoring::Score,
@@ -144,7 +165,7 @@ impl Gamemode {
         }
     }
 
-    pub fn to_bancho(&self) -> Mode {
+    pub fn as_bancho(&self) -> Mode {
         match self {
             Gamemode::Standard => Mode::Standard,
             Gamemode::Taiko => Mode::Taiko,
@@ -186,21 +207,6 @@ impl TryFrom<u8> for Gamemode {
             5 => Ok(Gamemode::TaikoRelax),
             6 => Ok(Gamemode::CatchRelax),
             8 => Ok(Gamemode::StandardAutopilot),
-            _ => Err(Error::new(ErrorKind::InvalidData, "invalid gamemode")),
-        }
-    }
-}
-
-impl TryFrom<u8> for CustomGamemode {
-    type Error = std::io::Error;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        use std::io::{Error, ErrorKind};
-
-        match value {
-            0 => Ok(CustomGamemode::Vanilla),
-            1 => Ok(CustomGamemode::Relax),
-            2 => Ok(CustomGamemode::Autopilot),
             _ => Err(Error::new(ErrorKind::InvalidData, "invalid gamemode")),
         }
     }
