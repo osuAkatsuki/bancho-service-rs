@@ -53,7 +53,7 @@ impl MultiplayerMatch {
         (self.match_id & 0xFFFF) as _
     }
 
-    pub fn to_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match<'_> {
+    pub fn as_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match<'_> {
         let freemods = match self.freemod_enabled {
             true => Some(slots.to_mods()),
             false => None,
@@ -68,9 +68,9 @@ impl MultiplayerMatch {
             beatmap_name: &self.beatmap_name,
             beatmap_md5: &self.beatmap_md5,
             beatmap_id: self.beatmap_id,
-            slots: slots.to_bancho(),
+            slots: slots.as_bancho(),
             host: self.host_user_id as _,
-            mode: self.mode.to_bancho(),
+            mode: self.mode.as_bancho(),
             win_condition: self.win_condition,
             team_type: self.team_type,
             freemod_enabled: self.freemod_enabled,
@@ -180,12 +180,12 @@ impl Into<SlotEntity> for MultiplayerMatchSlot {
 }
 
 pub trait MatchSlotExt<const N: usize> {
-    fn to_bancho(&self) -> [MatchSlot; N];
+    fn as_bancho(&self) -> [MatchSlot; N];
     fn to_mods(&self) -> [Mods; N];
 }
 
 impl<const N: usize> MatchSlotExt<N> for [MultiplayerMatchSlot; N] {
-    fn to_bancho(&self) -> [MatchSlot; N] {
+    fn as_bancho(&self) -> [MatchSlot; N] {
         std::array::from_fn(|i| MatchSlot {
             status: self[i].status,
             team: self[i].team,

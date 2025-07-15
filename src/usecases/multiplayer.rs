@@ -76,7 +76,7 @@ pub async fn create<C: Context>(
     )
     .await?;
 
-    let match_notification = mp_match.to_bancho(slots);
+    let match_notification = mp_match.as_bancho(slots);
     streams::broadcast_message(
         ctx,
         StreamName::Lobby,
@@ -618,7 +618,7 @@ pub async fn start_game<C: Context>(
 
     let mp_match = MultiplayerMatch::try_from(mp_match)?;
     let slots = MultiplayerMatchSlot::from(slots);
-    let bancho_match = mp_match.to_bancho(slots);
+    let bancho_match = mp_match.as_bancho(slots);
     streams::broadcast_message(
         ctx,
         StreamName::Lobby,
@@ -816,7 +816,7 @@ async fn broadcast_update<C: Context>(
     mp_match: &MultiplayerMatch,
     slots: MultiplayerMatchSlots,
 ) -> ServiceResult<()> {
-    let bancho_match = mp_match.to_bancho(slots);
+    let bancho_match = mp_match.as_bancho(slots);
     let match_update = MatchUpdate(&bancho_match).as_message().serialize();
     streams::broadcast_data(ctx, StreamName::Lobby, &match_update, None, None).await?;
     streams::broadcast_data(
