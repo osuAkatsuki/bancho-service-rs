@@ -26,6 +26,7 @@ pub struct LastUserScore {
     pub score: i64,
     #[sqlx(rename = "pp")]
     pub performance: f32,
+    pub max_combo: i32,
     pub accuracy: f32,
     pub time: i32,
 
@@ -34,6 +35,7 @@ pub struct LastUserScore {
     pub beatmap_set_id: i32,
     pub beatmap_md5: String,
     pub song_name: String,
+    pub beatmap_max_combo: i32,
 }
 
 #[derive(sqlx::FromRow)]

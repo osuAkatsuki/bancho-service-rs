@@ -148,12 +148,14 @@ pub async fn last_user_score<C: Context>(ctx: &C, sender: &Session) -> CommandRe
             .await?;
     let settings = AppSettings::get();
     let response = format!(
-        "{} | [{}/b/{} {}] {} | {:.2}% {:.2}pp",
+        "{} | [{}/b/{} {}] {} | {}/{} {:.2}% {:.2}pp",
         sender.username,
         settings.frontend_base_url,
         last_score.beatmap_id,
         last_score.song_name,
         last_score.mods,
+        last_score.max_combo,
+        last_score.beatmap_max_combo,
         last_score.accuracy,
         last_score.performance,
     );

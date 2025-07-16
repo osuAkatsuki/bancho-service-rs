@@ -8,6 +8,7 @@ pub struct LastUserScore {
     pub mods: Mods,
     pub score: i64,
     pub performance: f32,
+    pub max_combo: i32,
     pub accuracy: f32,
     pub time: i32,
 
@@ -15,6 +16,7 @@ pub struct LastUserScore {
     pub beatmap_set_id: i32,
     pub beatmap_md5: String,
     pub song_name: String,
+    pub beatmap_max_combo: i32,
 }
 
 impl From<LastUserScoreEntity> for LastUserScore {
@@ -26,12 +28,14 @@ impl From<LastUserScoreEntity> for LastUserScore {
             mods: Mods::from_bits_retain(value.mods as u32),
             score: value.score,
             performance: value.performance,
+            max_combo: value.max_combo,
             accuracy: value.accuracy,
             time: value.time,
             beatmap_id: value.beatmap_id,
             beatmap_set_id: value.beatmap_set_id,
             beatmap_md5: value.beatmap_md5,
             song_name: value.song_name,
+            beatmap_max_combo: value.beatmap_max_combo,
         }
     }
 }

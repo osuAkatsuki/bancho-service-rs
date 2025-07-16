@@ -114,8 +114,9 @@ pub async fn fetch_last_user_score<C: Context>(
     let query = format!(
         r#"
             SELECT s.id, s.userid, s.play_mode, s.mods,
-            s.score, s.pp, s.accuracy, s.time, b.beatmap_id,
-            b.beatmapset_id, b.beatmap_md5, b.song_name
+            s.score, s.pp, s.max_combo, s.accuracy, s.time, b.beatmap_id,
+            b.beatmapset_id, b.beatmap_md5, b.song_name,
+            b.max_combo AS beatmap_max_combo
             FROM {table_name} s
             INNER JOIN beatmaps b USING(beatmap_md5)
             WHERE s.userid = ?
