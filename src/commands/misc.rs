@@ -14,12 +14,6 @@ use bancho_protocol::messages::server::{Alert, ChatMessage};
 use bancho_protocol::structures::IrcMessage;
 use bancho_service_macros::{FromCommandArgs, command};
 
-#[derive(Debug, FromCommandArgs)]
-pub struct AlertUserArgs {
-    pub username: String,
-    pub message: String,
-}
-
 #[command("help")]
 pub async fn help<C: Context>(_ctx: &C, sender: &Session) -> CommandResult {
     let mut response = "Available commands:\n".to_owned();
@@ -40,6 +34,12 @@ pub async fn help<C: Context>(_ctx: &C, sender: &Session) -> CommandResult {
     }
 
     Ok(response)
+}
+
+#[derive(Debug, FromCommandArgs)]
+pub struct AlertUserArgs {
+    pub username: String,
+    pub message: String,
 }
 
 #[command(
