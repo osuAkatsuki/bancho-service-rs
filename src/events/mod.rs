@@ -3,6 +3,7 @@ pub mod cant_spectate;
 pub mod change_action;
 pub mod channel_join;
 pub mod channel_leave;
+mod chat;
 pub mod lobby_join;
 pub mod lobby_leave;
 pub mod login;
@@ -83,13 +84,26 @@ pub struct Events<'a> {
 
 pub type EventResult = ServiceResult<Option<Vec<u8>>>;
 
-macro_rules! event_handler {
-    ($h:ident($ctx:expr, $session:expr)) => {
-        $h::handle($ctx, $session).await
+macro_rules! event_handlers {
+    (
+        $ctx:expr, $session:expr, $event:expr,
+        [$($event_type:pat => $handler:expr),* $(,)?]
+    ) => {
+        match $event.event_type {
+            $(
+                $event_type =>
+                    $handler($ctx, $session, BinaryDeserialize::deserialize($event.data)?).await,
+            )*
+            event_type => {
+                warn!("Unhandled event: {event_type:?}");
+                Ok(None)
+            }
+        }
     };
-    ($h:ident($ctx:expr, $session:expr, $event:expr)) => {
-        $h::handle($ctx, $session, BinaryDeserialize::deserialize($event.data)?).await
-    };
+}
+
+async fn ignore_event(_ctx: &RequestContext, _session: &Session, _args: ()) -> EventResult {
+    Ok(None)
 }
 
 pub async fn handle_event(
@@ -97,75 +111,59 @@ pub async fn handle_event(
     session: &mut Session,
     event: Event<'_>,
 ) -> EventResult {
-    match event.event_type {
+    event_handlers!(ctx, session, event, [
+        // Ignored events
+        MessageType::Ping
+        | MessageType::CantSpectate
+        | MessageType::ReceiveUpdates
+        | MessageType::SetAwayMessage => ignore_event,
         // Miscellaneous events
-        MessageType::Ping => Ok(None),
-        MessageType::Logout => event_handler!(logout(ctx, session)),
-        MessageType::ChangeAction => event_handler!(change_action(ctx, session, event)),
-        MessageType::ReceiveUpdates => event_handler!(receive_updates(ctx, session, event)),
-        MessageType::RequestPresences => event_handler!(request_presences(ctx, session, event)),
-        MessageType::RequestAllPresences => {
-            event_handler!(request_all_presences(ctx, session, event))
-        }
-        MessageType::ToggleBlockNonFriendDms => {
-            event_handler!(toggle_private_dms(ctx, session, event))
-        }
-        MessageType::UserStatsRequest => event_handler!(user_stats_request(ctx, session, event)),
-        MessageType::UpdateStatsRequest => event_handler!(update_stats_request(ctx, session)),
-        MessageType::AddFriend => event_handler!(add_friend(ctx, session, event)),
-        MessageType::RemoveFriend => event_handler!(remove_friend(ctx, session, event)),
-        MessageType::SetAwayMessage => event_handler!(set_afk_message(ctx, session, event)),
+        MessageType::Logout => logout::handle,
+        MessageType::ChangeAction => change_action::handle,
+        MessageType::RequestPresences => request_presences::handle,
+        MessageType::RequestAllPresences => request_all_presences::handle,
+        MessageType::ToggleBlockNonFriendDms => toggle_private_dms::handle,
+        MessageType::UserStatsRequest => user_stats_request::handle,
+        MessageType::UpdateStatsRequest => update_stats_request::handle,
+        MessageType::AddFriend => add_friend::handle,
+        MessageType::RemoveFriend => remove_friend::handle,
 
         // Chat events
-        MessageType::JoinChannel => event_handler!(channel_join(ctx, session, event)),
-        MessageType::LeaveChannel => event_handler!(channel_leave(ctx, session, event)),
-        MessageType::PublicChatMessage => event_handler!(public_chat_message(ctx, session, event)),
-        MessageType::PrivateChatMessage => {
-            event_handler!(private_chat_message(ctx, session, event))
-        }
+        MessageType::JoinChannel => channel_join::handle,
+        MessageType::LeaveChannel => channel_leave::handle,
+        MessageType::PublicChatMessage => chat::public_chat_message,
+        MessageType::PrivateChatMessage => chat::private_chat_message,
 
         // Spectator events
-        MessageType::StartSpectating => event_handler!(start_spectating(ctx, session, event)),
-        MessageType::StopSpectating => event_handler!(stop_spectating(ctx, session)),
-        MessageType::SpectateFrames => event_handler!(spectate_frames(ctx, session, event)),
-        MessageType::CantSpectate => event_handler!(cant_spectate(ctx, session)),
+        MessageType::StartSpectating => start_spectating::handle,
+        MessageType::StopSpectating => stop_spectating::handle,
+        MessageType::SpectateFrames => spectate_frames::handle,
 
         // Multiplayer events
-        MessageType::LeaveLobby => event_handler!(lobby_leave(ctx, session)),
-        MessageType::JoinLobby => event_handler!(lobby_join(ctx, session)),
-        MessageType::CreateMatch => event_handler!(match_create(ctx, session, event)),
-        MessageType::JoinMatch => event_handler!(match_join(ctx, session, event)),
-        MessageType::LeaveMatch => event_handler!(match_leave(ctx, session)),
-        MessageType::MatchChangeSlot => event_handler!(match_change_slot(ctx, session, event)),
-        MessageType::MatchReady => event_handler!(match_ready(ctx, session)),
-        MessageType::MatchLock => event_handler!(match_lock_slot(ctx, session, event)),
-        MessageType::MatchChangeSettings => {
-            event_handler!(match_change_settings(ctx, session, event))
-        }
-        MessageType::StartMatch => event_handler!(match_start(ctx, session)),
-        MessageType::UpdateMatchScore => event_handler!(match_update_score(ctx, session, event)),
-        MessageType::MatchPlayerComplete => event_handler!(match_player_complete(ctx, session)),
-        MessageType::MatchChangeMods => event_handler!(match_change_mods(ctx, session, event)),
-        MessageType::MatchLoadComplete => event_handler!(match_loaded(ctx, session)),
-        MessageType::MatchNoBeatmap => event_handler!(match_no_beatmap(ctx, session)),
-        MessageType::MatchNotReady => event_handler!(match_not_ready(ctx, session)),
-        MessageType::MatchFailed => event_handler!(match_failed(ctx, session)),
-        MessageType::MatchHasBeatmap => event_handler!(match_has_beatmap(ctx, session)),
-        MessageType::MatchSkipRequest => event_handler!(match_request_skip(ctx, session)),
-        MessageType::MatchChangeHost => event_handler!(match_transfer_host(ctx, session, event)),
-        MessageType::MatchChangeTeam => event_handler!(match_change_team(ctx, session)),
-        MessageType::MatchInvite => event_handler!(match_invite(ctx, session, event)),
-        MessageType::MatchChangePassword => {
-            event_handler!(match_change_settings(ctx, session, event))
-        }
-        /*MessageType::TournamentMatchInfoRequest => ,
-        MessageType::TournamentJoinMatchChannel => ,
-        MessageType::TournamentLeaveMatchChannel => ,*/
-        _ => {
-            warn!("Unhandled event: {:?}", event.event_type);
-            Ok(None)
-        }
-    }
+        MessageType::LeaveLobby => lobby_leave::handle,
+        MessageType::JoinLobby => lobby_join::handle,
+        MessageType::CreateMatch => match_create::handle,
+        MessageType::JoinMatch => match_join::handle,
+        MessageType::LeaveMatch => match_leave::handle,
+        MessageType::MatchChangeSlot => match_change_slot::handle,
+        MessageType::MatchReady => match_ready::handle,
+        MessageType::MatchLock => match_lock_slot::handle,
+        MessageType::MatchChangeSettings => match_change_settings::handle,
+        MessageType::StartMatch => match_start::handle,
+        MessageType::UpdateMatchScore => match_update_score::handle,
+        MessageType::MatchPlayerComplete => match_player_complete::handle,
+        MessageType::MatchChangeMods => match_change_mods::handle,
+        MessageType::MatchLoadComplete => match_loaded::handle,
+        MessageType::MatchNoBeatmap => match_no_beatmap::handle,
+        MessageType::MatchNotReady => match_not_ready::handle,
+        MessageType::MatchFailed => match_failed::handle,
+        MessageType::MatchHasBeatmap => match_has_beatmap::handle,
+        MessageType::MatchSkipRequest => match_request_skip::handle,
+        MessageType::MatchChangeHost => match_transfer_host::handle,
+        MessageType::MatchChangeTeam => match_change_team::handle,
+        MessageType::MatchInvite => match_invite::handle,
+        MessageType::MatchChangePassword => match_change_settings::handle,
+    ])
 }
 
 pub async fn handle_events(

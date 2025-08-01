@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use hashbrown::HashMap;
 use sqlx::{MySql, Pool};
 
+#[derive(Debug)]
 pub struct CommandProperties {
     pub name: &'static str,
     pub forward_message: bool,
@@ -41,7 +42,7 @@ pub trait CommandHandlerProxy: Send + Sync {
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
-    ) -> ServiceResult<CommandResponse>;
+    ) -> ServiceResult<Option<CommandResponse>>;
 }
 
 struct CommandContext<'a>(&'a dyn Context);
@@ -73,14 +74,14 @@ impl<C: Command> CommandHandlerProxy for C {
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
-    ) -> ServiceResult<CommandResponse> {
+    ) -> ServiceResult<Option<CommandResponse>> {
         let ctx = CommandContext(ctx);
         let args = C::Args::from_args(args)?;
-        let response = C::handle(&ctx, session, args).await?;
-        Ok(CommandResponse {
-            answer: Some(response),
+        let answer = C::handle(&ctx, session, args).await?;
+        Ok(Some(CommandResponse {
+            answer,
             properties: C::PROPERTIES,
-        })
+        }))
     }
 }
 
@@ -150,14 +151,14 @@ impl CommandHandlerProxy for CommandRouter {
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
-    ) -> ServiceResult<CommandResponse> {
+    ) -> ServiceResult<Option<CommandResponse>> {
         match args {
             Some(args) => {
                 let mut parts = args.splitn(2, ' ');
                 let cmd_name = match parts.next() {
                     Some(cmd_name) => cmd_name,
                     // No command, ignore
-                    None => return Err(AppError::CommandsUnknownCommand),
+                    None => return Ok(None),
                 };
                 let args = parts.next();
                 match self.get(cmd_name) {
@@ -172,7 +173,7 @@ impl CommandHandlerProxy for CommandRouter {
                     None => Err(AppError::CommandsUnknownCommand),
                 }
             }
-            None => Err(AppError::CommandsUnknownCommand),
+            None => Ok(None),
         }
     }
 }

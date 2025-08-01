@@ -8,8 +8,8 @@ pub static COMMANDS: CommandRouterFactory = commands![host];
 
 #[command("host")]
 pub async fn host<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
-    let response = format!("Transferred host to user");
-    Ok(response)
+    tracing::warn!("This command isnt implemented yet lol.");
+    Ok(None)
 }
 
 // TODO: !mp addref

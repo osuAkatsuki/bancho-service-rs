@@ -1,13 +1,21 @@
 use crate::commands::CommandResult;
 use crate::common::context::Context;
+use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::usecases::tillerino;
 use bancho_service_macros::command;
 
-#[command("map")]
+#[command(
+    "map",
+    required_privileges = Privileges::AdminManageBeatmaps,
+)]
 pub async fn edit_map<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let _last_np = tillerino::fetch_last_np(ctx, sender.session_id).await?;
-    Ok("Please /np a map first!".to_owned())
+    let last_np = tillerino::fetch_last_np(ctx, sender.session_id).await?;
+    if last_np.is_none() {
+        return Ok(Some("Please /np a map first!".to_owned()));
+    }
+
+    Ok(todo!())
 }
 
 #[command("addbn")]

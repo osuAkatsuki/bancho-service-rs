@@ -1,23 +1,20 @@
+use crate::commands::CommandResponse;
 use crate::entities::channels::ChannelName;
 use crate::entities::messages::Message as MessageEntity;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub enum Recipient<'a> {
     Channel(ChannelName<'a>),
-    UserSession(&'a Session),
+    UserSession(Session),
     OfflineUser(&'a str),
     Bot,
 }
 
-pub enum MessageSendResult {
-    Ok,
-    CommandExecuted,
-    CommandResponse(String),
-}
-
+#[derive(Debug, Serialize)]
 pub struct Message {
     pub message_id: u64,
     pub sender_id: i64,
@@ -28,6 +25,12 @@ pub struct Message {
     pub read_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug)]
+pub struct MessageSendResult {
+    pub message: Message,
+    pub response: Option<CommandResponse>,
 }
 
 impl From<MessageEntity> for Message {
@@ -47,13 +50,6 @@ impl From<MessageEntity> for Message {
 }
 
 impl<'a> Recipient<'a> {
-    pub fn can_process_commands(&self) -> bool {
-        match self {
-            Recipient::Bot | Recipient::Channel(_) => true,
-            _ => false,
-        }
-    }
-
     pub fn is_bot(&self) -> bool {
         match self {
             Recipient::Bot => true,

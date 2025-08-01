@@ -37,6 +37,7 @@ pub enum AppError {
 
     MessagesInvalidLength,
     MessagesUserAutoSilenced,
+    MessagesUserSilenced,
 
     MultiplayerNotFound,
     MultiplayerUnauthorized,
@@ -96,6 +97,7 @@ impl AppError {
 
             AppError::MessagesInvalidLength => "messages.invalid_length",
             AppError::MessagesUserAutoSilenced => "messages.user_auto_silenced",
+            AppError::MessagesUserSilenced => "messages.user_silenced",
 
             AppError::MultiplayerNotFound => "multiplayer.not_found",
             AppError::MultiplayerUnauthorized => "multiplayer.unauthorized",
@@ -154,6 +156,7 @@ impl AppError {
             AppError::MessagesUserAutoSilenced => {
                 "You have sent too many messages in a short period of time."
             }
+            AppError::MessagesUserSilenced => "You have been silenced.",
 
             AppError::MultiplayerNotFound => "The multiplayer match could not be found.",
             AppError::MultiplayerUnauthorized => {
@@ -209,7 +212,8 @@ impl AppError {
             | AppError::InteractionBlocked
             | AppError::MultiplayerMatchFull
             | AppError::SessionsLoginForbidden
-            | AppError::SessionsLimitReached => StatusCode::FORBIDDEN,
+            | AppError::SessionsLimitReached
+            | AppError::MessagesUserSilenced => StatusCode::FORBIDDEN,
 
             AppError::BeatmapsNotFound
             | AppError::ChannelsNotFound

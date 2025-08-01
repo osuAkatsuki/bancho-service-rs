@@ -7,7 +7,7 @@ use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::server::MatchUpdate;
 use bancho_protocol::serde::BinarySerialize;
 
-pub async fn handle(ctx: &RequestContext, session: &Session) -> EventResult {
+pub async fn handle(ctx: &RequestContext, session: &Session, _args: ()) -> EventResult {
     streams::join(ctx, session.session_id, StreamName::Lobby).await?;
     let matches = multiplayer::fetch_all_with_slots(ctx).await?;
     let response = matches

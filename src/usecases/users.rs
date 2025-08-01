@@ -24,6 +24,17 @@ pub async fn fetch_one_by_username<C: Context>(ctx: &C, username: &str) -> Servi
     }
 }
 
+pub async fn fetch_one_by_username_safe<C: Context>(
+    ctx: &C,
+    username: &str,
+) -> ServiceResult<User> {
+    match users::fetch_one_by_username_safe(ctx, username).await {
+        Ok(user) => User::try_from(user),
+        Err(sqlx::Error::RowNotFound) => Err(AppError::UsersNotFound),
+        Err(e) => unexpected(e),
+    }
+}
+
 pub async fn silence_user<C: Context>(
     ctx: &C,
     user_id: i64,

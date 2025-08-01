@@ -19,5 +19,5 @@ pub async fn maintenance<C: Context>(ctx: &C, _sender: &Session) -> CommandResul
         true => "on",
         false => "off",
     };
-    Ok(format!("Turned {on_off} maintenance mode."))
+    Ok(Some(format!("Turned {on_off} maintenance mode.")))
 }

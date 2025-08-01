@@ -8,7 +8,8 @@ use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::settings::AppSettings;
 use crate::usecases::{
-    beatmaps, multiplayer, performance, presences, scores, sessions, spectators, streams, tillerino,
+    beatmaps, multiplayer, performance, presences, scores, sessions, spectators, streams,
+    tillerino, user_reports, users,
 };
 use bancho_protocol::messages::server::{Alert, ChatMessage};
 use bancho_protocol::structures::IrcMessage;
@@ -33,7 +34,7 @@ pub async fn help<C: Context>(_ctx: &C, sender: &Session) -> CommandResult {
         }
     }
 
-    Ok(response)
+    Ok(Some(response))
 }
 
 #[derive(Debug, FromCommandArgs)]
@@ -57,7 +58,7 @@ pub async fn alert_user<C: Context>(
     };
     streams::broadcast_message(ctx, StreamName::User(session.session_id), alert, None, None)
         .await?;
-    Ok("Alert sent successfully.".to_owned())
+    Ok(Some("Alert sent successfully.".to_owned()))
 }
 
 #[command(
@@ -67,7 +68,7 @@ pub async fn alert_user<C: Context>(
 pub async fn alert_all<C: Context>(ctx: &C, _sender: &Session, message: String) -> CommandResult {
     let alert = Alert { message: &message };
     streams::broadcast_message(ctx, StreamName::Main, alert, None, None).await?;
-    Ok("Alert sent successfully.".to_owned())
+    Ok(Some("Alert sent successfully.".to_owned()))
 }
 
 #[command(
@@ -82,7 +83,7 @@ pub async fn announce<C: Context>(ctx: &C, _sender: &Session, message: String) -
         text: &message,
     };
     streams::broadcast_message(ctx, StreamName::Main, ChatMessage(&msg), None, None).await?;
-    Ok("Announcement sent successfully.".to_owned())
+    Ok(Some("Announcement sent successfully.".to_owned()))
 }
 
 const MAX_ROLL: i32 = 1_000_000;
@@ -92,7 +93,7 @@ pub async fn roll<C: Context>(_ctx: &C, sender: &Session, max_roll: Option<i32>)
     let max_roll = max_roll.unwrap_or(MAX_ROLL).min(MAX_ROLL).max(1);
     let result = rand::random_range(1..=max_roll);
     let response = format!("{} rolls {result} points!", sender.username);
-    Ok(response)
+    Ok(Some(response))
 }
 
 #[command("mirror")]
@@ -117,15 +118,15 @@ pub async fn map_mirror<C: Context>(ctx: &C, sender: &Session) -> CommandResult 
             }
             None => match tillerino::fetch_last_np(ctx, sender.session_id).await? {
                 Some(np) => (np.beatmap_set_id, np.beatmap_song_name),
-                None => return Ok(
+                None => return Ok(Some(
                     "No map selected! Please use /np, spectate someone or join a multiplayer match"
                         .to_owned(),
-                ),
+                )),
             },
         };
 
     let mirrors = beatmaps::generate_mirror_links(set_id, &song_name);
-    Ok(mirrors.join("\n"))
+    Ok(Some(mirrors.join("\n")))
 }
 
 #[command("with")]
@@ -134,9 +135,11 @@ pub async fn pp_with<C: Context>(ctx: &C, sender: &Session, args: String) -> Com
     match last_np {
         Some(last_np) => {
             let request = PerformanceRequestArgs::from_extra(last_np, &args)?;
-            Ok(performance::fetch_pp_message(request).await?)
+            Ok(Some(performance::fetch_pp_message(request).await?))
         }
-        None => Ok("You haven't /np'ed a map yet! Please use /np".to_owned()),
+        None => Ok(Some(
+            "You haven't /np'ed a map yet! Please use /np".to_owned(),
+        )),
     }
 }
 
@@ -159,12 +162,24 @@ pub async fn last_user_score<C: Context>(ctx: &C, sender: &Session) -> CommandRe
         last_score.accuracy,
         last_score.performance,
     );
-    Ok(response)
+    Ok(Some(response))
 }
 
-#[command("report")]
-pub async fn report_user<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
-    Ok(todo!())
+#[derive(Debug, FromCommandArgs)]
+pub struct ReportUserArgs {
+    pub username: String,
+    pub reason: String,
+}
+
+#[command("report", forward_message = false)]
+pub async fn report_user<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: ReportUserArgs,
+) -> CommandResult {
+    let user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
+    user_reports::create(ctx, sender.user_id, user.user_id, args.reason).await?;
+    Ok(Some("Report successful!".to_owned()))
 }
 
 #[command("overwrite")]

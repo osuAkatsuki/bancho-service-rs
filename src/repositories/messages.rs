@@ -63,29 +63,42 @@ pub async fn mark_all_read<C: Context>(ctx: &C, recipient_id: i64) -> sqlx::Resu
 pub async fn send<C: Context>(
     ctx: &C,
     sender_id: i64,
+    sender_name: &str,
     recipient_channel: Option<ChannelName<'_>>,
     recipient_id: Option<i64>,
     message_content: &str,
     mark_as_unread: bool,
-) -> sqlx::Result<()> {
+) -> sqlx::Result<Message> {
     let recipient_channel = recipient_channel.map(|channel_name| channel_name.to_string());
     const QUERY: &str = const_str::concat!(
         "INSERT INTO messages (sender_id, recipient_id, recipient_channel, content, read_at) ",
         "VALUES (?, ?, ?, ?, ?)"
     );
+    let created_at = Utc::now();
     let read_at = match mark_as_unread {
         true => None,
-        false => Some(Utc::now()),
+        false => Some(created_at),
     };
-    sqlx::query(QUERY)
+    let query_result = sqlx::query(QUERY)
         .bind(sender_id)
         .bind(recipient_id)
-        .bind(recipient_channel)
+        .bind(&recipient_channel)
         .bind(message_content)
         .bind(read_at)
         .execute(ctx.db())
         .await?;
-    Ok(())
+    let message_id = query_result.last_insert_id();
+    Ok(Message {
+        sender_id,
+        recipient_id,
+        recipient_channel,
+        created_at,
+        read_at,
+        id: message_id,
+        sender_name: sender_name.to_owned(),
+        content: message_content.to_string(),
+        deleted_at: None,
+    })
 }
 
 pub async fn message_count<C: Context>(
