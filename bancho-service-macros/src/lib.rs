@@ -46,7 +46,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let mut forward_message = quote! {true};
     let mut required_privileges = quote! {None};
-    let mut read_privileges = quote! {None};
+    let mut read_privileges = None;
     for prop in attr.adt_props {
         let value = prop.value.to_token_stream();
         if prop.path.is_ident("forward_message") {
@@ -54,9 +54,10 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         } else if prop.path.is_ident("required_privileges") {
             required_privileges = quote! {Some(#value)};
         } else if prop.path.is_ident("read_privileges") {
-            read_privileges = quote! {Some(#value)};
+            read_privileges = Some(quote! {Some(#value)});
         }
     }
+    let read_privileges = read_privileges.unwrap_or(required_privileges.clone());
     let properties = quote! {
         crate::commands::CommandProperties {
             name: #cmd_name,

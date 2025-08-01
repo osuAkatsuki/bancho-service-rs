@@ -1,3 +1,4 @@
+pub mod bancho_settings;
 pub mod channels;
 pub mod hardware_logs;
 pub mod ip_logs;
@@ -12,4 +13,6 @@ pub mod sessions;
 pub mod spectators;
 pub mod stats;
 pub mod streams;
+pub mod tillerino;
+pub mod user_reports;
 pub mod users;

@@ -6,7 +6,7 @@ use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{presences, stats, streams};
 
-pub async fn handle(ctx: &RequestContext, session: &Session) -> EventResult {
+pub async fn handle(ctx: &RequestContext, session: &Session, _args: ()) -> EventResult {
     let mut presence = match presences::fetch_one(ctx, session.user_id).await {
         Ok(presence) => presence,
         Err(AppError::PresencesNotFound) => {

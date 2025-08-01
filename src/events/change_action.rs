@@ -27,7 +27,7 @@ pub async fn handle(
         return Ok(None);
     }
 
-    let refresh_stats = presence.action.mode != action.mode;
+    let refresh_stats = action.has_mode_changed(&presence.action);
     presence.action = action;
 
     if refresh_stats {

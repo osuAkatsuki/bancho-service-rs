@@ -8,6 +8,34 @@ pub static COMMANDS: CommandRouterFactory = commands![host];
 
 #[command("host")]
 pub async fn host<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
-    let response = format!("Transferred host to user");
-    Ok(response)
+    tracing::warn!("This command isnt implemented yet lol.");
+    Ok(None)
 }
+
+// TODO: !mp addref
+// TODO: !mp rmref
+// TODO: !mp listref
+// TODO: !mp make
+// TODO: !mp close
+// TODO: !mp lock
+// TODO: !mp unlock
+// TODO: !mp size
+// TODO: !mp move
+// TODO: !mp host
+// TODO: !mp clearhost
+// TODO: !mp start
+// TODO: !mp invite
+// TODO: !mp map
+// TODO: !mp set
+// TODO: !mp abort
+// TODO: !mp kick
+// TODO: !mp password
+// TODO: !mp randompassword
+// TODO: !mp mods
+// TODO: !mp team
+// TODO: !mp settings
+// TODO: !mp scorev
+// TODO: !mp help
+// TODO: !mp link
+// TODO: !mp timer
+// TODO: !mp aborttimer

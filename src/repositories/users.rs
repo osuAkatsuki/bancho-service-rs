@@ -43,6 +43,20 @@ pub async fn fetch_one_by_username<C: Context>(ctx: &C, username: &str) -> sqlx:
         .await
 }
 
+pub async fn fetch_one_by_username_safe<C: Context>(ctx: &C, username: &str) -> sqlx::Result<User> {
+    const QUERY: &str = const_str::concat!(
+        "SELECT ",
+        READ_FIELDS,
+        " FROM ",
+        TABLE_NAME,
+        " WHERE username_safe = ?"
+    );
+    sqlx::query_as(QUERY)
+        .bind(username)
+        .fetch_one(ctx.db())
+        .await
+}
+
 pub async fn silence_user<C: Context>(
     ctx: &C,
     user_id: i64,

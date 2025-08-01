@@ -24,6 +24,8 @@ pub enum AppError {
     ClientTooOld,
     InteractionBlocked,
 
+    BeatmapsNotFound,
+
     ChannelsNotFound,
     ChannelsUnauthorized,
     ChannelsInvalidName,
@@ -35,6 +37,7 @@ pub enum AppError {
 
     MessagesInvalidLength,
     MessagesUserAutoSilenced,
+    MessagesUserSilenced,
 
     MultiplayerNotFound,
     MultiplayerUnauthorized,
@@ -49,6 +52,8 @@ pub enum AppError {
     RelationshipsNotFound,
 
     UsersNotFound,
+
+    ScoresNotFound,
 
     SessionsLoginForbidden,
     SessionsInvalidCredentials,
@@ -80,6 +85,8 @@ impl AppError {
             AppError::ClientTooOld => "client_too_old",
             AppError::InteractionBlocked => "interaction_blocked",
 
+            AppError::BeatmapsNotFound => "beatmaps.not_found",
+
             AppError::ChannelsNotFound => "channels.not_found",
             AppError::ChannelsUnauthorized => "channels.unauthorized",
             AppError::ChannelsInvalidName => "channels.invalid_name",
@@ -90,6 +97,7 @@ impl AppError {
 
             AppError::MessagesInvalidLength => "messages.invalid_length",
             AppError::MessagesUserAutoSilenced => "messages.user_auto_silenced",
+            AppError::MessagesUserSilenced => "messages.user_silenced",
 
             AppError::MultiplayerNotFound => "multiplayer.not_found",
             AppError::MultiplayerUnauthorized => "multiplayer.unauthorized",
@@ -104,6 +112,8 @@ impl AppError {
             AppError::RelationshipsNotFound => "relationships.not_found",
 
             AppError::UsersNotFound => "users.not_found",
+
+            AppError::ScoresNotFound => "scores.not_found",
 
             AppError::SessionsLoginForbidden => "sessions.login_forbidden",
             AppError::SessionsInvalidCredentials => "sessions.invalid_credentials",
@@ -126,6 +136,8 @@ impl AppError {
                 "You do not have permission to interact with this user."
             }
 
+            AppError::BeatmapsNotFound => "Beatmap could not be found.",
+
             AppError::ChannelsNotFound => "Channel not found",
             AppError::ChannelsUnauthorized => {
                 "You do not have permission to send messages to this channel."
@@ -144,6 +156,7 @@ impl AppError {
             AppError::MessagesUserAutoSilenced => {
                 "You have sent too many messages in a short period of time."
             }
+            AppError::MessagesUserSilenced => "You have been silenced.",
 
             AppError::MultiplayerNotFound => "The multiplayer match could not be found.",
             AppError::MultiplayerUnauthorized => {
@@ -162,6 +175,8 @@ impl AppError {
             AppError::RelationshipsNotFound => "Relationship not found",
 
             AppError::UsersNotFound => "This user does not exist.",
+
+            AppError::ScoresNotFound => "No score could be found.",
 
             AppError::SessionsLoginForbidden => "Your account is not allowed to login.",
             AppError::SessionsInvalidCredentials => {
@@ -197,9 +212,11 @@ impl AppError {
             | AppError::InteractionBlocked
             | AppError::MultiplayerMatchFull
             | AppError::SessionsLoginForbidden
-            | AppError::SessionsLimitReached => StatusCode::FORBIDDEN,
+            | AppError::SessionsLimitReached
+            | AppError::MessagesUserSilenced => StatusCode::FORBIDDEN,
 
-            AppError::ChannelsNotFound
+            AppError::BeatmapsNotFound
+            | AppError::ChannelsNotFound
             | AppError::CommandsUnknownCommand
             | AppError::MultiplayerNotFound
             | AppError::MultiplayerSlotNotFound
@@ -207,6 +224,7 @@ impl AppError {
             | AppError::PresencesNotFound
             | AppError::RelationshipsNotFound
             | AppError::UsersNotFound
+            | AppError::ScoresNotFound
             | AppError::SessionsNotFound => StatusCode::NOT_FOUND,
             AppError::MessagesUserAutoSilenced => StatusCode::TOO_MANY_REQUESTS,
 

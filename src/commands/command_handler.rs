@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use hashbrown::HashMap;
 use sqlx::{MySql, Pool};
 
+#[derive(Debug)]
 pub struct CommandProperties {
     pub name: &'static str,
     pub forward_message: bool,
@@ -31,7 +32,7 @@ pub struct RegisteredCommand {
 pub type CommandRouterFactory = fn() -> CommandRouter;
 pub type CommandRouterInstance = std::sync::LazyLock<CommandRouter>;
 pub struct CommandRouter {
-    commands: HashMap<&'static str, RegisteredCommand>,
+    pub commands: HashMap<&'static str, RegisteredCommand>,
 }
 
 #[async_trait]
@@ -41,7 +42,7 @@ pub trait CommandHandlerProxy: Send + Sync {
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
-    ) -> ServiceResult<CommandResponse>;
+    ) -> ServiceResult<Option<CommandResponse>>;
 }
 
 struct CommandContext<'a>(&'a dyn Context);
@@ -55,6 +56,17 @@ impl Context for CommandContext<'_> {
     }
 }
 
+impl Default for CommandProperties {
+    fn default() -> Self {
+        CommandProperties {
+            name: "",
+            forward_message: true,
+            required_privileges: None,
+            read_privileges: None,
+        }
+    }
+}
+
 #[async_trait]
 impl<C: Command> CommandHandlerProxy for C {
     async fn handle(
@@ -62,14 +74,14 @@ impl<C: Command> CommandHandlerProxy for C {
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
-    ) -> ServiceResult<CommandResponse> {
+    ) -> ServiceResult<Option<CommandResponse>> {
         let ctx = CommandContext(ctx);
         let args = C::Args::from_args(args)?;
-        let response = C::handle(&ctx, session, args).await?;
-        Ok(CommandResponse {
-            answer: Some(response),
+        let answer = C::handle(&ctx, session, args).await?;
+        Ok(Some(CommandResponse {
+            answer,
             properties: C::PROPERTIES,
-        })
+        }))
     }
 }
 
@@ -81,12 +93,12 @@ macro_rules! commands {
     ) => {
         || {
             use $crate::commands::{Command, CommandRouter, RegisteredCommand};
-            fn _a<B: 'static + Command>(c: B) -> (&'static str, RegisteredCommand) {
+            fn into_pair<B: 'static + Command>(c: B) -> (&'static str, RegisteredCommand) {
                 (B::PROPERTIES.name, RegisteredCommand::new(c))
             }
 
             #[allow(unused_mut)]
-            let mut router = CommandRouter::from([ $(_a($c)),* ]);
+            let mut router = CommandRouter::from([ $(into_pair($c)),* ]);
             $(router.nest($p, $cc);)*
             router
         }
@@ -139,14 +151,14 @@ impl CommandHandlerProxy for CommandRouter {
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
-    ) -> ServiceResult<CommandResponse> {
+    ) -> ServiceResult<Option<CommandResponse>> {
         match args {
             Some(args) => {
                 let mut parts = args.splitn(2, ' ');
                 let cmd_name = match parts.next() {
                     Some(cmd_name) => cmd_name,
                     // No command, ignore
-                    None => return Err(AppError::CommandsUnknownCommand),
+                    None => return Ok(None),
                 };
                 let args = parts.next();
                 match self.get(cmd_name) {
@@ -161,7 +173,7 @@ impl CommandHandlerProxy for CommandRouter {
                     None => Err(AppError::CommandsUnknownCommand),
                 }
             }
-            None => Err(AppError::CommandsUnknownCommand),
+            None => Ok(None),
         }
     }
 }
