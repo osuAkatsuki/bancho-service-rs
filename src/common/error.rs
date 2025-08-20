@@ -26,6 +26,8 @@ pub enum AppError {
 
     BeatmapsNotFound,
 
+    BadgesNotFound,
+
     ChannelsNotFound,
     ChannelsUnauthorized,
     ChannelsInvalidName,
@@ -87,6 +89,8 @@ impl AppError {
 
             AppError::BeatmapsNotFound => "beatmaps.not_found",
 
+            AppError::BadgesNotFound => "badges.not_found",
+
             AppError::ChannelsNotFound => "channels.not_found",
             AppError::ChannelsUnauthorized => "channels.unauthorized",
             AppError::ChannelsInvalidName => "channels.invalid_name",
@@ -137,6 +141,8 @@ impl AppError {
             }
 
             AppError::BeatmapsNotFound => "Beatmap could not be found.",
+
+            AppError::BadgesNotFound => "Badge could not be found.",
 
             AppError::ChannelsNotFound => "Channel not found",
             AppError::ChannelsUnauthorized => {
@@ -215,7 +221,8 @@ impl AppError {
             | AppError::SessionsLimitReached
             | AppError::MessagesUserSilenced => StatusCode::FORBIDDEN,
 
-            AppError::BeatmapsNotFound
+            AppError::BadgesNotFound
+            | AppError::BeatmapsNotFound
             | AppError::ChannelsNotFound
             | AppError::CommandsUnknownCommand
             | AppError::MultiplayerNotFound

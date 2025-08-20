@@ -1,3 +1,4 @@
+pub mod badges;
 pub mod bancho_settings;
 pub mod bot;
 pub mod channels;

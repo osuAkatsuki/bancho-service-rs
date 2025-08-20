@@ -1,3 +1,4 @@
+pub mod badges;
 pub mod bancho_settings;
 pub mod beatmaps;
 pub mod channels;
