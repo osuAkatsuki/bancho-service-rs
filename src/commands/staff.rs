@@ -1,21 +1,20 @@
-use crate::commands::{CommandResult, COMMAND_ROUTER, CommandRouterFactory};
+use crate::commands::{CommandResult, CommandRouterFactory};
 use crate::common::context::Context;
+use crate::models::bancho::LoginError;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
-use crate::usecases::{channels, sessions, streams, users};
 use crate::repositories::streams::StreamName;
-use bancho_protocol::messages::server::{Alert, ChatMessage, LoginBanned, UserLogout};
-use bancho_service_macros::{command, FromCommandArgs};
-use chrono::TimeDelta;
-use std::str::FromStr;
+use crate::usecases::{sessions, streams, users};
+use bancho_protocol::messages::server::LoginResult;
+use bancho_service_macros::{FromCommandArgs, command};
 
-pub static COMMANDS: CommandRouterFactory = commands![
+pub static COMMANDS: CommandRouterFactory = crate::commands![
     add_bn,
     ban_user,
     edit_map,
     freeze_user,
     kick,
-    moderated,
+    set_moderated,
     remove_bn,
     restrict_user,
     silence_user,
@@ -121,7 +120,9 @@ pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) 
     }
 
     // TODO: Implement map ranking/unranking logic
-    Ok(Some("Map editing functionality not yet implemented.".to_owned()))
+    Ok(Some(
+        "Map editing functionality not yet implemented.".to_owned(),
+    ))
 }
 
 #[command(
@@ -150,7 +151,10 @@ pub async fn add_bn<C: Context>(ctx: &C, sender: &Session, args: AddBnArgs) -> C
     // TODO: Add BN badge
     // TODO: Set donor expiry
 
-    Ok(Some(format!("{} has given BN to {}.", sender.username, args.username)))
+    Ok(Some(format!(
+        "{} has given BN to {}.",
+        sender.username, args.username
+    )))
 }
 
 #[command(
@@ -179,14 +183,21 @@ pub async fn remove_bn<C: Context>(ctx: &C, sender: &Session, args: RemoveBnArgs
     // TODO: Remove BN badge
     // TODO: Set donor expiry to 0
 
-    Ok(Some(format!("{} has removed BN from {}.", sender.username, args.username)))
+    Ok(Some(format!(
+        "{} has removed BN from {}.",
+        sender.username, args.username
+    )))
 }
 
 #[command(
     "moderated",
     required_privileges = Privileges::AdminChatMod,
 )]
-pub async fn set_moderated<C: Context>(ctx: &C, sender: &Session, args: ModeratedArgs) -> CommandResult {
+pub async fn set_moderated<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: ModeratedArgs,
+) -> CommandResult {
     // This command needs to know which channel it's being used in
     // For now, we'll assume it's being used in a public channel
     // TODO: Get the actual channel name from the context
@@ -202,7 +213,10 @@ pub async fn set_moderated<C: Context>(ctx: &C, sender: &Session, args: Moderate
     // TODO: Log the action
 
     let status = if enable { "now" } else { "no longer" };
-    Ok(Some(format!("This channel is {} in moderated mode!", status)))
+    Ok(Some(format!(
+        "This channel is {} in moderated mode!",
+        status
+    )))
 }
 
 #[command(
@@ -225,7 +239,10 @@ pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> Comm
 
     // TODO: Log the action
 
-    Ok(Some(format!("{} has been kicked from the server.", args.username)))
+    Ok(Some(format!(
+        "{} has been kicked from the server.",
+        args.username
+    )))
 }
 
 #[command(
@@ -241,8 +258,17 @@ pub async fn ban_user<C: Context>(ctx: &C, sender: &Session, args: BanArgs) -> C
     // Send ban packet to online sessions
     let target_sessions = sessions::fetch_by_username(ctx, &args.username).await?;
     for session in target_sessions {
-        let ban_packet = LoginBanned;
-        streams::broadcast_message(ctx, StreamName::User(session.session_id), ban_packet, None, None).await?;
+        let ban_packet = LoginResult {
+            user_id: LoginError::Banned as i32,
+        };
+        streams::broadcast_message(
+            ctx,
+            StreamName::User(session.session_id),
+            ban_packet,
+            None,
+            None,
+        )
+        .await?;
     }
 
     // TODO: Log the action
@@ -269,7 +295,11 @@ pub async fn unban_user<C: Context>(ctx: &C, sender: &Session, args: UnbanArgs) 
     "restrict",
     required_privileges = Privileges::AdminManageBans,
 )]
-pub async fn restrict_user<C: Context>(ctx: &C, sender: &Session, args: RestrictArgs) -> CommandResult {
+pub async fn restrict_user<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: RestrictArgs,
+) -> CommandResult {
     let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
 
     // Restrict the user (remove publicly visible privileges)
@@ -290,7 +320,11 @@ pub async fn restrict_user<C: Context>(ctx: &C, sender: &Session, args: Restrict
     "unrestrict",
     required_privileges = Privileges::AdminManageBans,
 )]
-pub async fn unrestrict_user<C: Context>(ctx: &C, sender: &Session, args: UnrestrictArgs) -> CommandResult {
+pub async fn unrestrict_user<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: UnrestrictArgs,
+) -> CommandResult {
     let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
 
     // Unrestrict the user (restore publicly visible privileges)
@@ -325,7 +359,11 @@ pub async fn freeze_user<C: Context>(ctx: &C, sender: &Session, args: FreezeArgs
     "unfreeze",
     required_privileges = Privileges::AdminFreezeUsers,
 )]
-pub async fn unfreeze_user<C: Context>(ctx: &C, sender: &Session, args: UnfreezeArgs) -> CommandResult {
+pub async fn unfreeze_user<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: UnfreezeArgs,
+) -> CommandResult {
     let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
 
     // Check if user is frozen
@@ -345,7 +383,11 @@ pub async fn unfreeze_user<C: Context>(ctx: &C, sender: &Session, args: Unfreeze
     "whitelist",
     required_privileges = Privileges::AdminManageUsers,
 )]
-pub async fn whitelist_user<C: Context>(ctx: &C, sender: &Session, args: WhitelistArgs) -> CommandResult {
+pub async fn whitelist_user<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: WhitelistArgs,
+) -> CommandResult {
     if !(0..4).contains(&args.bit) {
         return Ok(Some("Invalid bit.".to_owned()));
     }
@@ -363,14 +405,21 @@ pub async fn whitelist_user<C: Context>(ctx: &C, sender: &Session, args: Whiteli
 
     // TODO: Log the action
 
-    Ok(Some(format!("{}'s Whitelist Status has been set to {}.", args.username, args.bit)))
+    Ok(Some(format!(
+        "{}'s Whitelist Status has been set to {}.",
+        args.username, args.bit
+    )))
 }
 
 #[command(
     "silence",
     required_privileges = Privileges::AdminSilenceUsers,
 )]
-pub async fn silence_user<C: Context>(ctx: &C, sender: &Session, args: SilenceArgs) -> CommandResult {
+pub async fn silence_user<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: SilenceArgs,
+) -> CommandResult {
     // Calculate silence seconds
     let silence_seconds = match args.unit.as_str() {
         "s" => args.amount,
@@ -383,24 +432,39 @@ pub async fn silence_user<C: Context>(ctx: &C, sender: &Session, args: SilenceAr
 
     // Max silence time is 4 weeks
     if silence_seconds > 0x24EA00 {
-        return Ok(Some("Invalid silence time. Max silence time is 4 weeks.".to_owned()));
+        return Ok(Some(
+            "Invalid silence time. Max silence time is 4 weeks.".to_owned(),
+        ));
     }
 
     let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
 
     // Silence the user
-    users::silence_user(ctx, target_user.user_id, &args.reason, silence_seconds).await?;
+    users::silence_user(
+        ctx,
+        target_user.user_id,
+        &args.reason,
+        silence_seconds as i64,
+    )
+    .await?;
 
     // TODO: Log the action
 
-    Ok(Some(format!("{} has been silenced for: {}.", args.username, args.reason)))
+    Ok(Some(format!(
+        "{} has been silenced for: {}.",
+        args.username, args.reason
+    )))
 }
 
 #[command(
     "unsilence",
     required_privileges = Privileges::AdminSilenceUsers,
 )]
-pub async fn unsilence_user<C: Context>(ctx: &C, sender: &Session, args: UnsilenceArgs) -> CommandResult {
+pub async fn unsilence_user<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: UnsilenceArgs,
+) -> CommandResult {
     let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
 
     // Unsilence the user

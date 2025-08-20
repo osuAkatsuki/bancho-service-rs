@@ -1,5 +1,6 @@
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::models::privileges::Privileges;
 use crate::models::users::{User, VerifiedStatus};
 use crate::repositories::streams::StreamName;
 use crate::repositories::users;
