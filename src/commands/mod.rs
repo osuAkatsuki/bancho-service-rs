@@ -28,7 +28,6 @@ static COMMAND_ROUTER: CommandRouterInstance = LazyLock::new(commands![
     include = [
         "mp" => mp::COMMANDS,
         "system" => system::COMMANDS,
-        "staff" => staff::COMMANDS,
     ],
     misc::alert_all,
     misc::alert_user,
@@ -39,6 +38,20 @@ static COMMAND_ROUTER: CommandRouterInstance = LazyLock::new(commands![
     misc::report_user,
     misc::roll,
     misc::pp_with,
+
+    staff::add_bn,
+    staff::ban_user,
+    staff::edit_map,
+    staff::freeze_user,
+    staff::kick,
+    staff::remove_bn,
+    staff::restrict_user,
+    staff::silence_user,
+    staff::unban_user,
+    staff::unfreeze_user,
+    staff::unrestrict_user,
+    staff::unsilence_user,
+    staff::whitelist_user,
 ]);
 
 #[derive(Debug)]

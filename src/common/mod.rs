@@ -7,3 +7,4 @@ pub mod location;
 pub mod redis_json;
 pub mod redis_pool;
 pub mod state;
+pub mod website;

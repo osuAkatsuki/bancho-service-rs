@@ -1,47 +1,16 @@
 use crate::adapters::discord;
-use crate::commands::{CommandResult, CommandRouterFactory};
+use crate::commands::CommandResult;
 use crate::common::context::Context;
+use crate::common::website;
 use crate::entities::bot;
 use crate::models::bancho::LoginError;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{badges, sessions, streams, users};
+use crate::usecases::{badges, sessions, streams, tillerino, users};
 use bancho_protocol::messages::server::{ChatMessage, LoginResult};
 use bancho_protocol::structures::IrcMessage;
 use bancho_service_macros::{FromCommandArgs, command};
-
-pub static COMMANDS: CommandRouterFactory = crate::commands![
-    add_bn,
-    ban_user,
-    edit_map,
-    freeze_user,
-    kick,
-    set_moderated,
-    remove_bn,
-    restrict_user,
-    silence_user,
-    unban_user,
-    unfreeze_user,
-    unrestrict_user,
-    unsilence_user,
-    whitelist_user,
-];
-
-#[derive(Debug, FromCommandArgs)]
-pub struct AddBnArgs {
-    pub username: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct RemoveBnArgs {
-    pub username: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct ModeratedArgs {
-    pub enable: Option<String>,
-}
 
 #[derive(Debug, FromCommandArgs)]
 pub struct KickArgs {
@@ -117,7 +86,7 @@ pub struct EditMapArgs {
     required_privileges = Privileges::AdminManageBeatmaps,
 )]
 pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) -> CommandResult {
-    let last_np = crate::usecases::tillerino::fetch_last_np(ctx, sender.session_id).await?;
+    let last_np = tillerino::fetch_last_np(ctx, sender.session_id).await?;
     if last_np.is_none() {
         return Ok(Some("Please /np a map first!".to_owned()));
     }
@@ -129,11 +98,16 @@ pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) 
     ))
 }
 
+#[derive(Debug, FromCommandArgs)]
+pub struct AddBNArgs {
+    pub username: String,
+}
+
 #[command(
     "addbn",
     required_privileges = Privileges::AdminManageNominators,
 )]
-pub async fn add_bn<C: Context>(ctx: &C, sender: &Session, args: AddBnArgs) -> CommandResult {
+pub async fn add_bn<C: Context>(ctx: &C, sender: &Session, args: AddBNArgs) -> CommandResult {
     let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
 
     // Add BN privileges
@@ -158,8 +132,8 @@ pub async fn add_bn<C: Context>(ctx: &C, sender: &Session, args: AddBnArgs) -> C
     // Set donor expiry to permanent (2147483647 = max i32)
     users::update_donor_expiry(ctx, target_user.user_id, 2147483647).await?;
 
-    let log_message = format!("has given BN to {}", args.username);
-    let _ = discord::blue("BN Added", &log_message, None).await;
+    let log_message = format!("{} has given BN to {}.", sender.username, args.username);
+    let _ = discord::send_blue_embed("BN Added", &log_message, None).await;
 
     Ok(Some(format!(
         "{} has given BN to {}.",
@@ -167,11 +141,16 @@ pub async fn add_bn<C: Context>(ctx: &C, sender: &Session, args: AddBnArgs) -> C
     )))
 }
 
+#[derive(Debug, FromCommandArgs)]
+pub struct RemoveBNArgs {
+    pub username: String,
+}
+
 #[command(
     "removebn",
     required_privileges = Privileges::AdminManageNominators,
 )]
-pub async fn remove_bn<C: Context>(ctx: &C, sender: &Session, args: RemoveBnArgs) -> CommandResult {
+pub async fn remove_bn<C: Context>(ctx: &C, sender: &Session, args: RemoveBNArgs) -> CommandResult {
     let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
 
     // Remove BN privileges
@@ -197,48 +176,11 @@ pub async fn remove_bn<C: Context>(ctx: &C, sender: &Session, args: RemoveBnArgs
     users::update_donor_expiry(ctx, target_user.user_id, 0).await?;
 
     let log_message = format!("has removed BN from {}", args.username);
-    let _ = discord::blue("BN Removed", &log_message, None).await;
+    let _ = discord::send_blue_embed("BN Removed", &log_message, None).await;
 
     Ok(Some(format!(
         "{} has removed BN from {}.",
         sender.username, args.username
-    )))
-}
-
-#[command(
-    "moderated",
-    required_privileges = Privileges::AdminChatMod,
-)]
-pub async fn set_moderated<C: Context>(
-    ctx: &C,
-    sender: &Session,
-    args: ModeratedArgs,
-) -> CommandResult {
-    // This command needs to know which channel it's being used in
-    // For now, we'll assume it's being used in a public channel
-    // Note: Channel context is not currently available in command handlers
-    // This would require modifying the command infrastructure to pass channel information
-    let channel_name = "#osu"; // Placeholder - requires infrastructure changes
-
-    let enable = match args.enable.as_deref() {
-        Some("off") => false,
-        _ => true,
-    };
-
-    // Update moderated status for the channel
-    crate::usecases::channels::update_moderated_status(ctx, channel_name, enable).await?;
-
-    let log_message = format!(
-        "has set {} to {}",
-        channel_name,
-        if enable { "moderated" } else { "unmoderated" }
-    );
-    let _ = discord::blue("Channel Moderated", &log_message, None).await;
-
-    let status = if enable { "now" } else { "no longer" };
-    Ok(Some(format!(
-        "This channel is {} in moderated mode!",
-        status
     )))
 }
 
@@ -260,7 +202,7 @@ pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> Comm
     }
 
     let log_message = format!("has kicked {} for: {}", args.username, args.reason);
-    let _ = discord::red("User Kicked", &log_message, None).await;
+    let _ = discord::send_red_embed("User Kicked", &log_message, None).await;
 
     Ok(Some(format!(
         "{} has been kicked from the server.",
@@ -270,7 +212,7 @@ pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> Comm
 
 #[command(
     "ban",
-    required_privileges = Privileges::AdminManagePrivileges,
+    required_privileges = Privileges::AdminManageBans,
 )]
 pub async fn ban_user<C: Context>(ctx: &C, sender: &Session, args: BanArgs) -> CommandResult {
     let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
@@ -295,25 +237,29 @@ pub async fn ban_user<C: Context>(ctx: &C, sender: &Session, args: BanArgs) -> C
     }
 
     let log_message = format!("has banned {} for: {}", args.username, args.reason);
-    let _ = discord::red("User Banned", &log_message, None).await;
+    let _ = discord::send_red_embed("User Banned", &log_message, None).await;
 
     Ok(Some(format!("{} has been banned.", args.username)))
 }
 
 #[command(
     "unban",
-    required_privileges = Privileges::AdminManagePrivileges,
+    required_privileges = Privileges::AdminManageBans,
 )]
 pub async fn unban_user<C: Context>(ctx: &C, sender: &Session, args: UnbanArgs) -> CommandResult {
     let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
-
-    // Unban the user (restore login privileges)
     users::unban_user(ctx, target_user.user_id).await?;
 
-    let log_message = format!("has unbanned {} for: {}", args.username, args.reason);
-    let _ = discord::blue("User Unbanned", &log_message, None).await;
+    let sender_profile = website::get_profile_link(sender.user_id);
+    let target_profile = website::get_profile_link(target_user.user_id);
+    let log_message = format!(
+        "[{}]({}) has unbanned [{}]({}) for: {}",
+        sender.username, sender_profile, args.username, target_profile, args.reason
+    );
+    let _ = discord::send_blue_embed("User Unbanned", &log_message, None).await;
 
-    Ok(Some(format!("{} has been unbanned.", args.username)))
+    let osu_format_reply = format!("[{} {}] has been unbanned", target_profile, args.username);
+    Ok(Some(osu_format_reply))
 }
 
 #[command(
@@ -350,10 +296,12 @@ pub async fn restrict_user<C: Context>(
         .await?;
     }
 
-    let log_message = format!("has restricted {} for: {}", args.username, args.reason);
-    let _ = discord::red("User Restricted", &log_message, None).await;
-
-    Ok(Some(format!("{} has been restricted.", args.username)))
+    let log_message = format!(
+        "{} has restricted {} for: {}",
+        sender.username, args.username, args.reason
+    );
+    let _ = discord::send_red_embed("User Restricted", &log_message, None).await;
+    Ok(Some(log_message))
 }
 
 #[command(
@@ -371,7 +319,7 @@ pub async fn unrestrict_user<C: Context>(
     users::unrestrict_user(ctx, target_user.user_id).await?;
 
     let log_message = format!("has unrestricted {} for: {}", args.username, args.reason);
-    let _ = discord::blue("User Unrestricted", &log_message, None).await;
+    let _ = discord::send_blue_embed("User Unrestricted", &log_message, None).await;
 
     Ok(Some(format!("{} has been unrestricted.", args.username)))
 }
@@ -392,7 +340,7 @@ pub async fn freeze_user<C: Context>(ctx: &C, sender: &Session, args: FreezeArgs
     users::freeze_user(ctx, target_user.user_id, &args.reason).await?;
 
     let log_message = format!("has frozen {} for: {}", args.username, args.reason);
-    let _ = discord::red("User Frozen", &log_message, None).await;
+    let _ = discord::send_red_embed("User Frozen", &log_message, None).await;
 
     Ok(Some(format!("Froze {}.", args.username)))
 }
@@ -417,7 +365,7 @@ pub async fn unfreeze_user<C: Context>(
     users::unfreeze_user(ctx, target_user.user_id).await?;
 
     let log_message = format!("has unfrozen {} for: {}", args.username, args.reason);
-    let _ = discord::blue("User Unfrozen", &log_message, None).await;
+    let _ = discord::send_blue_embed("User Unfrozen", &log_message, None).await;
 
     Ok(Some(format!("Unfroze {}.", args.username)))
 }
@@ -444,7 +392,7 @@ pub async fn whitelist_user<C: Context>(
         "has set {}'s whitelist status to {} for: {}",
         args.username, args.bit, args.reason
     );
-    let _ = discord::blue("Whitelist Updated", &log_message, None).await;
+    let _ = discord::send_blue_embed("Whitelist Updated", &log_message, None).await;
 
     Ok(Some(format!(
         "{}'s Whitelist Status has been set to {}.",
@@ -490,7 +438,7 @@ pub async fn silence_user<C: Context>(
     .await?;
 
     let log_message = format!("has silenced {} for: {}", args.username, args.reason);
-    let _ = discord::red("User Silenced", &log_message, None).await;
+    let _ = discord::send_red_embed("User Silenced", &log_message, None).await;
 
     Ok(Some(format!(
         "{} has been silenced for: {}.",
@@ -513,7 +461,7 @@ pub async fn unsilence_user<C: Context>(
     users::silence_user(ctx, target_user.user_id, "", 0).await?;
 
     let log_message = format!("has unsilenced {} for: {}", args.username, args.reason);
-    let _ = discord::blue("User Unsilenced", &log_message, None).await;
+    let _ = discord::send_blue_embed("User Unsilenced", &log_message, None).await;
 
     Ok(Some(format!("{}'s silence reset.", args.username)))
 }
