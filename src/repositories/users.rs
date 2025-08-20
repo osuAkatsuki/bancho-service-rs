@@ -112,6 +112,67 @@ pub async fn ban<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
     Ok(())
 }
 
+pub async fn unban<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET privileges = (privileges | (?)) WHERE id = ?";
+    let privileges = Privileges::PubliclyVisible | Privileges::CanLogin;
+    sqlx::query(QUERY)
+        .bind(privileges.bits())
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn unrestrict<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET privileges = (privileges | (?)) WHERE id = ?";
+    let privileges = Privileges::PubliclyVisible;
+    sqlx::query(QUERY)
+        .bind(privileges.bits())
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn freeze<C: Context>(ctx: &C, user_id: i64, reason: &str) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET frozen = 1, freeze_reason = ? WHERE id = ?";
+    sqlx::query(QUERY)
+        .bind(reason)
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn unfreeze<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET frozen = 0, freeze_reason = NULL WHERE id = ?";
+    sqlx::query(QUERY)
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn update_privileges<C: Context>(ctx: &C, user_id: i64, privileges: Privileges) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET privileges = ? WHERE id = ?";
+    sqlx::query(QUERY)
+        .bind(privileges.bits())
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn update_whitelist<C: Context>(ctx: &C, user_id: i64, whitelist_bit: i32) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET whitelist = ? WHERE id = ?";
+    sqlx::query(QUERY)
+        .bind(whitelist_bit)
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
 pub async fn change_username<C: Context>(
     ctx: &C,
     user_id: i64,

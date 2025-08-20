@@ -28,6 +28,7 @@ static COMMAND_ROUTER: CommandRouterInstance = LazyLock::new(commands![
     include = [
         "mp" => mp::COMMANDS,
         "system" => system::COMMANDS,
+        "staff" => staff::COMMANDS,
     ],
     misc::alert_all,
     misc::alert_user,
