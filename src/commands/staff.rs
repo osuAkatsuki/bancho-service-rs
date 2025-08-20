@@ -122,7 +122,7 @@ pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) 
         return Ok(Some("Please /np a map first!".to_owned()));
     }
 
-    // Map ranking/unranking logic would require integration with the beatmap ranking system
+    // TODO: Map ranking/unranking logic would require integration with the beatmap ranking system
     // This is a complex feature that needs dedicated beatmap management infrastructure
     Ok(Some(
         "Map editing functionality not yet implemented.".to_owned(),
@@ -158,7 +158,6 @@ pub async fn add_bn<C: Context>(ctx: &C, sender: &Session, args: AddBnArgs) -> C
     // Set donor expiry to permanent (2147483647 = max i32)
     users::update_donor_expiry(ctx, target_user.user_id, 2147483647).await?;
 
-    // Log the action
     let log_message = format!("has given BN to {}", args.username);
     let _ = discord::blue("BN Added", &log_message, None).await;
 
@@ -197,7 +196,6 @@ pub async fn remove_bn<C: Context>(ctx: &C, sender: &Session, args: RemoveBnArgs
     // Set donor expiry to 0 (expired)
     users::update_donor_expiry(ctx, target_user.user_id, 0).await?;
 
-    // Log the action
     let log_message = format!("has removed BN from {}", args.username);
     let _ = discord::blue("BN Removed", &log_message, None).await;
 
@@ -230,7 +228,6 @@ pub async fn set_moderated<C: Context>(
     // Update moderated status for the channel
     crate::usecases::channels::update_moderated_status(ctx, channel_name, enable).await?;
 
-    // Log the action
     let log_message = format!(
         "has set {} to {}",
         channel_name,
@@ -250,7 +247,6 @@ pub async fn set_moderated<C: Context>(
     required_privileges = Privileges::AdminKickUsers,
 )]
 pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> CommandResult {
-    let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
     let target_sessions = sessions::fetch_by_username(ctx, &args.username).await?;
 
     let mut session_count = 0;
@@ -263,7 +259,6 @@ pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> Comm
         return Ok(Some("Target not online.".to_owned()));
     }
 
-    // Log the action
     let log_message = format!("has kicked {} for: {}", args.username, args.reason);
     let _ = discord::red("User Kicked", &log_message, None).await;
 
@@ -299,7 +294,6 @@ pub async fn ban_user<C: Context>(ctx: &C, sender: &Session, args: BanArgs) -> C
         .await?;
     }
 
-    // Log the action
     let log_message = format!("has banned {} for: {}", args.username, args.reason);
     let _ = discord::red("User Banned", &log_message, None).await;
 
@@ -316,7 +310,6 @@ pub async fn unban_user<C: Context>(ctx: &C, sender: &Session, args: UnbanArgs) 
     // Unban the user (restore login privileges)
     users::unban_user(ctx, target_user.user_id).await?;
 
-    // Log the action
     let log_message = format!("has unbanned {} for: {}", args.username, args.reason);
     let _ = discord::blue("User Unbanned", &log_message, None).await;
 
@@ -357,7 +350,6 @@ pub async fn restrict_user<C: Context>(
         .await?;
     }
 
-    // Log the action
     let log_message = format!("has restricted {} for: {}", args.username, args.reason);
     let _ = discord::red("User Restricted", &log_message, None).await;
 
@@ -378,7 +370,6 @@ pub async fn unrestrict_user<C: Context>(
     // Unrestrict the user (restore publicly visible privileges)
     users::unrestrict_user(ctx, target_user.user_id).await?;
 
-    // Log the action
     let log_message = format!("has unrestricted {} for: {}", args.username, args.reason);
     let _ = discord::blue("User Unrestricted", &log_message, None).await;
 
@@ -400,7 +391,6 @@ pub async fn freeze_user<C: Context>(ctx: &C, sender: &Session, args: FreezeArgs
     // Freeze the user
     users::freeze_user(ctx, target_user.user_id, &args.reason).await?;
 
-    // Log the action
     let log_message = format!("has frozen {} for: {}", args.username, args.reason);
     let _ = discord::red("User Frozen", &log_message, None).await;
 
@@ -426,7 +416,6 @@ pub async fn unfreeze_user<C: Context>(
     // Unfreeze the user
     users::unfreeze_user(ctx, target_user.user_id).await?;
 
-    // Log the action
     let log_message = format!("has unfrozen {} for: {}", args.username, args.reason);
     let _ = discord::blue("User Unfrozen", &log_message, None).await;
 
@@ -451,17 +440,6 @@ pub async fn whitelist_user<C: Context>(
     // Update whitelist status
     users::update_user_whitelist(ctx, target_user.user_id, args.bit).await?;
 
-    // Update online sessions
-    let target_sessions = sessions::fetch_by_username(ctx, &args.username).await?;
-    for session in target_sessions {
-        // Update session whitelist status
-        let updated_session = session;
-        // Note: Sessions don't have whitelist field, so we just update privileges
-        // The whitelist is stored in the user table and checked during login
-        sessions::update(ctx, updated_session).await?;
-    }
-
-    // Log the action
     let log_message = format!(
         "has set {}'s whitelist status to {} for: {}",
         args.username, args.bit, args.reason
@@ -511,7 +489,6 @@ pub async fn silence_user<C: Context>(
     )
     .await?;
 
-    // Log the action
     let log_message = format!("has silenced {} for: {}", args.username, args.reason);
     let _ = discord::red("User Silenced", &log_message, None).await;
 
@@ -535,7 +512,6 @@ pub async fn unsilence_user<C: Context>(
     // Unsilence the user
     users::silence_user(ctx, target_user.user_id, "", 0).await?;
 
-    // Log the action
     let log_message = format!("has unsilenced {} for: {}", args.username, args.reason);
     let _ = discord::blue("User Unsilenced", &log_message, None).await;
 
