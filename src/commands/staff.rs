@@ -86,6 +86,12 @@ pub struct EditMapArgs {
     required_privileges = Privileges::AdminManageBeatmaps,
 )]
 pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) -> CommandResult {
+    const RANKED_STATUS_MODIFICATIONS: [&str; 3] = ["rank", "unrank", "love"];
+    if !RANKED_STATUS_MODIFICATIONS.contains(&args.action.as_str()) {
+        let reply = format!("Invalid action! Valid actions are: {RANKED_STATUS_MODIFICATIONS:?}");
+        return Ok(Some(reply));
+    }
+
     let last_np = tillerino::fetch_last_np(ctx, sender.session_id).await?;
     if last_np.is_none() {
         return Ok(Some("Please /np a map first!".to_owned()));

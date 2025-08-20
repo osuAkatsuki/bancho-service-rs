@@ -15,19 +15,20 @@ pub async fn host<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
 // TODO: !mp addref
 // TODO: !mp rmref
 // TODO: !mp listref
-// TODO: !mp make
-// TODO: !mp close
+// TODO: !mp clearhost
+
+// TODO: !mp host
 // TODO: !mp lock
 // TODO: !mp unlock
 // TODO: !mp size
 // TODO: !mp move
-// TODO: !mp host
-// TODO: !mp clearhost
+// TODO: !mp make
+// TODO: !mp close
 // TODO: !mp start
+// TODO: !mp abort
 // TODO: !mp invite
 // TODO: !mp map
 // TODO: !mp set
-// TODO: !mp abort
 // TODO: !mp kick
 // TODO: !mp password
 // TODO: !mp randompassword
