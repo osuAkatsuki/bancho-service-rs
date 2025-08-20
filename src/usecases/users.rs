@@ -164,3 +164,14 @@ pub async fn queue_username_change<C: Context>(
         Err(e) => unexpected(e),
     }
 }
+
+pub async fn update_donor_expiry<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    donor_expire: i64,
+) -> ServiceResult<()> {
+    match users::update_donor_expiry(ctx, user_id, donor_expire).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
