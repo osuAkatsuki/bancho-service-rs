@@ -1,3 +1,4 @@
+use std::time::Duration;
 use crate::adapters::discord;
 use crate::commands::CommandResult;
 use crate::common::context::Context;
@@ -466,8 +467,7 @@ pub async fn whitelist_user<C: Context>(
 #[derive(Debug, FromCommandArgs)]
 pub struct SilenceArgs {
     pub safe_username: String,
-    pub amount: i32,
-    pub unit: String,
+    pub duration: Duration,
     pub reason: String,
 }
 
@@ -480,23 +480,6 @@ pub async fn silence_user<C: Context>(
     sender: &Session,
     args: SilenceArgs,
 ) -> CommandResult {
-    // Calculate silence seconds
-    let silence_seconds = match args.unit.as_str() {
-        "s" => args.amount,
-        "m" => args.amount * 60,
-        "h" => args.amount * 3600,
-        "d" => args.amount * 86400,
-        "w" => args.amount * 604800,
-        _ => return Ok(Some("Invalid time unit (s/m/h/d/w).".to_owned())),
-    };
-
-    // Max silence time is 4 weeks
-    if silence_seconds > 0x24EA00 {
-        return Ok(Some(
-            "Invalid silence time. Max silence time is 4 weeks.".to_owned(),
-        ));
-    }
-
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
 
     // Silence the user
@@ -504,7 +487,7 @@ pub async fn silence_user<C: Context>(
         ctx,
         target_user.user_id,
         &args.reason,
-        silence_seconds as i64,
+        args.duration.as_secs() as i64,
     )
     .await?;
 
