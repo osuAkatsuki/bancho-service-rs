@@ -1,5 +1,6 @@
 pub mod badges;
 pub mod bancho_settings;
+pub mod beatmaps;
 pub mod bot;
 pub mod channels;
 pub mod gamemodes;

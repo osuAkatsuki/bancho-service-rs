@@ -1,17 +1,18 @@
-use std::time::Duration;
 use crate::adapters::discord;
 use crate::commands::CommandResult;
 use crate::common::context::Context;
 use crate::common::website;
 use crate::entities::bot;
 use crate::models::bancho::LoginError;
+use crate::models::beatmaps::RankedStatus;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{badges, sessions, streams, tillerino, users};
+use crate::usecases::{badges, beatmaps, sessions, streams, tillerino, users};
 use bancho_protocol::messages::server::{ChatMessage, LoginResult};
 use bancho_protocol::structures::IrcMessage;
 use bancho_service_macros::{FromCommandArgs, command};
+use std::time::Duration;
 
 #[derive(Debug, FromCommandArgs)]
 pub struct EditMapArgs {
@@ -24,22 +25,48 @@ pub struct EditMapArgs {
     required_privileges = Privileges::AdminManageBeatmaps,
 )]
 pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) -> CommandResult {
-    const RANKED_STATUS_MODIFICATIONS: [&str; 3] = ["rank", "unrank", "love"];
-    if !RANKED_STATUS_MODIFICATIONS.contains(&args.action.as_str()) {
-        let reply = format!("Invalid action! Valid actions are: {RANKED_STATUS_MODIFICATIONS:?}");
-        return Ok(Some(reply));
-    }
+    const RANKED_STATUS_MODIFICATIONS: [(&str, RankedStatus); 3] = [
+        ("rank", RankedStatus::Ranked),
+        ("unrank", RankedStatus::Unranked),
+        ("love", RankedStatus::Loved),
+    ];
 
-    let last_np = tillerino::fetch_last_np(ctx, sender.session_id).await?;
-    if last_np.is_none() {
-        return Ok(Some("Please /np a map first!".to_owned()));
-    }
+    let new_status = match RANKED_STATUS_MODIFICATIONS
+        .iter()
+        .find(|(action, _)| action == &args.action)
+    {
+        Some((_, status)) => *status,
+        None => {
+            let reply =
+                format!("Invalid action! Valid actions are: {RANKED_STATUS_MODIFICATIONS:?}");
+            return Ok(Some(reply));
+        }
+    };
 
-    // TODO: Map ranking/unranking logic would require integration with the beatmap ranking system
-    // This is a complex feature that needs dedicated beatmap management infrastructure
-    Ok(Some(
-        "Map editing functionality not yet implemented.".to_owned(),
-    ))
+    let last_np = match tillerino::fetch_last_np(ctx, sender.session_id).await? {
+        Some(np) => np,
+        None => {
+            return Ok(Some("Please /np a map first!".to_owned()));
+        }
+    };
+
+    // TODO: Add the new ranked maps discord webhook
+
+    match args.scope.as_str() {
+        "map" => {
+            let _beatmap = beatmaps::change_map_status(ctx, last_np.beatmap_id, new_status).await?;
+            Ok(Some("Map status changed".to_owned()))
+        }
+        "set" => {
+            let _beatmaps =
+                beatmaps::change_set_status(ctx, last_np.beatmap_id, new_status).await?;
+            Ok(Some("Set status changed".to_owned()))
+        }
+        _ => {
+            let reply = format!("Invalid scope! Valid scopes are: map, set");
+            return Ok(Some(reply));
+        }
+    }
 }
 
 #[derive(Debug, FromCommandArgs)]

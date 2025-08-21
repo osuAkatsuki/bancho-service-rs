@@ -102,7 +102,8 @@ fn parse_single_time(value: &str) -> ServiceResult<Duration> {
     for (unit, secs_multiplier) in ORDER_OF_UNITS {
         match value.strip_suffix(unit) {
             Some(duration) => {
-                let duration = u64::from_str(duration).map_err(|_| AppError::CommandsInvalidArgument(INVALID_DURATION))?;
+                let duration = u64::from_str(duration)
+                    .map_err(|_| AppError::CommandsInvalidArgument(INVALID_DURATION))?;
                 return Ok(Duration::from_secs(duration * secs_multiplier));
             }
             None => {}
