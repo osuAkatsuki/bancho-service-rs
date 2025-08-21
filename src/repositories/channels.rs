@@ -91,17 +91,3 @@ pub async fn leave<C: Context>(
         .await?;
     Ok(member_count[0])
 }
-
-pub async fn update_moderated_status<C: Context>(
-    ctx: &C,
-    channel_name: &str,
-    moderated: bool,
-) -> sqlx::Result<()> {
-    const QUERY: &str = "UPDATE bancho_channels SET status = ? WHERE name = ?";
-    sqlx::query(QUERY)
-        .bind(moderated)
-        .bind(channel_name)
-        .execute(ctx.db())
-        .await?;
-    Ok(())
-}

@@ -119,17 +119,6 @@ pub async fn member_count<C: Context>(
     }
 }
 
-pub async fn update_moderated_status<C: Context>(
-    ctx: &C,
-    channel_name: &str,
-    moderated: bool,
-) -> ServiceResult<()> {
-    match channels::update_moderated_status(ctx, channel_name, moderated).await {
-        Ok(_) => Ok(()),
-        Err(e) => unexpected(e),
-    }
-}
-
 // utility
 
 async fn broadcast_channel_info_update<C: Context>(
