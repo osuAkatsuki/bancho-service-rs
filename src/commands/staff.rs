@@ -13,69 +13,6 @@ use bancho_protocol::structures::IrcMessage;
 use bancho_service_macros::{FromCommandArgs, command};
 
 #[derive(Debug, FromCommandArgs)]
-pub struct KickArgs {
-    pub safe_username: String,
-    pub reason: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct SilenceArgs {
-    pub username: String,
-    pub amount: i32,
-    pub unit: String,
-    pub reason: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct UnsilenceArgs {
-    pub safe_username: String,
-    pub reason: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct BanArgs {
-    pub safe_username: String,
-    pub reason: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct UnbanArgs {
-    pub safe_username: String,
-    pub reason: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct RestrictArgs {
-    pub safe_username: String,
-    pub reason: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct UnrestrictArgs {
-    pub safe_username: String,
-    pub reason: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct FreezeArgs {
-    pub safe_username: String,
-    pub reason: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct UnfreezeArgs {
-    pub safe_username: String,
-    pub reason: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
-pub struct WhitelistArgs {
-    pub safe_username: String,
-    pub bit: i32,
-    pub reason: String,
-}
-
-#[derive(Debug, FromCommandArgs)]
 pub struct EditMapArgs {
     pub action: String,
     pub scope: String,
@@ -202,6 +139,12 @@ pub async fn remove_bn<C: Context>(ctx: &C, sender: &Session, args: RemoveBNArgs
     Ok(Some(osu_format_reply))
 }
 
+#[derive(Debug, FromCommandArgs)]
+pub struct KickArgs {
+    pub safe_username: String,
+    pub reason: String,
+}
+
 #[command(
     "kick",
     required_privileges = Privileges::AdminKickUsers,
@@ -232,6 +175,12 @@ pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> Comm
         target_profile, args.safe_username
     );
     Ok(Some(osu_format_reply))
+}
+
+#[derive(Debug, FromCommandArgs)]
+pub struct BanArgs {
+    pub safe_username: String,
+    pub reason: String,
 }
 
 #[command(
@@ -275,6 +224,12 @@ pub async fn ban_user<C: Context>(ctx: &C, sender: &Session, args: BanArgs) -> C
     Ok(Some(osu_format_reply))
 }
 
+#[derive(Debug, FromCommandArgs)]
+pub struct UnbanArgs {
+    pub safe_username: String,
+    pub reason: String,
+}
+
 #[command(
     "unban",
     required_privileges = Privileges::AdminManageBans,
@@ -296,6 +251,12 @@ pub async fn unban_user<C: Context>(ctx: &C, sender: &Session, args: UnbanArgs) 
         target_profile, target_user.username
     );
     Ok(Some(osu_format_reply))
+}
+
+#[derive(Debug, FromCommandArgs)]
+pub struct RestrictArgs {
+    pub safe_username: String,
+    pub reason: String,
 }
 
 #[command(
@@ -346,6 +307,12 @@ pub async fn restrict_user<C: Context>(
     Ok(Some(osu_format_reply))
 }
 
+#[derive(Debug, FromCommandArgs)]
+pub struct UnrestrictArgs {
+    pub safe_username: String,
+    pub reason: String,
+}
+
 #[command(
     "unrestrict",
     required_privileges = Privileges::AdminManageBans,
@@ -373,6 +340,12 @@ pub async fn unrestrict_user<C: Context>(
         target_profile, target_user.username
     );
     Ok(Some(osu_format_reply))
+}
+
+#[derive(Debug, FromCommandArgs)]
+pub struct FreezeArgs {
+    pub safe_username: String,
+    pub reason: String,
 }
 
 #[command(
@@ -403,6 +376,12 @@ pub async fn freeze_user<C: Context>(ctx: &C, sender: &Session, args: FreezeArgs
         target_profile, target_user.username
     );
     Ok(Some(osu_format_reply))
+}
+
+#[derive(Debug, FromCommandArgs)]
+pub struct UnfreezeArgs {
+    pub safe_username: String,
+    pub reason: String,
 }
 
 #[command(
@@ -439,6 +418,13 @@ pub async fn unfreeze_user<C: Context>(
     Ok(Some(osu_format_reply))
 }
 
+#[derive(Debug, FromCommandArgs)]
+pub struct WhitelistArgs {
+    pub safe_username: String,
+    pub bit: i32,
+    pub reason: String,
+}
+
 #[command(
     "whitelist",
     required_privileges = Privileges::AdminManageUsers,
@@ -448,7 +434,7 @@ pub async fn whitelist_user<C: Context>(
     sender: &Session,
     args: WhitelistArgs,
 ) -> CommandResult {
-    if !(0..4).contains(&args.bit) {
+    if !(0..=3).contains(&args.bit) {
         return Ok(Some("Invalid bit.".to_owned()));
     }
 
@@ -477,6 +463,14 @@ pub async fn whitelist_user<C: Context>(
     Ok(Some(osu_format_reply))
 }
 
+#[derive(Debug, FromCommandArgs)]
+pub struct SilenceArgs {
+    pub safe_username: String,
+    pub amount: i32,
+    pub unit: String,
+    pub reason: String,
+}
+
 #[command(
     "silence",
     required_privileges = Privileges::AdminSilenceUsers,
@@ -503,7 +497,7 @@ pub async fn silence_user<C: Context>(
         ));
     }
 
-    let target_user = users::fetch_one_by_username_safe(ctx, &args.username).await?;
+    let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
 
     // Silence the user
     users::silence_user(
@@ -527,6 +521,12 @@ pub async fn silence_user<C: Context>(
         target_profile, target_user.username, args.reason
     );
     Ok(Some(osu_format_reply))
+}
+
+#[derive(Debug, FromCommandArgs)]
+pub struct UnsilenceArgs {
+    pub safe_username: String,
+    pub reason: String,
 }
 
 #[command(
