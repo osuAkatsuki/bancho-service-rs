@@ -2,7 +2,7 @@ use crate::api::RequestContext;
 use crate::common::error::AppError;
 use crate::entities::bot;
 use crate::entities::channels::ChannelName;
-use crate::models::bancho::{BanchoResponse, LoginArgs};
+use crate::models::bancho::{BanchoResponse, LoginArgs, LoginError};
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{channels, messages, presences, relationships, sessions, streams};
@@ -21,17 +21,6 @@ const WELCOME_MESSAGE: &str = r#"
              Welcome to Akatsuki!
              Running banchus v0.1
  "#; // This space is needed for osu! to render the line
-
-#[repr(i32)]
-enum LoginError {
-    InvalidCredentials = -1,
-    OldVersion = -2,
-    Banned = -3,
-    UnexpectedError = -5,
-    /*NeedSupporter = -6,
-    PasswordReset = -7,
-    RequireVerification = -8,*/
-}
 
 fn login_error(e: AppError) -> BanchoResponse {
     let login_error = match e {

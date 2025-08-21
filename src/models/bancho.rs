@@ -7,6 +7,17 @@ use chrono::{Months, NaiveDate};
 use std::str::FromStr;
 use uuid::Uuid;
 
+#[repr(i32)]
+pub enum LoginError {
+    InvalidCredentials = -1,
+    OldVersion = -2,
+    Banned = -3,
+    UnexpectedError = -5,
+    /*NeedSupporter = -6,
+    PasswordReset = -7,
+    RequireVerification = -8,*/
+}
+
 pub struct BanchoResponse {
     response_data: Vec<u8>,
     cho_token: String,

@@ -1,5 +1,6 @@
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::models::privileges::Privileges;
 use crate::models::users::{User, VerifiedStatus};
 use crate::repositories::streams::StreamName;
 use crate::repositories::users;
@@ -89,12 +90,87 @@ pub async fn change_username<C: Context>(
     }
 }
 
+pub async fn ban_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
+    match users::ban(ctx, user_id).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn unban_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
+    match users::unban(ctx, user_id).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn restrict_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
+    match users::restrict(ctx, user_id).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn unrestrict_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
+    match users::unrestrict(ctx, user_id).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn freeze_user<C: Context>(ctx: &C, user_id: i64, reason: &str) -> ServiceResult<()> {
+    match users::freeze(ctx, user_id, reason).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn unfreeze_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
+    match users::unfreeze(ctx, user_id).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn update_user_privileges<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    privileges: Privileges,
+) -> ServiceResult<()> {
+    match users::update_privileges(ctx, user_id, privileges).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn update_user_whitelist<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    whitelist_bit: i32,
+) -> ServiceResult<()> {
+    match users::update_whitelist(ctx, user_id, whitelist_bit).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
 pub async fn queue_username_change<C: Context>(
     ctx: &C,
     user_id: i64,
     new_username: &str,
 ) -> ServiceResult<()> {
     match users::queue_username_change(ctx, user_id, new_username).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn update_donor_expiry<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    donor_expire: i64,
+) -> ServiceResult<()> {
+    match users::update_donor_expiry(ctx, user_id, donor_expire).await {
         Ok(_) => Ok(()),
         Err(e) => unexpected(e),
     }

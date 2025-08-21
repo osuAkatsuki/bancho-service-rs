@@ -1,3 +1,4 @@
+pub mod badges;
 pub mod bancho;
 pub mod channels;
 pub mod hardware_logs;

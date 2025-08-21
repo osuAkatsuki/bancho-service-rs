@@ -4,23 +4,35 @@ use discord_webhook2::message::Message;
 use discord_webhook2::webhook::DiscordWebhook;
 use iso8061_timestamp::Timestamp;
 
-const RESTRICT_COLOR: u32 = 0xFF5555;
-const INFO_COLOR: u32 = 0x6611FF;
-const WARN_COLOR: u32 = 0x00a2ff;
+const PURPLE_EMBED_COLOR: u32 = 0x6611FF;
+const RED_EMBED_COLOR: u32 = 0xFF5555;
+const BLUE_EMBED_COLOR: u32 = 0x00a2ff;
 
-pub async fn purple(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
-    send(title, description, url, INFO_COLOR).await
+pub async fn send_purple_embed(
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+) -> ServiceResult<()> {
+    send_embed(title, description, url, PURPLE_EMBED_COLOR).await
 }
 
-pub async fn blue(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
-    send(title, description, url, WARN_COLOR).await
+pub async fn send_blue_embed(
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+) -> ServiceResult<()> {
+    send_embed(title, description, url, BLUE_EMBED_COLOR).await
 }
 
-pub async fn red(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
-    send(title, description, url, RESTRICT_COLOR).await
+pub async fn send_red_embed(
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+) -> ServiceResult<()> {
+    send_embed(title, description, url, RED_EMBED_COLOR).await
 }
 
-pub async fn send(
+pub async fn send_embed(
     title: &str,
     description: &str,
     url: Option<&str>,
