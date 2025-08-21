@@ -146,7 +146,10 @@ pub async fn add_bn<C: Context>(ctx: &C, sender: &Session, args: AddBNArgs) -> C
     );
     let _ = discord::send_purple_embed("BN Added", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}] has been given BN", target_profile, target_user.username);
+    let osu_format_reply = format!(
+        "[{} {}] has been given BN",
+        target_profile, target_user.username
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -192,7 +195,10 @@ pub async fn remove_bn<C: Context>(ctx: &C, sender: &Session, args: RemoveBNArgs
     );
     let _ = discord::send_purple_embed("BN Removed", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}] has been removed from BN", target_profile, target_user.username);
+    let osu_format_reply = format!(
+        "[{} {}] has been removed from BN",
+        target_profile, target_user.username
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -201,7 +207,9 @@ pub async fn remove_bn<C: Context>(ctx: &C, sender: &Session, args: RemoveBNArgs
     required_privileges = Privileges::AdminKickUsers,
 )]
 pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> CommandResult {
-    let mut target_sessions = sessions::fetch_by_username(ctx, &args.safe_username).await?.peekable();
+    let mut target_sessions = sessions::fetch_by_username(ctx, &args.safe_username)
+        .await?
+        .peekable();
     let target_user_id = match target_sessions.peek() {
         Some(session) => session.user_id,
         None => return Ok(Some("Target not online.".to_owned())),
@@ -219,7 +227,10 @@ pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> Comm
     );
     let _ = discord::send_purple_embed("User Kicked", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}] has been kicked from the server", target_profile, args.safe_username);
+    let osu_format_reply = format!(
+        "[{} {}] has been kicked from the server",
+        target_profile, args.safe_username
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -257,7 +268,10 @@ pub async fn ban_user<C: Context>(ctx: &C, sender: &Session, args: BanArgs) -> C
     );
     let _ = discord::send_red_embed("User Banned", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}] has been banned", target_profile, target_user.username);
+    let osu_format_reply = format!(
+        "[{} {}] has been banned",
+        target_profile, target_user.username
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -277,7 +291,10 @@ pub async fn unban_user<C: Context>(ctx: &C, sender: &Session, args: UnbanArgs) 
     );
     let _ = discord::send_blue_embed("User Unbanned", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}] has been unbanned", target_profile, target_user.username);
+    let osu_format_reply = format!(
+        "[{} {}] has been unbanned",
+        target_profile, target_user.username
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -322,7 +339,10 @@ pub async fn restrict_user<C: Context>(
         sender.username, sender_profile, target_user.username, target_profile, args.reason
     );
     let _ = discord::send_red_embed("User Restricted", &log_message, None).await;
-    let osu_format_reply = format!("[{} {}] has been restricted for: {}", target_profile, target_user.username, args.reason);
+    let osu_format_reply = format!(
+        "[{} {}] has been restricted for: {}",
+        target_profile, target_user.username, args.reason
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -348,7 +368,10 @@ pub async fn unrestrict_user<C: Context>(
     );
     let _ = discord::send_blue_embed("User Unrestricted", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}] has been unrestricted", target_profile, target_user.username);
+    let osu_format_reply = format!(
+        "[{} {}] has been unrestricted",
+        target_profile, target_user.username
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -375,7 +398,10 @@ pub async fn freeze_user<C: Context>(ctx: &C, sender: &Session, args: FreezeArgs
     );
     let _ = discord::send_red_embed("User Frozen", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}] has been frozen", target_profile, target_user.username);
+    let osu_format_reply = format!(
+        "[{} {}] has been frozen",
+        target_profile, target_user.username
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -406,7 +432,10 @@ pub async fn unfreeze_user<C: Context>(
     );
     let _ = discord::send_blue_embed("User Unfrozen", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}] has been unfrozen", target_profile, target_user.username);
+    let osu_format_reply = format!(
+        "[{} {}] has been unfrozen",
+        target_profile, target_user.username
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -432,11 +461,19 @@ pub async fn whitelist_user<C: Context>(
     let target_profile = website::get_profile_link(target_user.user_id);
     let log_message = format!(
         "[{}]({}) has set [{}]({})'s whitelist status to {} for: {}",
-        sender.username, sender_profile, target_user.username, target_profile, args.bit, args.reason
+        sender.username,
+        sender_profile,
+        target_user.username,
+        target_profile,
+        args.bit,
+        args.reason
     );
     let _ = discord::send_blue_embed("Whitelist Updated", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}]'s whitelist status has been set to {}", target_profile, target_user.username, args.bit);
+    let osu_format_reply = format!(
+        "[{} {}]'s whitelist status has been set to {}",
+        target_profile, target_user.username, args.bit
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -485,7 +522,10 @@ pub async fn silence_user<C: Context>(
     );
     let _ = discord::send_red_embed("User Silenced", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}] has been silenced for: {}", target_profile, target_user.username, args.reason);
+    let osu_format_reply = format!(
+        "[{} {}] has been silenced for: {}",
+        target_profile, target_user.username, args.reason
+    );
     Ok(Some(osu_format_reply))
 }
 
@@ -511,6 +551,9 @@ pub async fn unsilence_user<C: Context>(
     );
     let _ = discord::send_blue_embed("User Unsilenced", &log_message, None).await;
 
-    let osu_format_reply = format!("[{} {}]'s silence has been reset", target_profile, target_user.username);
+    let osu_format_reply = format!(
+        "[{} {}]'s silence has been reset",
+        target_profile, target_user.username
+    );
     Ok(Some(osu_format_reply))
 }

@@ -8,15 +8,27 @@ const PURPLE_EMBED_COLOR: u32 = 0x6611FF;
 const RED_EMBED_COLOR: u32 = 0xFF5555;
 const BLUE_EMBED_COLOR: u32 = 0x00a2ff;
 
-pub async fn send_purple_embed(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
+pub async fn send_purple_embed(
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+) -> ServiceResult<()> {
     send_embed(title, description, url, PURPLE_EMBED_COLOR).await
 }
 
-pub async fn send_blue_embed(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
+pub async fn send_blue_embed(
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+) -> ServiceResult<()> {
     send_embed(title, description, url, BLUE_EMBED_COLOR).await
 }
 
-pub async fn send_red_embed(title: &str, description: &str, url: Option<&str>) -> ServiceResult<()> {
+pub async fn send_red_embed(
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+) -> ServiceResult<()> {
     send_embed(title, description, url, RED_EMBED_COLOR).await
 }
 

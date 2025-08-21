@@ -34,6 +34,7 @@ pub enum AppError {
 
     /// 0: Syntax, 1: Type Signature, 2: Typed Syntax
     CommandsInvalidSyntax(&'static str, &'static str, &'static str),
+    CommandsInvalidArgument(&'static str),
     CommandsUnknownCommand,
     CommandsUnauthorized,
 
@@ -96,6 +97,7 @@ impl AppError {
             AppError::ChannelsInvalidName => "channels.invalid_name",
 
             AppError::CommandsInvalidSyntax(_, _, _) => "commands.invalid_syntax",
+            AppError::CommandsInvalidArgument(_) => "commands.invalid_argument",
             AppError::CommandsUnknownCommand => "commands.unknown_command",
             AppError::CommandsUnauthorized => "commands.unauthorized",
 
@@ -151,6 +153,7 @@ impl AppError {
             AppError::ChannelsInvalidName => "Invalid Channel Name (must start with `#`)",
 
             AppError::CommandsInvalidSyntax(_, _, _) => "Invalid Command Syntax",
+            AppError::CommandsInvalidArgument(_) => "Invalid Command Argument",
             AppError::CommandsUnknownCommand => "Unknown Command",
             AppError::CommandsUnauthorized => {
                 "You do not have sufficient privileges to use this command."
@@ -202,6 +205,7 @@ impl AppError {
             AppError::DecodingRequestFailed
             | AppError::ChannelsInvalidName
             | AppError::CommandsInvalidSyntax(_, _, _)
+            | AppError::CommandsInvalidArgument(_)
             | AppError::MessagesInvalidLength
             | AppError::MultiplayerInvalidSlotID
             | AppError::StreamsInvalidKey => StatusCode::BAD_REQUEST,

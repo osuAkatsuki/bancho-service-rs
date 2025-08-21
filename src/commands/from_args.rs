@@ -1,6 +1,7 @@
 use crate::common::error::{AppError, ServiceResult};
 use chrono::{DateTime, Utc};
 use std::str::FromStr;
+use std::time::Duration;
 
 pub struct NoArg;
 pub trait FromCommandArgs: Sized {
@@ -86,4 +87,57 @@ impl<T: FromCommandArgs> FromCommandArgs for Option<T> {
 
     const TYPE_SIGNATURE: &'static str = "optional<>";
     const TYPED_SYNTAX: &'static str = const_str::concat!("args: optional");
+}
+
+const ORDER_OF_UNITS: [(&str, u64); 5] = [
+    ("w", 604800),
+    ("d", 86400),
+    ("h", 3600),
+    ("m", 60),
+    ("s", 1),
+];
+
+const INVALID_DURATION: &str = "Invalid Duration! Example: 1h30m (Possible units: w, d, h, m, s)";
+fn parse_single_time(value: &str) -> ServiceResult<Duration> {
+    for (unit, secs_multiplier) in ORDER_OF_UNITS {
+        match value.strip_suffix(unit) {
+            Some(duration) => {
+                let duration = u64::from_str(duration).map_err(|_| AppError::CommandsInvalidArgument(INVALID_DURATION))?;
+                return Ok(Duration::from_secs(duration * secs_multiplier));
+            }
+            None => {}
+        }
+    }
+
+    Err(AppError::CommandsInvalidArgument(INVALID_DURATION))
+}
+
+fn parse_duration(value: &str) -> ServiceResult<Duration> {
+    if value.chars().any(|c| !c.is_ascii_alphanumeric()) {
+        return Err(AppError::CommandsInvalidArgument(INVALID_DURATION));
+    }
+
+    let split = value.split_inclusive(char::is_alphabetic);
+    split.map(parse_single_time).sum()
+}
+
+impl FromCommandArgs for Duration {
+    fn from_args(args: Option<&str>) -> ServiceResult<Self> {
+        match args {
+            Some(args) => parse_duration(args),
+            None => Err(AppError::CommandsInvalidSyntax(
+                Self::SYNTAX,
+                Self::TYPE_SIGNATURE,
+                Self::TYPED_SYNTAX,
+            )),
+        }
+    }
+
+    const TYPE_SIGNATURE: &'static str = "duration";
+    const SYNTAX: &'static str = "args: duration";
+    const TYPED_SYNTAX: &'static str = const_str::concat!(
+        <Duration as FromCommandArgs>::SYNTAX,
+        ": ",
+        <Duration as FromCommandArgs>::TYPE_SIGNATURE
+    );
 }
