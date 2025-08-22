@@ -490,24 +490,24 @@ pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> Comm
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
 
-    // TODO: Need get_user_slot_id and toggle_slot_locked functions
-    // let slot_id = await match.getUserSlotID(mp_match.match_id, target_user.user_id);
-    // if !slot_id {
-    //     return Ok(Some("The specified user is not in this match.".to_string()));
-    // }
-    // // toggle slot lock twice to kick the user
-    // for _ in range(2):
-    //     await match.toggleSlotLocked(mp_match.match_id, slot_id);
+    let slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+    let user_slots = slots.iter().filter(|slot| {
+        slot.user
+            .is_some_and(|identity| identity.user_id == target_user.user_id)
+    });
+
+    for slot in user_slots {
+        multiplayer::leave(ctx, slot.user.unwrap(), Some(match_id)).await?;
+    }
 
     Ok(Some(format!(
         "{} has been kicked from the match.",
@@ -520,7 +520,7 @@ pub struct PasswordArgs {
     pub new_password: Option<String>,
 }
 
-#[command("password")]
+#[command("password", forward_message = false)]
 pub async fn password<C: Context>(ctx: &C, sender: &Session, args: PasswordArgs) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
