@@ -12,7 +12,7 @@ use crate::models::sessions::Session;
 use crate::repositories::multiplayer::TimerType;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{beatmaps, multiplayer, sessions, streams, users};
-use bancho_protocol::messages::server::ChatMessage;
+use bancho_protocol::messages::server::{ChatMessage, MatchJoinFailed};
 use bancho_protocol::structures::{IrcMessage, MatchTeam, MatchTeamType, Mode, Mods, WinCondition};
 use bancho_service_macros::{FromCommandArgs, command};
 
@@ -548,7 +548,16 @@ pub async fn kick_user<C: Context>(ctx: &C, sender: &Session, args: KickArgs) ->
     });
 
     for slot in user_slots {
-        multiplayer::leave(ctx, slot.user.unwrap(), Some(match_id)).await?;
+        let slot_user = slot.user.unwrap();
+        multiplayer::leave(ctx, slot_user, Some(match_id)).await?;
+        streams::broadcast_message(
+            ctx,
+            StreamName::User(slot_user.session_id),
+            MatchJoinFailed,
+            None,
+            None,
+        )
+        .await?;
     }
 
     Ok(Some(format!(
