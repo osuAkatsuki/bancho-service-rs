@@ -192,6 +192,32 @@ pub async fn update_donor_expiry<C: Context>(
     Ok(())
 }
 
+pub async fn fetch_previous_overwrite<C: Context>(
+    ctx: &C,
+    user_id: i64,
+) -> sqlx::Result<Option<i64>> {
+    const QUERY: &str =
+        "SELECT previous_overwrite FROM users WHERE id = ? AND previous_overwrite != 0";
+    sqlx::query_scalar(QUERY)
+        .bind(user_id)
+        .fetch_optional(ctx.db())
+        .await
+}
+
+pub async fn update_previous_overwrite<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    timestamp: i64,
+) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET previous_overwrite = ? WHERE id = ?";
+    sqlx::query(QUERY)
+        .bind(timestamp)
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
 pub async fn change_username<C: Context>(
     ctx: &C,
     user_id: i64,

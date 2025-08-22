@@ -6,6 +6,7 @@ use crate::repositories::streams::StreamName;
 use crate::repositories::users;
 use crate::usecases::{messages, sessions, streams};
 use bancho_protocol::messages::server::{SilenceEnd, UserSilenced};
+use chrono::Utc;
 
 const SILENCE_AUTO_DELETE_INTERVAL_SECONDS: u64 = 60;
 
@@ -171,6 +172,31 @@ pub async fn update_donor_expiry<C: Context>(
     donor_expire: i64,
 ) -> ServiceResult<()> {
     match users::update_donor_expiry(ctx, user_id, donor_expire).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn fetch_previous_overwrite<C: Context>(
+    ctx: &C,
+    user_id: i64,
+) -> ServiceResult<Option<i64>> {
+    match users::fetch_previous_overwrite(ctx, user_id).await {
+        Ok(previous_overwrite) => Ok(previous_overwrite),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn unlock_overwrite<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
+    match users::update_previous_overwrite(ctx, user_id, 1).await {
+        Ok(_) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
+pub async fn update_previous_overwrite<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
+    let now_timestamp = Utc::now().timestamp();
+    match users::update_previous_overwrite(ctx, user_id, now_timestamp).await {
         Ok(_) => Ok(()),
         Err(e) => unexpected(e),
     }

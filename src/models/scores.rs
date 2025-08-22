@@ -1,6 +1,14 @@
 use crate::entities::scores::LastUserScore as LastUserScoreEntity;
 use bancho_protocol::structures::{Mode, Mods};
 
+#[repr(i8)]
+pub enum ScoreStatus {
+    Quit = 0,
+    Failed = 1,
+    Passed = 2,
+    RankedScore = 3,
+}
+
 pub struct LastUserScore {
     pub score_id: i64,
     pub user_id: i64,

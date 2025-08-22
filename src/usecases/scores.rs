@@ -1,7 +1,7 @@
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
-use crate::models::scores::LastUserScore;
+use crate::models::scores::{LastUserScore, ScoreStatus};
 use crate::repositories::scores;
 use bancho_protocol::structures::Mode;
 use tracing::info;
@@ -74,4 +74,49 @@ pub async fn recalculate_user_first_places<C: Context>(ctx: &C, user_id: i64) ->
     }
 
     Ok(())
+}
+
+pub async fn overwrite_best_score_with_last_score<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    custom_gamemode: CustomGamemode,
+) -> ServiceResult<String> {
+    match scores::fetch_last_user_score(ctx, user_id, custom_gamemode).await? {
+        Some(last_score) => {
+            let best_score = scores::fetch_map_user_best_score(
+                ctx,
+                user_id,
+                &last_score.beatmap_md5,
+                custom_gamemode,
+            )
+            .await?;
+
+            match best_score {
+                Some(best_score) => {
+                    if best_score.score_id == last_score.score_id {
+                        return Err(AppError::ScoresNotFound);
+                    }
+
+                    scores::update_score_status(
+                        ctx,
+                        best_score.score_id,
+                        ScoreStatus::Passed as _,
+                        custom_gamemode,
+                    )
+                    .await?;
+                    scores::update_score_status(
+                        ctx,
+                        last_score.score_id,
+                        ScoreStatus::RankedScore as _,
+                        custom_gamemode,
+                    )
+                    .await?;
+
+                    Ok(todo!())
+                }
+                None => Err(AppError::ScoresNotFound),
+            }
+        }
+        None => Err(AppError::ScoresNotFound),
+    }
 }

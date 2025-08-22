@@ -179,3 +179,43 @@ pub async fn replace_first_place<C: Context>(
         .await?;
     Ok(())
 }
+
+pub async fn fetch_map_user_best_score<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    beatmap_md5: &str,
+    custom_gamemode: CustomGamemode,
+) -> sqlx::Result<Option<MinimalScore>> {
+    let table_name = custom_gamemode.scores_table();
+    let query = format!(
+        r#"
+            SELECT s.id, s.userid, s.play_mode, s.score, s.pp,
+            s.time, s.beatmap_md5 FROM {table_name} s
+            WHERE s.userid = ?
+            AND s.beatmap_md5 = ?
+            AND s.completed = 3
+            LIMIT 1
+        "#
+    );
+    sqlx::query_as(&query)
+        .bind(user_id)
+        .bind(beatmap_md5)
+        .fetch_optional(ctx.db())
+        .await
+}
+
+pub async fn update_score_status<C: Context>(
+    ctx: &C,
+    score_id: i64,
+    status: i8,
+    custom_gamemode: CustomGamemode,
+) -> sqlx::Result<()> {
+    let table_name = custom_gamemode.scores_table();
+    let query = format!("UPDATE {table_name} SET completed = ? WHERE id = ?");
+    sqlx::query(&query)
+        .bind(status)
+        .bind(score_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
