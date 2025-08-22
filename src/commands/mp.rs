@@ -51,20 +51,9 @@ pub async fn host<C: Context>(ctx: &C, sender: &Session, args: HostArgs) -> Comm
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
-
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
-
-    // Transfer host to the target user
     multiplayer::transfer_host_to_user(ctx, match_id, target_user.user_id, Some(sender.user_id))
         .await?;
-
     Ok(Some(format!("{} is now the host", target_user.username)))
 }
 
@@ -79,18 +68,8 @@ pub async fn addref<C: Context>(ctx: &C, sender: &Session, args: AddRefereeArgs)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
-
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
-
-    // TODO: Need add_referee function
-    // await match.add_referee(mp_match.match_id, target_user.user_id);
-
+    multiplayer::add_referee(ctx, match_id, target_user.user_id, Some(sender.user_id)).await?;
     Ok(Some(format!("Added {} to referees", target_user.username)))
 }
 
@@ -109,19 +88,8 @@ pub async fn rmref<C: Context>(
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
-
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
-
-    // TODO: Need remove_referee function
-    // await match.remove_referee(mp_match.match_id, target_user.user_id);
-
+    multiplayer::remove_referee(ctx, match_id, target_user.user_id, Some(sender.user_id)).await?;
     Ok(Some(format!(
         "Removed {} from referees",
         target_user.username
@@ -134,24 +102,24 @@ pub async fn listref<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let referees = multiplayer::get_referees(ctx, match_id).await?;
+    let mut ref_usernames: Vec<String> = vec![];
+    for ref_id in referees {
+        let referee = users::fetch_one(ctx, ref_id).await?;
+        ref_usernames.push(referee.username);
+    }
 
-    // TODO: Need get_referees function to list referee usernames
-    // let ref_usernames: Vec<String> = vec![];
-    // for ref_id in referees {
-    //     let username = user_utils::get_username_from_id(ref_id).await?;
-    //     ref_usernames.push(username);
-    // }
-
-    Ok(Some(
-        "Referees for this match: TODO - need referee functions".to_string(),
-    ))
+    Ok(Some(format!(
+        "Referees for this match: {}",
+        ref_usernames.join(", ")
+    )))
 }
 
 #[command("clearhost")]
@@ -160,16 +128,13 @@ pub async fn clearhost<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
-
-    // TODO: Need remove_host function
-    // await match.removeHost(mp_match.match_id, rm_referee=false);
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
+    multiplayer::clear_host(ctx, mp_match.match_id).await?;
 
     Ok(Some("Host has been removed from this match.".to_string()))
 }
@@ -318,20 +283,24 @@ pub async fn close<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id {
+        // TODO: Check if user is referee - need referee functions
+        // let referees = match::get_referees(mp_match.match_id).await?;
+        // if !referees.contains(&sender.user_id) {
+        //     return Ok(Some("You are not a referee for this match.".to_string()));
+        // }
+        return Ok(Some("You are not the host of this match.".to_string()));
+    }
 
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    multiplayer::delete(ctx, mp_match.match_id).await?;
 
     // TODO: Need dispose_match function
     // await matchList.disposeMatch(mp_match.match_id);
 
     Ok(Some(format!(
         "Multiplayer match #{} disposed successfully.",
-        _mp_match.match_id
+        mp_match.match_id
     )))
 }
 

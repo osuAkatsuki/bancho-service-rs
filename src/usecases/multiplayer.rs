@@ -140,9 +140,9 @@ fn ingame_match_id(match_id: i64) -> i32 {
 }
 
 pub async fn delete<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
+    multiplayer::delete(ctx, match_id).await?;
     streams::clear_stream(ctx, StreamName::Multiplayer(match_id)).await?;
     streams::clear_stream(ctx, StreamName::Multiplaying(match_id)).await?;
-    multiplayer::delete(ctx, match_id).await?;
     match_events::create(ctx, match_id, MatchEventType::MatchDisbanded, None, None).await?;
     streams::broadcast_message(
         ctx,
@@ -287,6 +287,7 @@ pub async fn update<C: Context>(
     let mut mp_match = fetch_one(ctx, match_id).await?;
     if let Some(check_host) = check_host
         && mp_match.host_user_id != check_host
+        && !is_referee(ctx, match_id, check_host).await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -365,6 +366,7 @@ pub async fn transfer_host_to_slot<C: Context>(
     let mut mp_match = fetch_one(ctx, match_id).await?;
     if let Some(check_host) = check_host
         && mp_match.host_user_id != check_host
+        && !is_referee(ctx, match_id, check_host).await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -394,11 +396,12 @@ pub async fn transfer_host_to_user<C: Context>(
     ctx: &C,
     match_id: i64,
     user_id: i64,
-    check_host: Option<i64>,
+    check_referee: Option<i64>,
 ) -> ServiceResult<()> {
     let mut mp_match = fetch_one(ctx, match_id).await?;
-    if let Some(check_host) = check_host
-        && mp_match.host_user_id != check_host
+    if let Some(check_referee_user_id) = check_referee
+        && mp_match.host_user_id != check_referee_user_id
+        && !is_referee(ctx, match_id, check_referee_user_id).await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -426,6 +429,23 @@ pub async fn transfer_host_to_user<C: Context>(
     .await?;
 
     Ok(())
+}
+
+pub async fn clear_host<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
+    let mut mp_match = match multiplayer::fetch_one(ctx, match_id).await? {
+        Some(mp_match) => mp_match,
+        None => return Err(AppError::MultiplayerNotFound),
+    };
+    let slots = fetch_all_slots(ctx, mp_match.match_id).await?;
+    mp_match.host_user_id = 0;
+    match multiplayer::update(ctx, mp_match, false).await {
+        Ok(mp_match) => {
+            let mp_match = MultiplayerMatch::try_from(mp_match)?;
+            broadcast_update(ctx, &mp_match, slots).await?;
+            Ok(())
+        }
+        Err(e) => unexpected(e),
+    }
 }
 
 pub async fn swap_session_slots<C: Context>(
@@ -489,6 +509,7 @@ pub async fn set_slot_status<C: Context>(
     let mp_match = fetch_one(ctx, match_id).await?;
     if let Some(check_host) = check_host
         && check_host != mp_match.host_user_id
+        && !is_referee(ctx, match_id, check_host).await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -567,6 +588,7 @@ pub async fn start_game<C: Context>(
         .ok_or(AppError::MultiplayerNotFound)?;
     if let Some(check_host) = check_host
         && check_host != mp_match.host_user_id
+        && !is_referee(ctx, match_id, check_host).await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -766,10 +788,10 @@ pub async fn change_mods<C: Context>(
         .await?
         .ok_or(AppError::MultiplayerNotFound)?;
     // if a user is making the request, check if they are the host or whether freemod is enabled
-    // TODO: referees
     if let Some(slot_user) = slot_user
         && mp_match.host_user_id != slot_user.user_id
         && !mp_match.freemod_enabled
+        && !is_referee(ctx, match_id, slot_user.user_id).await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -807,6 +829,56 @@ pub async fn change_mods<C: Context>(
     let slots = MultiplayerMatchSlot::from(slots);
     broadcast_update(ctx, &mp_match, slots).await?;
     Ok(())
+}
+
+pub async fn is_referee<C: Context>(ctx: &C, match_id: i64, user_id: i64) -> ServiceResult<bool> {
+    let is_referee = multiplayer::is_referee(ctx, match_id, user_id).await?;
+    Ok(is_referee)
+}
+
+pub async fn add_referee<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    user_id: i64,
+    check_referee: Option<i64>,
+) -> ServiceResult<()> {
+    let mp_match = multiplayer::fetch_one(ctx, match_id)
+        .await?
+        .ok_or(AppError::MultiplayerNotFound)?;
+
+    if let Some(check_referee) = check_referee
+        && mp_match.host_user_id != check_referee
+        && !is_referee(ctx, match_id, check_referee).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
+    multiplayer::add_referee(ctx, match_id, user_id).await?;
+    Ok(())
+}
+
+pub async fn remove_referee<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    user_id: i64,
+    check_referee: Option<i64>,
+) -> ServiceResult<()> {
+    let mp_match = multiplayer::fetch_one(ctx, match_id)
+        .await?
+        .ok_or(AppError::MultiplayerNotFound)?;
+
+    if let Some(check_referee) = check_referee
+        && mp_match.host_user_id != check_referee
+        && !is_referee(ctx, match_id, check_referee).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
+    multiplayer::remove_referee(ctx, match_id, user_id).await?;
+    Ok(())
+}
+
+pub async fn get_referees<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<Vec<i64>> {
+    let referees = multiplayer::get_referees(ctx, match_id).await?;
+    Ok(referees)
 }
 
 // utility
