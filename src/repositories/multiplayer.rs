@@ -7,6 +7,11 @@ use redis::AsyncCommands;
 use std::ops::DerefMut;
 use uuid::Uuid;
 
+pub enum TimerType {
+    Regular,
+    MatchStart,
+}
+
 const KEY: &str = "akatsuki:bancho:multiplayer";
 const SESSIONS_MATCHES_KEY: &str = "akatsuki:bancho:sessions:multiplayer";
 pub const MULTIPLAYER_MAX_SIZE: usize = 16;
@@ -17,6 +22,13 @@ fn make_referees_key(match_id: i64) -> String {
 
 fn make_slots_key(match_id: i64) -> String {
     format!("akatsuki:bancho:multiplayer:{match_id}")
+}
+
+fn make_timer_key(match_id: i64, timer_type: TimerType) -> String {
+    match timer_type {
+        TimerType::Regular => format!("akatsuki:bancho:multiplayer:timer:{match_id}"),
+        TimerType::MatchStart => format!("akatsuki:bancho:multiplayer:start_timer:{match_id}"),
+    }
 }
 
 pub async fn create<C: Context>(
@@ -86,11 +98,17 @@ pub async fn delete<C: Context>(ctx: &C, match_id: i64) -> anyhow::Result<()> {
     let mut redis = ctx.redis().await?;
     let slots_key = make_slots_key(match_id);
     let referees_key = make_referees_key(match_id);
+    let timer_key = make_timer_key(match_id, TimerType::Regular);
+    let start_timer_key = make_timer_key(match_id, TimerType::MatchStart);
     redis::pipe()
         .atomic()
         .del(slots_key)
         .ignore()
         .del(referees_key)
+        .ignore()
+        .del(timer_key)
+        .ignore()
+        .del(start_timer_key)
         .ignore()
         .hdel(KEY, match_id)
         .ignore()
@@ -323,6 +341,42 @@ pub async fn clear_referees<C: Context>(ctx: &C, match_id: i64) -> anyhow::Resul
     let referees_key = make_referees_key(match_id);
     let _: () = redis.del(referees_key).await?;
     Ok(())
+}
+
+// Timers
+
+pub async fn set_timer<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+    timer: i64,
+) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let timer_key = make_timer_key(match_id, timer_type);
+    let _: () = redis.set(timer_key, timer).await?;
+    Ok(())
+}
+
+pub async fn get_timer<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+) -> anyhow::Result<i64> {
+    let mut redis = ctx.redis().await?;
+    let timer_key = make_timer_key(match_id, timer_type);
+    let remaining_seconds = redis.get(timer_key).await?;
+    Ok(remaining_seconds)
+}
+
+pub async fn decrease_timer<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+) -> anyhow::Result<u64> {
+    let mut redis = ctx.redis().await?;
+    let timer_key = make_timer_key(match_id, timer_type);
+    let remaining_seconds = redis.decr(timer_key, 1).await?;
+    Ok(remaining_seconds)
 }
 
 // utility
