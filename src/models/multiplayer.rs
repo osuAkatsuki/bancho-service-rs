@@ -191,6 +191,7 @@ impl Into<SlotEntity> for MultiplayerMatchSlot {
 
 pub trait MatchSlotExt<const N: usize> {
     fn as_bancho(&self) -> [MatchSlot; N];
+    fn as_entity(&self) -> [SlotEntity; N];
     fn to_mods(&self) -> [Mods; N];
 }
 
@@ -201,6 +202,10 @@ impl<const N: usize> MatchSlotExt<N> for [MultiplayerMatchSlot; N] {
             team: self[i].team,
             user_id: self[i].user.map_or(0, |slot_user| slot_user.user_id) as _,
         })
+    }
+
+    fn as_entity(&self) -> [SlotEntity; N] {
+        std::array::from_fn(|i| self[i].as_entity())
     }
 
     fn to_mods(&self) -> [Mods; N] {

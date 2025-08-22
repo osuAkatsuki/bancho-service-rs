@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::channels::ChannelName;
@@ -7,20 +5,23 @@ use crate::entities::gamemodes::Gamemode;
 use crate::entities::match_events::MatchEventType;
 use crate::entities::multiplayer::MultiplayerMatchSlot as SlotEntity;
 use crate::entities::sessions::SessionIdentity;
+use crate::models::multiplayer::MatchSlotExt;
 use crate::models::multiplayer::{MultiplayerMatch, MultiplayerMatchSlot, MultiplayerMatchSlots};
+use crate::models::presences::PresenceStats;
 use crate::models::sessions::Session;
 use crate::repositories::multiplayer::TimerType;
 use crate::repositories::streams::StreamName;
 use crate::repositories::{match_games, multiplayer};
-use crate::usecases::{channels, match_events, sessions, streams};
+use crate::usecases::{channels, match_events, presences, sessions, stats, streams};
 use bancho_protocol::concat_messages;
 use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::server::{
-    Alert, MatchAllPlayersLoaded, MatchComplete, MatchCreated, MatchDisposed, MatchJoinFailed,
-    MatchPlayerFailed, MatchPlayerSkipped, MatchSkip, MatchStart, MatchUpdate,
+    Alert, MatchAborted, MatchAllPlayersLoaded, MatchComplete, MatchCreated, MatchDisposed,
+    MatchJoinFailed, MatchPlayerFailed, MatchPlayerSkipped, MatchSkip, MatchStart, MatchUpdate,
 };
 use bancho_protocol::serde::BinarySerialize;
 use bancho_protocol::structures::{Match, MatchTeam, Mods, SlotStatus};
+use std::time::Duration;
 use uuid::Uuid;
 
 pub async fn create<C: Context>(
@@ -148,6 +149,15 @@ pub async fn update<C: Context>(
     let slots = fetch_all_slots(ctx, updated_match.match_id).await?;
     broadcast_update(ctx, &updated_match, slots).await?;
     Ok(updated_match)
+}
+
+pub async fn update_all_slots<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    slots: MultiplayerMatchSlots,
+) -> ServiceResult<MultiplayerMatchSlots> {
+    multiplayer::update_all_slots(ctx, match_id, slots.as_entity()).await?;
+    Ok(slots)
 }
 
 fn ingame_match_id(match_id: i64) -> i32 {
@@ -323,9 +333,15 @@ pub async fn update_bancho<C: Context>(
     mp_match.beatmap_id = args.beatmap_id;
 
     let match_mods = mp_match.mods;
-    let new_mode = Gamemode::from_mode_and_mods(args.mode, match_mods) as _;
+    let mut slots = multiplayer::fetch_all_slots(ctx, mp_match.match_id).await?;
+    let new_mode = Gamemode::from_mode_and_mods(args.mode, match_mods);
     if new_mode != mp_match.mode {
-        // TODO: retrieve new stats and switch all match members' modes
+        // Update stats for all match members when mode changes
+        let match_member_ids = slots.iter().filter_map(|slot| match slot.user {
+            None => None,
+            Some(user) => Some(user.user_id),
+        });
+        update_match_members_presences(ctx, match_member_ids, new_mode).await?;
     }
 
     mp_match.mode = new_mode;
@@ -333,7 +349,6 @@ pub async fn update_bancho<C: Context>(
     mp_match.team_type = args.team_type as _;
     mp_match.random_seed = args.random_seed;
 
-    let mut slots = multiplayer::fetch_all_slots(ctx, mp_match.match_id).await?;
     let freemod_changed = mp_match.freemod_enabled != args.freemod_enabled;
     if freemod_changed {
         mp_match.freemod_enabled = args.freemod_enabled;
@@ -1064,6 +1079,50 @@ pub async fn resize_match<C: Context>(
     broadcast_update(ctx, &mp_match, MultiplayerMatchSlot::from(slots)).await?;
     Ok(())
 }
+
+pub async fn abort<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
+    let mut mp_match = multiplayer::fetch_one(ctx, match_id)
+        .await?
+        .ok_or(AppError::MultiplayerNotFound)?;
+
+    // Set match as not in progress
+    mp_match.in_progress = false;
+
+    // Reset all player slots to not ready
+    let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+    for slot in &mut slots {
+        if slot.user.is_some() && slot.status == SlotStatus::Playing.bits() {
+            slot.status = SlotStatus::NotReady.bits();
+            slot.loaded = false;
+            slot.skipped = false;
+            slot.failed = false;
+            slot.completed = false;
+        }
+    }
+
+    streams::broadcast_message(
+        ctx,
+        StreamName::Multiplaying(match_id),
+        MatchAborted,
+        None,
+        None,
+    )
+    .await?;
+
+    // Update match and slots
+    let mp_match = multiplayer::update(ctx, mp_match, false).await?;
+    multiplayer::update_all_slots(ctx, match_id, slots).await?;
+
+    // Broadcast the updated match state
+    let mp_match = MultiplayerMatch::try_from(mp_match)?;
+    let slots = MultiplayerMatchSlot::from(slots);
+    broadcast_update(ctx, &mp_match, slots).await?;
+
+    // Save the match game end to match history
+    match_games::game_ended(ctx, match_id).await?;
+
+    Ok(())
+}
 // utility
 
 async fn broadcast_update<C: Context>(
@@ -1082,6 +1141,27 @@ async fn broadcast_update<C: Context>(
         None,
     )
     .await?;
+    Ok(())
+}
+
+async fn update_match_members_presences<C: Context>(
+    ctx: &C,
+    user_ids: impl Iterator<Item = i64>,
+    new_mode: Gamemode,
+) -> ServiceResult<()> {
+    // Update stats for all players in the match
+    for user_id in user_ids {
+        let mut presence = presences::fetch_one(ctx, user_id).await?;
+        presence.action.mode = new_mode;
+
+        // Fetch updated stats for the new mode
+        let stats = stats::fetch_one(ctx, user_id, new_mode).await?;
+        let global_rank = stats::fetch_global_rank(ctx, user_id, new_mode).await?;
+        presence.stats = PresenceStats::from(stats, global_rank);
+        let presence = presences::update(ctx, presence).await?;
+        let user_panel = presence.user_panel();
+        streams::broadcast_data(ctx, StreamName::Main, &user_panel, None, None).await?;
+    }
     Ok(())
 }
 

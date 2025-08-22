@@ -5,13 +5,14 @@ use crate::commands::{CommandResult, CommandRouterFactory};
 use crate::common::context::Context;
 use crate::common::error::AppError;
 use crate::common::website;
+use crate::entities::gamemodes::Gamemode;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::multiplayer::TimerType;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{multiplayer, sessions, streams, users};
+use crate::usecases::{beatmaps, multiplayer, sessions, streams, users};
 use bancho_protocol::messages::server::ChatMessage;
-use bancho_protocol::structures::{IrcMessage, MatchTeam, MatchTeamType, Mods, WinCondition};
+use bancho_protocol::structures::{IrcMessage, MatchTeam, MatchTeamType, Mode, Mods, WinCondition};
 use bancho_service_macros::{FromCommandArgs, command};
 
 pub static COMMANDS: CommandRouterFactory = commands![
@@ -366,7 +367,7 @@ pub async fn abort<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
     }
 
     if mp_match.in_progress {
-        // TODO: multiplayer::abort(ctx, mp_match.match_id).await?;
+        multiplayer::abort(ctx, mp_match.match_id).await?;
     } else {
         multiplayer::abort_timer(ctx, match_id, TimerType::MatchStart).await?;
     }
@@ -417,25 +418,48 @@ pub struct MapArgs {
 
 #[command("map")]
 pub async fn set_map<C: Context>(ctx: &C, sender: &Session, args: MapArgs) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
-
-    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
-    {
-        return Err(AppError::MultiplayerUnauthorized);
-    }
-
     if let Some(gamemode) = args.gamemode {
         if gamemode > 3 {
             return Ok(Some("Gamemode must be 0, 1, 2 or 3.".to_string()));
         }
     }
 
-    // TODO: Need update_match function to change beatmap and gamemode
-    // await match.update_match(mp_match.match_id, beatmap_id=args.beatmap_id, game_mode=gamemode.unwrap_or(0));
+    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
+        .await?
+        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+
+    let mut mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
+
+    // Fetch the beatmap to get its details
+    let beatmap = beatmaps::fetch_by_id(ctx, args.beatmap_id).await?;
+    mp_match.beatmap_id = beatmap.beatmap_id;
+    mp_match.beatmap_name = beatmap.song_name;
+    mp_match.beatmap_md5 = beatmap.beatmap_md5;
+
+    let new_mode = match args.gamemode {
+        Some(gamemode) if beatmap.mode == 0 => gamemode,
+        _ => beatmap.mode as u8,
+    };
+    let new_mode = Mode::try_from(new_mode)
+        .map_err(|_| AppError::CommandsInvalidArgument("Invalid gamemode"))?;
+
+    // osu! mode changed, reset mods.
+    if mp_match.mode.as_bancho() != new_mode {
+        mp_match.mods = Mods::None;
+        let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+        for slot in &mut slots {
+            slot.mods = Mods::None;
+        }
+        multiplayer::update_all_slots(ctx, match_id, slots).await?;
+    }
+
+    mp_match.mode = Gamemode::from_mode_and_mods(new_mode, mp_match.mods);
+    multiplayer::update(ctx, mp_match).await?;
 
     Ok(Some("Match map has been updated.".to_string()))
 }
