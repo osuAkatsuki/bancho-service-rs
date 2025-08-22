@@ -138,6 +138,18 @@ pub async fn fetch_all_slots<C: Context>(
     }
 }
 
+pub async fn update<C: Context>(
+    ctx: &C,
+    updated_match: MultiplayerMatch,
+) -> ServiceResult<MultiplayerMatch> {
+    let _ = fetch_one(ctx, updated_match.match_id).await?;
+    multiplayer::update(ctx, updated_match.as_entity(), false).await?;
+
+    let slots = fetch_all_slots(ctx, updated_match.match_id).await?;
+    broadcast_update(ctx, &updated_match, slots).await?;
+    Ok(updated_match)
+}
+
 fn ingame_match_id(match_id: i64) -> i32 {
     (match_id & 0xFFFF) as _
 }
@@ -281,7 +293,8 @@ fn split_mods(mods: Mods) -> (Mods, Mods) {
     (mods & !match_mods, match_mods)
 }
 
-pub async fn update<C: Context>(
+// TODO: get rid of this
+pub async fn update_bancho<C: Context>(
     ctx: &C,
     match_id: i64,
     args: Match<'_>,
@@ -595,6 +608,29 @@ pub async fn set_slot_status<C: Context>(
 
     let slots = fetch_all_slots(ctx, match_id).await?;
     broadcast_update(ctx, &mp_match, slots).await?;
+    Ok(())
+}
+
+pub async fn set_user_team<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    user_id: i64,
+    team: MatchTeam,
+) -> ServiceResult<()> {
+    let mp_match = fetch_one(ctx, match_id).await?;
+    let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+    let (slot_id, slot) = slots
+        .iter_mut()
+        .enumerate()
+        .find(|(_, slot)| {
+            slot.user
+                .is_some_and(|slot_user| slot_user.user_id == user_id)
+        })
+        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+
+    slot.team = team as u8;
+    multiplayer::update_slot(ctx, match_id, slot_id, *slot).await?;
+    broadcast_update(ctx, &mp_match, MultiplayerMatchSlot::from(slots)).await?;
     Ok(())
 }
 
@@ -969,6 +1005,65 @@ pub async fn abort_timer<C: Context>(
     Ok(())
 }
 
+pub async fn lock_match<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
+    // Lock all empty slots
+    let mp_match = fetch_one(ctx, match_id).await?;
+    let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+    for slot in &mut slots {
+        if slot.user.is_none() {
+            slot.status = SlotStatus::Locked.bits();
+        }
+    }
+    multiplayer::update_all_slots(ctx, match_id, slots).await?;
+    broadcast_update(ctx, &mp_match, MultiplayerMatchSlot::from(slots)).await?;
+    Ok(())
+}
+
+pub async fn unlock_match<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
+    let mp_match = fetch_one(ctx, match_id).await?;
+    let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+    for slot in &mut slots {
+        if slot.status == SlotStatus::Locked.bits() {
+            slot.status = SlotStatus::Empty.bits();
+        }
+    }
+    multiplayer::update_all_slots(ctx, match_id, slots).await?;
+    broadcast_update(ctx, &mp_match, MultiplayerMatchSlot::from(slots)).await?;
+    Ok(())
+}
+
+pub async fn resize_match<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    new_size: usize,
+) -> ServiceResult<()> {
+    let mp_match = fetch_one(ctx, match_id).await?;
+    let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+
+    // Create a copy of all player slots
+    let player_slots: Vec<_> = slots
+        .iter()
+        .filter(|slot| slot.user.is_some())
+        .cloned()
+        .collect();
+    // Clear all slots and reset to empty
+    for slot in &mut slots {
+        slot.clear();
+        slot.status = SlotStatus::Locked.bits();
+    }
+
+    // Place players at the beginning
+    for (i, player_slot) in player_slots.iter().enumerate() {
+        if i < new_size {
+            slots[i] = player_slot.clone();
+        }
+    }
+
+    // Update all slots
+    multiplayer::update_all_slots(ctx, match_id, slots).await?;
+    broadcast_update(ctx, &mp_match, MultiplayerMatchSlot::from(slots)).await?;
+    Ok(())
+}
 // utility
 
 async fn broadcast_update<C: Context>(
