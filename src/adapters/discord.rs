@@ -148,7 +148,8 @@ pub async fn send_ranked_maps_embed(
                     .author(|author| {
                         let ranked_by = format!("{} ({})", username, user_id);
                         let profile_url = website::get_profile_link(user_id);
-                        author.name(ranked_by).url(profile_url)
+                        let avatar_url = website::get_avatar_link(user_id);
+                        author.name(ranked_by).url(profile_url).url_icon(avatar_url)
                     })
                     .description(description)
                     .field(|field| {
