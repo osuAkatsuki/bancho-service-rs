@@ -896,9 +896,11 @@ pub async fn change_mods<C: Context>(
         return Err(AppError::MultiplayerUnauthorized);
     }
 
+    let match_mode = Gamemode::try_from(mp_match.mode)?;
+    let match_mode_vn = match_mode.as_bancho();
     let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
     if mp_match.freemod_enabled {
-        let (slot_mods, match_mods) = split_mods(mods);
+        let (new_slot_mods, match_mods) = split_mods(mods);
         mp_match.mods = match_mods.bits();
 
         // if a user is making the request, only update their slot
@@ -911,17 +913,55 @@ pub async fn change_mods<C: Context>(
                         .is_some_and(|su| su.session_id == slot_user.session_id)
                 })
                 .ok_or(AppError::MultiplayerUserNotInMatch)?;
-            slot.mods = slot_mods.bits();
+
+            let new_mods_bits = new_slot_mods.bits();
+            let old_slot_mods = slot.mods;
+            slot.mods = new_mods_bits;
             multiplayer::update_slot(ctx, match_id, slot_id, slot.clone()).await?;
+
+            // Update the players' presence
+            let affected_mods = Mods::from_bits_retain(old_slot_mods ^ new_mods_bits);
+            let reload_stats = affected_mods.has_any(Mods::Relax | Mods::Autopilot);
+            if reload_stats {
+                let new_mode = Gamemode::from_mode_and_mods(match_mode_vn, new_slot_mods);
+                update_match_members_presences(ctx, vec![slot_user.user_id].into_iter(), new_mode)
+                    .await?;
+            }
         } else {
-            slots
-                .iter_mut()
-                .filter(|slot| slot.user.is_some())
-                .for_each(|slot| slot.mods = slot_mods.bits());
+            let new_mods_bits = new_slot_mods.bits();
+            let new_mode = Gamemode::from_mode_and_mods(match_mode_vn, new_slot_mods);
+            mp_match.mode = new_mode as _;
+
+            let update_user_ids = slots.iter_mut().filter_map(|slot| match slot.user {
+                Some(slot_user) => {
+                    let old_slot_mods = slot.mods;
+                    slot.mods = new_mods_bits;
+
+                    let affected_mods = Mods::from_bits_retain(old_slot_mods ^ new_mods_bits);
+                    match affected_mods.has_any(Mods::Relax | Mods::Autopilot) {
+                        true => Some(slot_user.user_id),
+                        false => None,
+                    }
+                }
+                None => None,
+            });
+
+            update_match_members_presences(ctx, update_user_ids, new_mode).await?;
             multiplayer::update_all_slots(ctx, match_id, slots).await?;
         }
     } else {
+        let new_mode = Gamemode::from_mode_and_mods(match_mode_vn, mods);
+        mp_match.mode = new_mode as _;
         mp_match.mods = mods.bits();
+
+        if new_mode != match_mode {
+            // Update stats for all match members when mode changes
+            let match_member_ids = slots.iter().filter_map(|slot| match slot.user {
+                None => None,
+                Some(user) => Some(user.user_id),
+            });
+            update_match_members_presences(ctx, match_member_ids, new_mode).await?;
+        }
     }
 
     let mp_match = multiplayer::update(ctx, mp_match, false).await?;
