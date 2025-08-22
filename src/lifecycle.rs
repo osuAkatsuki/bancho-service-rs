@@ -12,7 +12,6 @@ pub fn initialize_logging(settings: &AppSettings) {
         .json()
         .with_timer(tracing_subscriber::fmt::time())
         .with_level(true)
-        .compact()
         .init();
 }
 

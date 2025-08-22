@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::hardware_logs::{HardwareLog, MatchingHardwareLog};
 
 /// Fetches hardware log entries not matching the user_id but matching either of the hashes

@@ -7,6 +7,17 @@ use chrono::{Months, NaiveDate};
 use std::str::FromStr;
 use uuid::Uuid;
 
+#[repr(i32)]
+pub enum LoginError {
+    InvalidCredentials = -1,
+    OldVersion = -2,
+    Banned = -3,
+    UnexpectedError = -5,
+    /*NeedSupporter = -6,
+    PasswordReset = -7,
+    RequireVerification = -8,*/
+}
+
 pub struct BanchoResponse {
     response_data: Vec<u8>,
     cho_token: String,
@@ -74,6 +85,7 @@ pub enum ReleaseStream {
     Stable,
     Beta,
     CuttingEdge,
+    Tourney,
 }
 
 #[derive(Debug)]
@@ -87,9 +99,10 @@ impl OsuVersion {
     pub fn is_outdated(&self) -> bool {
         let today = chrono::Utc::now().date_naive();
         let version_expiration_months = match self.release_stream {
-            ReleaseStream::Stable => 12,
-            ReleaseStream::Beta => 12,
-            ReleaseStream::CuttingEdge => 6,
+            ReleaseStream::Tourney => 24,
+            ReleaseStream::Stable => 24,
+            ReleaseStream::Beta => 24,
+            ReleaseStream::CuttingEdge => 12,
         };
         let version_expiration_date = self.version_date + Months::new(version_expiration_months);
         // Version is outdated
@@ -104,20 +117,16 @@ impl FromStr for OsuVersion {
         let version_string = version_string
             .strip_prefix("b")
             .ok_or(AppError::UnsupportedClientVersion)?;
-        let (beta, version_string) = match version_string.strip_suffix("beta") {
-            None => (false, version_string),
-            Some(version_string) => (true, version_string),
-        };
-        let (cutting_edge, version_string) = match version_string.strip_suffix("cuttingedge") {
-            None => (false, version_string),
-            Some(version_string) => (true, version_string),
-        };
-        let release_stream = if beta {
-            ReleaseStream::Beta
-        } else if cutting_edge {
-            ReleaseStream::CuttingEdge
-        } else {
-            ReleaseStream::Stable
+
+        let (release_stream, version_string) = match version_string.strip_suffix("beta") {
+            Some(ver) => (ReleaseStream::Beta, ver),
+            None => match version_string.strip_suffix("cuttingedge") {
+                Some(ver) => (ReleaseStream::CuttingEdge, ver),
+                None => match version_string.strip_suffix("tourney") {
+                    Some(ver) => (ReleaseStream::Tourney, ver),
+                    None => (ReleaseStream::Stable, version_string),
+                },
+            },
         };
 
         let mut version_split = version_string.split('.');

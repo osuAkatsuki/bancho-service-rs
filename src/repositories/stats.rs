@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
 use crate::entities::stats::Stats;
 use bancho_protocol::structures::{Country, Mode};
@@ -11,7 +11,7 @@ user_id, mode, ranked_score, total_score, playcount, replays_watched,
 total_hits, level, avg_accuracy, pp, playtime, xh_count, x_count, sh_count,
 s_count, a_count, b_count, c_count, d_count, max_combo, latest_pp_awarded"#;
 
-pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64, mode: i16) -> sqlx::Result<Stats> {
+pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64, mode: Gamemode) -> sqlx::Result<Stats> {
     const QUERY: &str = const_str::concat!(
         "SELECT ",
         READ_FIELDS,
@@ -21,7 +21,7 @@ pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64, mode: i16) -> sqlx::Re
     );
     sqlx::query_as(QUERY)
         .bind(user_id)
-        .bind(mode)
+        .bind(mode as i16)
         .fetch_one(ctx.db())
         .await
 }
@@ -61,7 +61,7 @@ pub async fn fetch_global_rank<C: Context>(
     user_id: i64,
     mode: Gamemode,
 ) -> anyhow::Result<Option<usize>> {
-    let key = make_key(mode.to_bancho(), mode.custom_gamemode());
+    let key = make_key(mode.as_bancho(), mode.custom_gamemode());
     let mut redis = ctx.redis().await?;
     Ok(redis.zrevrank(key, user_id).await?)
 }
@@ -72,7 +72,7 @@ pub async fn remove_from_leaderboard<C: Context>(
     user_country: Country,
     gamemode: Gamemode,
 ) -> anyhow::Result<()> {
-    let mode = gamemode.to_bancho();
+    let mode = gamemode.as_bancho();
     let custom_mode = gamemode.custom_gamemode();
     let key = make_key(mode, custom_mode);
 
@@ -96,7 +96,7 @@ pub async fn add_to_leaderboard<C: Context>(
     gamemode: Gamemode,
     performance: u32,
 ) -> anyhow::Result<()> {
-    let mode = gamemode.to_bancho();
+    let mode = gamemode.as_bancho();
     let custom_mode = gamemode.custom_gamemode();
     let key = make_key(mode, custom_mode);
 

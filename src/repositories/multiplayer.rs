@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::common::redis_json::Json;
 use crate::entities::multiplayer::{MultiplayerMatch, MultiplayerMatchSlot};
 use crate::entities::sessions::SessionIdentity;
@@ -7,11 +7,29 @@ use redis::AsyncCommands;
 use std::ops::DerefMut;
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TimerType {
+    Regular,
+    MatchStart,
+}
+
 const KEY: &str = "akatsuki:bancho:multiplayer";
 const SESSIONS_MATCHES_KEY: &str = "akatsuki:bancho:sessions:multiplayer";
 pub const MULTIPLAYER_MAX_SIZE: usize = 16;
+
+fn make_referees_key(match_id: i64) -> String {
+    format!("akatsuki:bancho:multiplayer:referees:{match_id}")
+}
+
 fn make_slots_key(match_id: i64) -> String {
     format!("akatsuki:bancho:multiplayer:{match_id}")
+}
+
+fn make_timer_key(match_id: i64, timer_type: TimerType) -> String {
+    match timer_type {
+        TimerType::Regular => format!("akatsuki:bancho:multiplayer:timer:{match_id}"),
+        TimerType::MatchStart => format!("akatsuki:bancho:multiplayer:start_timer:{match_id}"),
+    }
 }
 
 pub async fn create<C: Context>(
@@ -80,9 +98,18 @@ pub async fn create<C: Context>(
 pub async fn delete<C: Context>(ctx: &C, match_id: i64) -> anyhow::Result<()> {
     let mut redis = ctx.redis().await?;
     let slots_key = make_slots_key(match_id);
+    let referees_key = make_referees_key(match_id);
+    let timer_key = make_timer_key(match_id, TimerType::Regular);
+    let start_timer_key = make_timer_key(match_id, TimerType::MatchStart);
     redis::pipe()
         .atomic()
         .del(slots_key)
+        .ignore()
+        .del(referees_key)
+        .ignore()
+        .del(timer_key)
+        .ignore()
+        .del(start_timer_key)
         .ignore()
         .hdel(KEY, match_id)
         .ignore()
@@ -273,6 +300,94 @@ pub async fn update_all_slots<C: Context>(
     let slots_key = make_slots_key(match_id);
     let slots: [_; MULTIPLAYER_MAX_SIZE] = std::array::from_fn(|i| (i, Json(slots[i])));
     let _: () = redis.hset_multiple(slots_key, &slots).await?;
+    Ok(())
+}
+
+// Referees
+
+pub async fn add_referee<C: Context>(ctx: &C, match_id: i64, user_id: i64) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let referees_key = make_referees_key(match_id);
+    let _: () = redis.sadd(referees_key, user_id).await?;
+    Ok(())
+}
+
+pub async fn remove_referee<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    user_id: i64,
+) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let referees_key = make_referees_key(match_id);
+    let _: () = redis.srem(referees_key, user_id).await?;
+    Ok(())
+}
+
+pub async fn get_referees<C: Context>(ctx: &C, match_id: i64) -> anyhow::Result<Vec<i64>> {
+    let mut redis = ctx.redis().await?;
+    let referees_key = make_referees_key(match_id);
+    let referees = redis.smembers(referees_key).await?;
+    Ok(referees)
+}
+
+pub async fn is_referee<C: Context>(ctx: &C, match_id: i64, user_id: i64) -> anyhow::Result<bool> {
+    let mut redis = ctx.redis().await?;
+    let referees_key = make_referees_key(match_id);
+    let is_referee = redis.sismember(referees_key, user_id).await?;
+    Ok(is_referee)
+}
+
+pub async fn clear_referees<C: Context>(ctx: &C, match_id: i64) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let referees_key = make_referees_key(match_id);
+    let _: () = redis.del(referees_key).await?;
+    Ok(())
+}
+
+// Timers
+
+pub async fn set_timer<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+    seconds: u64,
+) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let timer_key = make_timer_key(match_id, timer_type);
+    let _: () = redis.set(timer_key, seconds).await?;
+    Ok(())
+}
+
+pub async fn get_timer<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+) -> anyhow::Result<Option<i64>> {
+    let mut redis = ctx.redis().await?;
+    let timer_key = make_timer_key(match_id, timer_type);
+    let remaining_seconds = redis.get(timer_key).await?;
+    Ok(remaining_seconds)
+}
+
+pub async fn decrease_timer<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+) -> anyhow::Result<i64> {
+    let mut redis = ctx.redis().await?;
+    let timer_key = make_timer_key(match_id, timer_type);
+    let remaining_seconds = redis.decr(timer_key, 1).await?;
+    Ok(remaining_seconds)
+}
+
+pub async fn abort_timer<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let timer_key = make_timer_key(match_id, timer_type);
+    let _: () = redis.del(timer_key).await?;
     Ok(())
 }
 

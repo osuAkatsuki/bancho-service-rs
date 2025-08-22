@@ -1,5 +1,5 @@
 use crate::common::chat::safe_username;
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::users::User;
 use crate::models::privileges::Privileges;
 use chrono::{TimeDelta, Utc};
@@ -36,6 +36,20 @@ pub async fn fetch_one_by_username<C: Context>(ctx: &C, username: &str) -> sqlx:
         " FROM ",
         TABLE_NAME,
         " WHERE username = ?"
+    );
+    sqlx::query_as(QUERY)
+        .bind(username)
+        .fetch_one(ctx.db())
+        .await
+}
+
+pub async fn fetch_one_by_username_safe<C: Context>(ctx: &C, username: &str) -> sqlx::Result<User> {
+    const QUERY: &str = const_str::concat!(
+        "SELECT ",
+        READ_FIELDS,
+        " FROM ",
+        TABLE_NAME,
+        " WHERE username_safe = ?"
     );
     sqlx::query_as(QUERY)
         .bind(username)
@@ -92,6 +106,86 @@ pub async fn ban<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
     let privileges = Privileges::PubliclyVisible | Privileges::CanLogin;
     sqlx::query(QUERY)
         .bind(privileges.bits())
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn unban<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET privileges = (privileges | (?)) WHERE id = ?";
+    let privileges = Privileges::PubliclyVisible | Privileges::CanLogin;
+    sqlx::query(QUERY)
+        .bind(privileges.bits())
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn unrestrict<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET privileges = (privileges | (?)) WHERE id = ?";
+    let privileges = Privileges::PubliclyVisible;
+    sqlx::query(QUERY)
+        .bind(privileges.bits())
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn freeze<C: Context>(ctx: &C, user_id: i64, reason: &str) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET frozen = 1, freeze_reason = ? WHERE id = ?";
+    sqlx::query(QUERY)
+        .bind(reason)
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn unfreeze<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET frozen = 0, freeze_reason = NULL WHERE id = ?";
+    sqlx::query(QUERY).bind(user_id).execute(ctx.db()).await?;
+    Ok(())
+}
+
+pub async fn update_privileges<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    privileges: Privileges,
+) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET privileges = ? WHERE id = ?";
+    sqlx::query(QUERY)
+        .bind(privileges.bits())
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn update_whitelist<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    whitelist_bit: i32,
+) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET whitelist = ? WHERE id = ?";
+    sqlx::query(QUERY)
+        .bind(whitelist_bit)
+        .bind(user_id)
+        .execute(ctx.db())
+        .await?;
+    Ok(())
+}
+
+pub async fn update_donor_expiry<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    donor_expire: i64,
+) -> sqlx::Result<()> {
+    const QUERY: &str = "UPDATE users SET donor_expire = ? WHERE id = ?";
+    sqlx::query(QUERY)
+        .bind(donor_expire)
         .bind(user_id)
         .execute(ctx.db())
         .await?;

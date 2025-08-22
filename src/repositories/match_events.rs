@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::match_events::{MatchEvent, MatchEventType};
 use chrono::Utc;
 

@@ -4,12 +4,11 @@ pub mod v1;
 
 use crate::common::axum_ip::IpAddrInfo;
 use crate::common::context::Context;
-use crate::common::redis_pool::{PoolResult, RedisPool};
+use crate::common::redis_pool::RedisPool;
 use crate::common::state::AppState;
 use crate::lifecycle;
 use crate::models::bancho::BanchoResponse;
 use crate::settings::AppSettings;
-use async_trait::async_trait;
 use axum::Router;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -65,13 +64,12 @@ impl FromRequestParts<AppState> for RequestContext {
     }
 }
 
-#[async_trait]
 impl Context for RequestContext {
-    fn db(&self) -> &Pool<MySql> {
+    fn db_pool(&self) -> &Pool<MySql> {
         &self.db
     }
 
-    async fn redis(&self) -> PoolResult {
-        self.redis.get().await
+    fn redis_pool(&self) -> &RedisPool {
+        &self.redis
     }
 }

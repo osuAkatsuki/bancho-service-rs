@@ -90,7 +90,7 @@ async fn do_verification_checks<C: Context>(
 ) -> ServiceResult<()> {
     // users::ban(ctx, user_id).await?;
     let notification = format!("[{username}]({user_id})");
-    let _ = discord::red("User banned (Multiaccount)", &notification, None).await;
+    let _ = discord::send_logs_red_embed("User banned (Multiaccount)", &notification, None).await;
     for (match_user_id, hw_match) in hw_matches.user_matches {
         let match_username = &hw_match.username;
         if hw_match.has_activated_hardware {
@@ -103,13 +103,19 @@ async fn do_verification_checks<C: Context>(
                         "Restricted [{}]({}) for creating a multiaccount [{}]({})",
                         match_username, match_user_id, username, user_id,
                     );
-                    let _ = discord::red("User restricted", &notification, None).await;
+                    let _ =
+                        discord::send_logs_red_embed("User restricted", &notification, None).await;
                 }
                 false => {
                     let notification = format!(
                         "[{match_username}]({match_user_id}) created multiaccount [{username}]({user_id})",
                     );
-                    let _ = discord::red("User created multiaccount", &notification, None).await;
+                    let _ = discord::send_logs_red_embed(
+                        "User created multiaccount",
+                        &notification,
+                        None,
+                    )
+                    .await;
                 }
             }
         } else {
@@ -119,7 +125,12 @@ async fn do_verification_checks<C: Context>(
                 "[{}]({}) may have created a multiaccount [{}]({})\nHardware Usage Percentage: {:.2}%",
                 match_username, match_user_id, username, user_id, usage_percent,
             );
-            let _ = discord::red("Possible multiaccount association", &notification, None).await;
+            let _ = discord::send_logs_red_embed(
+                "Possible multiaccount association",
+                &notification,
+                None,
+            )
+            .await;
         }
     }
 
@@ -154,12 +165,14 @@ async fn do_regular_checks<C: Context>(
                         match_user_id,
                         match_usage_percent * 100.0,
                     );
-                    let _ = discord::red("Possible multiaccount", &notification, None).await;
+                    let _ =
+                        discord::send_logs_red_embed("Possible multiaccount", &notification, None)
+                            .await;
                 } else {
                     let notification = format!(
                         "[{username}]({user_id}) logged in with [{match_username}]({match_user_id})'s hardware."
                     );
-                    let _ = discord::blue(
+                    let _ = discord::send_logs_blue_embed(
                         "User logged in with another users' hardware",
                         &notification,
                         None,
@@ -171,8 +184,12 @@ async fn do_regular_checks<C: Context>(
                 let notification = format!(
                     "[{username}]({user_id}) logged in with [{match_username}]({match_user_id})'s hardware, who is restricted."
                 );
-                let _ =
-                    discord::red("Banned User (Possible Multiaccount)", &notification, None).await;
+                let _ = discord::send_logs_red_embed(
+                    "Banned User (Possible Multiaccount)",
+                    &notification,
+                    None,
+                )
+                .await;
                 return Err(AppError::SessionsLoginForbidden);
             }
         } else {
@@ -182,15 +199,20 @@ async fn do_regular_checks<C: Context>(
                     let notification = format!(
                         "[{username}]({user_id}) logged in with hardware used more than 20% by [{match_username}]({match_user_id}), who is restricted."
                     );
-                    let _ =
-                        discord::red("Banned User (Possible Multiaccount)", &notification, None)
-                            .await;
+                    let _ = discord::send_logs_red_embed(
+                        "Banned User (Possible Multiaccount)",
+                        &notification,
+                        None,
+                    )
+                    .await;
                     return Err(AppError::SessionsLoginForbidden);
                 } else {
                     let notification = format!(
                         "[{username}]({user_id}) has hardware match with [{match_username}]({match_user_id}), who is restricted."
                     );
-                    let _ = discord::blue("Possible Multiaccount", &notification, None).await;
+                    let _ =
+                        discord::send_logs_blue_embed("Possible Multiaccount", &notification, None)
+                            .await;
                 }
             } else if match_usage_percent > usage_percent {
                 let notification = format!(
@@ -202,7 +224,7 @@ async fn do_regular_checks<C: Context>(
                     match_user_id,
                     match_usage_percent * 100.0,
                 );
-                let _ = discord::blue(
+                let _ = discord::send_logs_blue_embed(
                     "User logged in with another users' hardware",
                     &notification,
                     None,

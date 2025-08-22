@@ -23,6 +23,11 @@ pub enum AppError {
     UnsupportedClientVersion,
     ClientTooOld,
     InteractionBlocked,
+    MaintenanceModeEnabled,
+
+    BeatmapsNotFound,
+
+    BadgesNotFound,
 
     ChannelsNotFound,
     ChannelsUnauthorized,
@@ -30,11 +35,13 @@ pub enum AppError {
 
     /// 0: Syntax, 1: Type Signature, 2: Typed Syntax
     CommandsInvalidSyntax(&'static str, &'static str, &'static str),
+    CommandsInvalidArgument(&'static str),
     CommandsUnknownCommand,
     CommandsUnauthorized,
 
     MessagesInvalidLength,
     MessagesUserAutoSilenced,
+    MessagesUserSilenced,
 
     MultiplayerNotFound,
     MultiplayerUnauthorized,
@@ -49,6 +56,8 @@ pub enum AppError {
     RelationshipsNotFound,
 
     UsersNotFound,
+
+    ScoresNotFound,
 
     SessionsLoginForbidden,
     SessionsInvalidCredentials,
@@ -79,17 +88,24 @@ impl AppError {
             AppError::UnsupportedClientVersion => "unsupported_client_version",
             AppError::ClientTooOld => "client_too_old",
             AppError::InteractionBlocked => "interaction_blocked",
+            AppError::MaintenanceModeEnabled => "maintenance_mode_enabled",
+
+            AppError::BeatmapsNotFound => "beatmaps.not_found",
+
+            AppError::BadgesNotFound => "badges.not_found",
 
             AppError::ChannelsNotFound => "channels.not_found",
             AppError::ChannelsUnauthorized => "channels.unauthorized",
             AppError::ChannelsInvalidName => "channels.invalid_name",
 
             AppError::CommandsInvalidSyntax(_, _, _) => "commands.invalid_syntax",
+            AppError::CommandsInvalidArgument(_) => "commands.invalid_argument",
             AppError::CommandsUnknownCommand => "commands.unknown_command",
             AppError::CommandsUnauthorized => "commands.unauthorized",
 
             AppError::MessagesInvalidLength => "messages.invalid_length",
             AppError::MessagesUserAutoSilenced => "messages.user_auto_silenced",
+            AppError::MessagesUserSilenced => "messages.user_silenced",
 
             AppError::MultiplayerNotFound => "multiplayer.not_found",
             AppError::MultiplayerUnauthorized => "multiplayer.unauthorized",
@@ -104,6 +120,8 @@ impl AppError {
             AppError::RelationshipsNotFound => "relationships.not_found",
 
             AppError::UsersNotFound => "users.not_found",
+
+            AppError::ScoresNotFound => "scores.not_found",
 
             AppError::SessionsLoginForbidden => "sessions.login_forbidden",
             AppError::SessionsInvalidCredentials => "sessions.invalid_credentials",
@@ -125,6 +143,11 @@ impl AppError {
             AppError::InteractionBlocked => {
                 "You do not have permission to interact with this user."
             }
+            AppError::MaintenanceModeEnabled => "Maintenance mode is enabled.",
+
+            AppError::BeatmapsNotFound => "Beatmap could not be found.",
+
+            AppError::BadgesNotFound => "Badge could not be found.",
 
             AppError::ChannelsNotFound => "Channel not found",
             AppError::ChannelsUnauthorized => {
@@ -133,6 +156,7 @@ impl AppError {
             AppError::ChannelsInvalidName => "Invalid Channel Name (must start with `#`)",
 
             AppError::CommandsInvalidSyntax(_, _, _) => "Invalid Command Syntax",
+            AppError::CommandsInvalidArgument(_) => "Invalid Command Argument",
             AppError::CommandsUnknownCommand => "Unknown Command",
             AppError::CommandsUnauthorized => {
                 "You do not have sufficient privileges to use this command."
@@ -144,6 +168,7 @@ impl AppError {
             AppError::MessagesUserAutoSilenced => {
                 "You have sent too many messages in a short period of time."
             }
+            AppError::MessagesUserSilenced => "You have been silenced.",
 
             AppError::MultiplayerNotFound => "The multiplayer match could not be found.",
             AppError::MultiplayerUnauthorized => {
@@ -163,6 +188,8 @@ impl AppError {
 
             AppError::UsersNotFound => "This user does not exist.",
 
+            AppError::ScoresNotFound => "No score could be found.",
+
             AppError::SessionsLoginForbidden => "Your account is not allowed to login.",
             AppError::SessionsInvalidCredentials => {
                 "You have entered an invalid username or password."
@@ -181,6 +208,7 @@ impl AppError {
             AppError::DecodingRequestFailed
             | AppError::ChannelsInvalidName
             | AppError::CommandsInvalidSyntax(_, _, _)
+            | AppError::CommandsInvalidArgument(_)
             | AppError::MessagesInvalidLength
             | AppError::MultiplayerInvalidSlotID
             | AppError::StreamsInvalidKey => StatusCode::BAD_REQUEST,
@@ -197,9 +225,13 @@ impl AppError {
             | AppError::InteractionBlocked
             | AppError::MultiplayerMatchFull
             | AppError::SessionsLoginForbidden
-            | AppError::SessionsLimitReached => StatusCode::FORBIDDEN,
+            | AppError::SessionsLimitReached
+            | AppError::MessagesUserSilenced
+            | AppError::MaintenanceModeEnabled => StatusCode::FORBIDDEN,
 
-            AppError::ChannelsNotFound
+            AppError::BadgesNotFound
+            | AppError::BeatmapsNotFound
+            | AppError::ChannelsNotFound
             | AppError::CommandsUnknownCommand
             | AppError::MultiplayerNotFound
             | AppError::MultiplayerSlotNotFound
@@ -207,6 +239,7 @@ impl AppError {
             | AppError::PresencesNotFound
             | AppError::RelationshipsNotFound
             | AppError::UsersNotFound
+            | AppError::ScoresNotFound
             | AppError::SessionsNotFound => StatusCode::NOT_FOUND,
             AppError::MessagesUserAutoSilenced => StatusCode::TOO_MANY_REQUESTS,
 

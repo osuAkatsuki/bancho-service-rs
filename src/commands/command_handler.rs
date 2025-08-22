@@ -2,13 +2,14 @@ use crate::commands::from_args::FromCommandArgs;
 use crate::commands::{CommandResponse, CommandResult};
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult};
-use crate::common::redis_pool::PoolResult;
+use crate::common::redis_pool::RedisPool;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use async_trait::async_trait;
 use hashbrown::HashMap;
 use sqlx::{MySql, Pool};
 
+#[derive(Debug)]
 pub struct CommandProperties {
     pub name: &'static str,
     pub forward_message: bool,
@@ -28,10 +29,9 @@ pub struct RegisteredCommand {
     handler: Box<dyn CommandHandlerProxy>,
 }
 
-pub type CommandRouterFactory = fn() -> CommandRouter;
 pub type CommandRouterInstance = std::sync::LazyLock<CommandRouter>;
 pub struct CommandRouter {
-    commands: HashMap<&'static str, RegisteredCommand>,
+    pub commands: HashMap<&'static str, RegisteredCommand>,
 }
 
 #[async_trait]
@@ -41,35 +41,59 @@ pub trait CommandHandlerProxy: Send + Sync {
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
-    ) -> ServiceResult<CommandResponse>;
+    ) -> ServiceResult<Option<CommandResponse>>;
 }
 
-struct CommandContext<'a>(&'a dyn Context);
-#[async_trait]
-impl Context for CommandContext<'_> {
-    fn db(&self) -> &Pool<MySql> {
-        self.0.db()
+struct CommandContext {
+    db: Pool<MySql>,
+    redis: RedisPool,
+}
+
+impl CommandContext {
+    pub fn from_ctx(ctx: &dyn Context) -> Self {
+        Self {
+            db: ctx.db_pool().clone(),
+            redis: ctx.redis_pool().clone(),
+        }
     }
-    async fn redis(&self) -> PoolResult {
-        self.0.redis().await
+}
+
+impl Context for CommandContext {
+    fn db_pool(&self) -> &Pool<MySql> {
+        &self.db
+    }
+
+    fn redis_pool(&self) -> &RedisPool {
+        &self.redis
+    }
+}
+
+impl Default for CommandProperties {
+    fn default() -> Self {
+        CommandProperties {
+            name: "",
+            forward_message: true,
+            required_privileges: None,
+            read_privileges: None,
+        }
     }
 }
 
 #[async_trait]
-impl<C: Command> CommandHandlerProxy for C {
+impl<CMD: Command> CommandHandlerProxy for CMD {
     async fn handle(
         &self,
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
-    ) -> ServiceResult<CommandResponse> {
-        let ctx = CommandContext(ctx);
-        let args = C::Args::from_args(args)?;
-        let response = C::handle(&ctx, session, args).await?;
-        Ok(CommandResponse {
-            answer: Some(response),
-            properties: C::PROPERTIES,
-        })
+    ) -> ServiceResult<Option<CommandResponse>> {
+        let ctx = CommandContext::from_ctx(ctx);
+        let args = CMD::Args::from_args(args)?;
+        let answer = CMD::handle(&ctx, session, args).await?;
+        Ok(Some(CommandResponse {
+            answer,
+            properties: CMD::PROPERTIES,
+        }))
     }
 }
 
@@ -79,17 +103,17 @@ macro_rules! commands {
         include = [$( $p:expr => $cc:expr ),* $(,)?],
         $($c:path),* $(,)?
     ) => {
-        || {
+        std::sync::LazyLock::new(|| {
             use $crate::commands::{Command, CommandRouter, RegisteredCommand};
-            fn _a<B: 'static + Command>(c: B) -> (&'static str, RegisteredCommand) {
+            fn into_pair<B: 'static + Command>(c: B) -> (&'static str, RegisteredCommand) {
                 (B::PROPERTIES.name, RegisteredCommand::new(c))
             }
 
             #[allow(unused_mut)]
-            let mut router = CommandRouter::from([ $(_a($c)),* ]);
-            $(router.nest($p, $cc);)*
+            let mut router = CommandRouter::from([ $(into_pair($c)),* ]);
+            $(router.nest($p, std::ops::Deref::deref(&$cc));)*
             router
-        }
+        })
     };
     ($($c:path),* $(,)?) => {
         $crate::commands!(include=[], $($c),*)
@@ -126,27 +150,27 @@ impl CommandRouter {
             .insert(C::PROPERTIES.name, RegisteredCommand::new(cmd));
     }
 
-    pub fn nest(&mut self, name: &'static str, router: CommandRouterFactory) {
+    pub fn nest(&mut self, name: &'static str, router: &'static CommandRouter) {
         self.commands
-            .insert(name, RegisteredCommand::group(name, router()));
+            .insert(name, RegisteredCommand::group(name, router));
     }
 }
 
 #[async_trait]
-impl CommandHandlerProxy for CommandRouter {
+impl CommandHandlerProxy for &CommandRouter {
     async fn handle(
         &self,
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
-    ) -> ServiceResult<CommandResponse> {
+    ) -> ServiceResult<Option<CommandResponse>> {
         match args {
             Some(args) => {
                 let mut parts = args.splitn(2, ' ');
                 let cmd_name = match parts.next() {
                     Some(cmd_name) => cmd_name,
                     // No command, ignore
-                    None => return Err(AppError::CommandsUnknownCommand),
+                    None => return Ok(None),
                 };
                 let args = parts.next();
                 match self.get(cmd_name) {
@@ -161,7 +185,7 @@ impl CommandHandlerProxy for CommandRouter {
                     None => Err(AppError::CommandsUnknownCommand),
                 }
             }
-            None => Err(AppError::CommandsUnknownCommand),
+            None => Ok(None),
         }
     }
 }

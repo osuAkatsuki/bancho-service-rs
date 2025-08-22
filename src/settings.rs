@@ -7,6 +7,7 @@ use std::time::Duration;
 use tracing::Level;
 
 pub struct AppSettings {
+    pub app_env: String,
     pub app_component: String,
     pub level: Level,
     pub app_host: IpAddr,
@@ -23,14 +24,19 @@ pub struct AppSettings {
     pub redis_wait_timeout: Duration,
 
     pub app_ci_key: String,
+    pub beatmaps_service_base_url: String,
+    pub performance_service_base_url: String,
 
-    pub discord_webhook_url: Option<String>,
+    pub frontend_base_url: String,
+    pub discord_logs_webhook_url: Option<String>,
+    pub discord_ranked_maps_webhook_url: Option<String>,
 }
 
 impl AppSettings {
     pub fn load_from_env() -> anyhow::Result<Self> {
         let _ = dotenv::dotenv();
 
+        let app_env = env::var("APP_ENV")?;
         let app_component = env::var("APP_COMPONENT")?;
         let level = Level::from_env("LOG_LEVEL")?;
         let app_host = IpAddr::from_env("APP_HOST")?;
@@ -51,11 +57,18 @@ impl AppSettings {
         let redis_wait_timeout = Duration::from_secs(redis_wait_timeout_secs);
 
         let app_ci_key = env::var("APP_CI_KEY")?;
-        let discord_webhook_url = env::var("DISCORD_WEBHOOK_URL")
+        let beatmaps_service_base_url = env::var("BEATMAPS_SERVICE_BASE_URL")?;
+        let performance_service_base_url = env::var("PERFORMANCE_SERVICE_BASE_URL")?;
+        let frontend_base_url = env::var("FRONTEND_URL")?;
+        let discord_logs_webhook_url = env::var("DISCORD_LOGS_WEBHOOK_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty());
+        let discord_ranked_maps_webhook_url = env::var("DISCORD_RANKED_MAPS_WEBHOOK_URL")
             .ok()
             .filter(|url| !url.trim().is_empty());
 
         Ok(AppSettings {
+            app_env,
             app_component,
             level,
             app_port,
@@ -72,8 +85,11 @@ impl AppSettings {
             redis_wait_timeout,
 
             app_ci_key,
-
-            discord_webhook_url,
+            beatmaps_service_base_url,
+            performance_service_base_url,
+            frontend_base_url,
+            discord_logs_webhook_url,
+            discord_ranked_maps_webhook_url,
         })
     }
 

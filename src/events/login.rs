@@ -2,10 +2,12 @@ use crate::api::RequestContext;
 use crate::common::error::AppError;
 use crate::entities::bot;
 use crate::entities::channels::ChannelName;
-use crate::models::bancho::{BanchoResponse, LoginArgs};
+use crate::models::bancho::{BanchoResponse, LoginArgs, LoginError};
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{channels, messages, presences, relationships, sessions, streams};
+use crate::usecases::{
+    bancho_settings, channels, messages, presences, relationships, sessions, streams,
+};
 use bancho_protocol::concat_messages;
 use bancho_protocol::messages::server::{
     Alert, ChannelInfo, ChannelInfoEnd, ChannelJoinSuccess, ChatMessage, FriendsList, LoginResult,
@@ -21,17 +23,6 @@ const WELCOME_MESSAGE: &str = r#"
              Welcome to Akatsuki!
              Running banchus v0.1
  "#; // This space is needed for osu! to render the line
-
-#[repr(i32)]
-enum LoginError {
-    InvalidCredentials = -1,
-    OldVersion = -2,
-    Banned = -3,
-    UnexpectedError = -5,
-    /*NeedSupporter = -6,
-    PasswordReset = -7,
-    RequireVerification = -8,*/
-}
 
 fn login_error(e: AppError) -> BanchoResponse {
     let login_error = match e {
@@ -53,6 +44,12 @@ fn login_error(e: AppError) -> BanchoResponse {
 }
 
 pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
+    match bancho_settings::in_maintenance_mode(ctx).await {
+        Ok(true) => return login_error(AppError::MaintenanceModeEnabled),
+        Err(e) => return login_error(e),
+        _ => {}
+    }
+
     let (session, presence) = match sessions::create(ctx, args).await {
         Ok(res) => res,
         Err(e) => return login_error(e),

@@ -1,9 +1,22 @@
 use crate::common::context::Context;
-use crate::common::error::ServiceResult;
+use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
+use crate::models::scores::LastUserScore;
 use crate::repositories::scores;
 use bancho_protocol::structures::Mode;
 use tracing::info;
+
+pub async fn fetch_last_user_score<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    custom_gamemode: CustomGamemode,
+) -> ServiceResult<LastUserScore> {
+    match scores::fetch_last_user_score(ctx, user_id, custom_gamemode).await {
+        Ok(Some(score)) => Ok(LastUserScore::from(score)),
+        Ok(None) => Err(AppError::ScoresNotFound),
+        Err(e) => unexpected(e),
+    }
+}
 
 pub async fn remove_first_places<C: Context>(
     ctx: &C,
@@ -19,9 +32,10 @@ pub async fn remove_first_places<C: Context>(
         let new_first_place =
             scores::fetch_new_first_place(ctx, user_id, &first_place.beatmap_md5, gamemode).await?;
         match new_first_place {
-            None => scores::remove_first_place(ctx, first_place.scoreid).await?,
+            None => scores::remove_first_place(ctx, first_place.score_id).await?,
             Some(new) => {
-                scores::transfer_first_place(ctx, first_place.scoreid, new.id, new.userid).await?
+                scores::transfer_first_place(ctx, first_place.score_id, new.score_id, new.user_id)
+                    .await?
             }
         }
     }

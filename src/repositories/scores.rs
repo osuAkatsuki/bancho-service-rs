@@ -1,6 +1,6 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
-use crate::entities::scores::{FirstPlaceScore, MinimalScore, NewFirstPlace};
+use crate::entities::scores::{FirstPlaceScore, LastUserScore, MinimalScore, NewFirstPlace};
 use bancho_protocol::structures::Mode;
 use sqlx::Arguments;
 use sqlx::mysql::MySqlArguments;
@@ -39,7 +39,7 @@ pub async fn fetch_new_first_place<C: Context>(
     beatmap_md5: &str,
     gamemode: Gamemode,
 ) -> sqlx::Result<Option<NewFirstPlace>> {
-    let mode = gamemode.to_bancho();
+    let mode = gamemode.as_bancho();
     let custom_mode = gamemode.custom_gamemode();
     let table = custom_mode.scores_table();
     let sort_column = custom_mode.scoring().sort_column();
@@ -91,9 +91,10 @@ pub async fn fetch_user_scores<C: Context>(
     let table_name = custom_gamemode.scores_table();
     let query = format!(
         r#"
-            SELECT s.id AS score_id, s.score, s.pp, s.play_mode AS mode,
-            s.time, s.userid AS user_id, s.beatmap_md5 FROM {table_name} s
-            LEFT JOIN beatmaps b USING(beatmap_md5)
+            SELECT s.id, s.userid, s.play_mode,
+            s.score, s.pp, s.time, s.beatmap_md5
+            FROM {table_name} s
+            INNER JOIN beatmaps b USING(beatmap_md5)
             WHERE s.userid = ? AND s.completed = 3
             AND s.score > 0 AND b.ranked > 1
         "#
@@ -104,19 +105,44 @@ pub async fn fetch_user_scores<C: Context>(
         .await
 }
 
+pub async fn fetch_last_user_score<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    custom_gamemode: CustomGamemode,
+) -> sqlx::Result<Option<LastUserScore>> {
+    let table_name = custom_gamemode.scores_table();
+    let query = format!(
+        r#"
+            SELECT s.id, s.userid, s.play_mode, s.mods,
+            s.score, s.pp, s.max_combo, s.accuracy, s.time, b.beatmap_id,
+            b.beatmapset_id, b.beatmap_md5, b.song_name,
+            b.max_combo AS beatmap_max_combo
+            FROM {table_name} s
+            INNER JOIN beatmaps b USING(beatmap_md5)
+            WHERE s.userid = ?
+            ORDER BY time DESC
+            LIMIT 1
+        "#
+    );
+    sqlx::query_as(&query)
+        .bind(user_id)
+        .fetch_optional(ctx.db())
+        .await
+}
+
 pub async fn fetch_first_place<C: Context>(
     ctx: &C,
     beatmap_md5: &str,
     gamemode: Gamemode,
 ) -> sqlx::Result<Option<MinimalScore>> {
-    let mode = gamemode.to_bancho();
+    let mode = gamemode.as_bancho();
     let custom_gamemode = gamemode.custom_gamemode();
     let table_name = custom_gamemode.scores_table();
 
     let query = format!(
         r#"
-            SELECT s.id AS score_id, s.score, s.pp, s.play_mode AS mode,
-            s.time, s.userid AS user_id, s.beatmap_md5 FROM scores_first
+            SELECT s.id, s.score, s.pp, s.play_mode,
+            s.time, s.userid, s.beatmap_md5 FROM scores_first
             INNER JOIN {table_name} s ON s.id = scores_first.scoreid
             INNER JOIN users ON users.id = scores_first.userid
             WHERE scores_first.beatmap_md5 = ?
@@ -141,7 +167,7 @@ pub async fn replace_first_place<C: Context>(
     beatmap_md5: &str,
     gamemode: Gamemode,
 ) -> sqlx::Result<()> {
-    let mode = gamemode.to_bancho();
+    let mode = gamemode.as_bancho();
     let custom_gamemode = gamemode.custom_gamemode();
     sqlx::query("REPLACE INTO scores_first VALUES (?, ?, ?, ?, ?)")
         .bind(beatmap_md5)
