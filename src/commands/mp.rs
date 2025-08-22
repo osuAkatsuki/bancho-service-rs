@@ -10,7 +10,7 @@ use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{multiplayer, sessions, streams, users};
 use bancho_protocol::messages::server::ChatMessage;
-use bancho_protocol::structures::{IrcMessage, Mods};
+use bancho_protocol::structures::{IrcMessage, MatchTeamType, Mods};
 use bancho_service_macros::{FromCommandArgs, command};
 
 pub static COMMANDS: CommandRouterFactory = commands![
@@ -152,13 +152,12 @@ pub async fn lock<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     // TODO: Need update_match function to set is_locked=true
     // await match.update_match(mp_match.match_id, is_locked=true);
@@ -172,13 +171,12 @@ pub async fn unlock<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     // TODO: Need update_match function to set is_locked=false
     // await match.update_match(mp_match.match_id, is_locked=false);
@@ -201,13 +199,12 @@ pub async fn size<C: Context>(ctx: &C, sender: &Session, args: SizeArgs) -> Comm
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     // TODO: Need force_size function
     // await match.forceSize(mp_match.match_id, args.match_size);
@@ -325,7 +322,7 @@ pub struct StartArgs {
 pub async fn start<C: Context>(
     ctx: &C,
     sender: &Session,
-    args: Option<StartArgs>,
+    _args: Option<StartArgs>,
 ) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
@@ -419,13 +416,12 @@ pub async fn set_map<C: Context>(ctx: &C, sender: &Session, args: MapArgs) -> Co
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     if let Some(gamemode) = args.gamemode {
         if gamemode > 3 {
@@ -470,13 +466,12 @@ pub async fn set_settings<C: Context>(ctx: &C, sender: &Session, args: SetArgs) 
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     // TODO: Need update_match function to change team_type, scoring_type, and size
     // await match.update_match(mp_match.match_id, match_team_type=args.team_mode, match_scoring_type=args.score_mode.unwrap_or(mp_match.match_scoring_type));
@@ -522,31 +517,28 @@ pub async fn kick_user<C: Context>(ctx: &C, sender: &Session, args: KickArgs) ->
 
 #[derive(Debug, FromCommandArgs)]
 pub struct PasswordArgs {
-    pub new_password: Option<String>,
+    pub new_password: String,
 }
 
 #[command("password", forward_message = false)]
 pub async fn set_password<C: Context>(
     ctx: &C,
     sender: &Session,
-    args: PasswordArgs,
+    _args: PasswordArgs,
 ) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
-
-    let _new_password = args.new_password.unwrap_or_else(|| "".to_string());
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     // TODO: Need change_password function
-    // await match.changePassword(mp_match.match_id, new_password);
+    // await match.changePassword(mp_match.match_id, args.new_password);
 
     Ok(Some("Match password has been changed!".to_string()))
 }
@@ -557,13 +549,12 @@ pub async fn randomize_password<C: Context>(ctx: &C, sender: &Session) -> Comman
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     // TODO: Need change_password function with random password
     // let new_password = Uuid::new_v4().to_string();
@@ -606,18 +597,16 @@ pub async fn set_user_team<C: Context>(
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
-
-    // TODO: Check if team vs mode
-    // if mp_match.match_team_type != matchTeamTypes.TEAM_VS && mp_match.match_team_type != matchTeamTypes.TAG_TEAM_VS {
-    //     return Ok(Some("Command only available in team vs.".to_string()));
-    // }
+    if mp_match.team_type != MatchTeamType::Vs || mp_match.team_type != MatchTeamType::TagVs {
+        return Ok(Some("Command only available in versus mode.".to_string()));
+    }
 
     let colour = args.colour.to_lowercase();
     if colour != "red" && colour != "blue" {
@@ -626,8 +615,7 @@ pub async fn set_user_team<C: Context>(
 
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
 
-    // TODO: Need change_team function
-    // await match.changeTeam(mp_match.match_id, target_user.user_id, colour_const);
+    // TODO: multiplayer::set_user_team(ctx, match_id, target_user.user_id).await?;
 
     Ok(Some(format!(
         "{} is now in {} team",
@@ -641,26 +629,21 @@ pub async fn view_settings<C: Context>(ctx: &C, sender: &Session) -> CommandResu
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+    let mut msg = vec!["PLAYERS IN THIS MATCH".to_string()];
+    for slot in slots.iter().filter_map(|slot| slot.user) {
+        let user = users::fetch_one(ctx, slot.user_id).await?;
+        msg.push(format!("{} ({})", user.username, user.user_id));
+    }
 
-    // TODO: Need get_slots function and slot status formatting
-    // let slots = await slot.get_slots(mp_match.match_id);
-    // let mut msg = vec!["PLAYERS IN THIS MATCH ".to_string()];
-    // if !args.single_line {
-    //     msg.push("(use !mp settings single for a single-line version):\n".to_string());
-    // } else {
-    //     msg.push(": ".to_string());
-    // }
-
-    Ok(Some(
-        "PLAYERS IN THIS MATCH: TODO - need slot functions".to_string(),
-    ))
+    Ok(Some(msg.join("\n")))
 }
 
 #[derive(Debug, FromCommandArgs)]
@@ -682,13 +665,12 @@ pub async fn set_scorev<C: Context>(
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     // TODO: Need update_match function to change scoring type
     // let new_scoring_type = if args.version == "2" { matchScoringTypes.SCORE_V2 } else { matchScoringTypes.SCORE };
@@ -739,13 +721,12 @@ pub async fn timer<C: Context>(ctx: &C, sender: &Session, args: TimerArgs) -> Co
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     // TODO: Need timer functions and countdown logic
     // if mp_match.is_timer_running {
@@ -771,7 +752,12 @@ pub async fn aborttimer<C: Context>(ctx: &C, sender: &Session) -> CommandResult 
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     // TODO: Need update_match function to set is_timer_running=false
     // await match.update_match(mp_match.match_id, is_timer_running=false);
