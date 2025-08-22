@@ -4,6 +4,7 @@ use crate::commands;
 use crate::commands::{CommandResult, CommandRouterFactory};
 use crate::common::context::Context;
 use crate::common::error::AppError;
+use crate::common::website;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
@@ -13,11 +14,11 @@ use bancho_protocol::structures::{IrcMessage, Mods};
 use bancho_service_macros::{FromCommandArgs, command};
 
 pub static COMMANDS: CommandRouterFactory = commands![
-    host,
-    addref,
-    rmref,
-    listref,
-    clearhost,
+    set_host,
+    add_referee,
+    remove_referee,
+    list_referees,
+    clear_host,
     lock,
     unlock,
     size,
@@ -27,28 +28,28 @@ pub static COMMANDS: CommandRouterFactory = commands![
     start,
     abort,
     invite_user,
-    map,
-    set,
-    kick,
-    password,
-    randompassword,
+    set_map,
+    set_settings,
+    kick_user,
+    set_password,
+    randomize_password,
     change_mods,
-    team,
-    settings,
-    scorev,
+    set_user_team,
+    view_settings,
+    set_scorev,
     help,
-    link,
+    match_history_link,
     timer,
     aborttimer,
 ];
 
 #[derive(Debug, FromCommandArgs)]
-pub struct HostArgs {
+pub struct SetHostArgs {
     pub safe_username: String,
 }
 
 #[command("host")]
-pub async fn host<C: Context>(ctx: &C, sender: &Session, args: HostArgs) -> CommandResult {
+pub async fn set_host<C: Context>(ctx: &C, sender: &Session, args: SetHostArgs) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -65,7 +66,11 @@ pub struct AddRefereeArgs {
 }
 
 #[command("addref")]
-pub async fn addref<C: Context>(ctx: &C, sender: &Session, args: AddRefereeArgs) -> CommandResult {
+pub async fn add_referee<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: AddRefereeArgs,
+) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -81,7 +86,7 @@ pub struct RemoveRefereeArgs {
 }
 
 #[command("rmref")]
-pub async fn rmref<C: Context>(
+pub async fn remove_referee<C: Context>(
     ctx: &C,
     sender: &Session,
     args: RemoveRefereeArgs,
@@ -99,7 +104,7 @@ pub async fn rmref<C: Context>(
 }
 
 #[command("listref")]
-pub async fn listref<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
+pub async fn list_referees<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -125,7 +130,7 @@ pub async fn listref<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
 }
 
 #[command("clearhost")]
-pub async fn clearhost<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
+pub async fn clear_host<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -409,7 +414,7 @@ pub struct MapArgs {
 }
 
 #[command("map")]
-pub async fn map<C: Context>(ctx: &C, sender: &Session, args: MapArgs) -> CommandResult {
+pub async fn set_map<C: Context>(ctx: &C, sender: &Session, args: MapArgs) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -442,7 +447,7 @@ pub struct SetArgs {
 }
 
 #[command("set")]
-pub async fn set<C: Context>(ctx: &C, sender: &Session, args: SetArgs) -> CommandResult {
+pub async fn set_settings<C: Context>(ctx: &C, sender: &Session, args: SetArgs) -> CommandResult {
     if args.team_mode > 3 {
         return Ok(Some("Match team type must be between 0 and 3.".to_string()));
     }
@@ -485,7 +490,7 @@ pub struct KickArgs {
 }
 
 #[command("kick")]
-pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> CommandResult {
+pub async fn kick_user<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -521,7 +526,11 @@ pub struct PasswordArgs {
 }
 
 #[command("password", forward_message = false)]
-pub async fn password<C: Context>(ctx: &C, sender: &Session, args: PasswordArgs) -> CommandResult {
+pub async fn set_password<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: PasswordArgs,
+) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -543,7 +552,7 @@ pub async fn password<C: Context>(ctx: &C, sender: &Session, args: PasswordArgs)
 }
 
 #[command("randompassword")]
-pub async fn randompassword<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
+pub async fn randomize_password<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -582,13 +591,17 @@ pub async fn change_mods<C: Context>(ctx: &C, sender: &Session, args: ModsArgs) 
 }
 
 #[derive(Debug, FromCommandArgs)]
-pub struct TeamArgs {
+pub struct SetUserTeamArgs {
     pub safe_username: String,
     pub colour: String,
 }
 
 #[command("team")]
-pub async fn team<C: Context>(ctx: &C, sender: &Session, args: TeamArgs) -> CommandResult {
+pub async fn set_user_team<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: SetUserTeamArgs,
+) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -623,7 +636,7 @@ pub async fn team<C: Context>(ctx: &C, sender: &Session, args: TeamArgs) -> Comm
 }
 
 #[command("settings")]
-pub async fn settings<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
+pub async fn view_settings<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
@@ -651,12 +664,16 @@ pub async fn settings<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
 }
 
 #[derive(Debug, FromCommandArgs)]
-pub struct ScoreVArgs {
+pub struct SetScoreVArgs {
     pub version: String,
 }
 
 #[command("scorev")]
-pub async fn scorev<C: Context>(ctx: &C, sender: &Session, args: ScoreVArgs) -> CommandResult {
+pub async fn set_scorev<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: SetScoreVArgs,
+) -> CommandResult {
     if args.version != "1" && args.version != "2" {
         return Ok(Some("Incorrect syntax: !mp scorev <1|2>.".to_string()));
     }
@@ -689,19 +706,14 @@ pub async fn help<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
 }
 
 #[command("link")]
-pub async fn link<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
+pub async fn match_history_link<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Need get_match_history_message function
-    // return match.get_match_history_message(mp_match.match_id, mp_match.match_history_private);
-
-    Ok(Some(
-        "Match history link: TODO - need match history function".to_string(),
-    ))
+    let mp_history_link = website::get_match_history_link(match_id);
+    let message = format!("Match history available [{mp_history_link} here].");
+    Ok(Some(message))
 }
 
 #[derive(Debug, FromCommandArgs)]

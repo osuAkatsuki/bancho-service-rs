@@ -4,3 +4,8 @@ pub fn get_profile_link(user_id: i64) -> String {
     let frontend_base = &AppSettings::get().frontend_base_url;
     format!("{frontend_base}/u/{user_id}")
 }
+
+pub fn get_match_history_link(match_id: i64) -> String {
+    let frontend_base = &AppSettings::get().frontend_base_url;
+    format!("{frontend_base}/matches/{match_id}")
+}
