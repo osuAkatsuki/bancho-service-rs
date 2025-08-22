@@ -11,7 +11,7 @@ use crate::repositories::multiplayer::TimerType;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{multiplayer, sessions, streams, users};
 use bancho_protocol::messages::server::ChatMessage;
-use bancho_protocol::structures::{IrcMessage, MatchTeamType, Mods};
+use bancho_protocol::structures::{IrcMessage, MatchTeam, MatchTeamType, Mods, WinCondition};
 use bancho_service_macros::{FromCommandArgs, command};
 
 pub static COMMANDS: CommandRouterFactory = commands![
@@ -160,8 +160,7 @@ pub async fn lock<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: Need update_match function to set is_locked=true
-    // await match.update_match(mp_match.match_id, is_locked=true);
+    multiplayer::lock_match(ctx, match_id).await?;
 
     Ok(Some("This match has been locked.".to_string()))
 }
@@ -179,8 +178,7 @@ pub async fn unlock<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: Need update_match function to set is_locked=false
-    // await match.update_match(mp_match.match_id, is_locked=false);
+    multiplayer::unlock_match(ctx, match_id).await?;
 
     Ok(Some("This match has been unlocked.".to_string()))
 }
@@ -207,9 +205,7 @@ pub async fn size<C: Context>(ctx: &C, sender: &Session, args: SizeArgs) -> Comm
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: Need force_size function
-    // await match.forceSize(mp_match.match_id, args.match_size);
-
+    multiplayer::resize_match(ctx, match_id, args.match_size as _).await?;
     Ok(Some(format!("Match size changed to {}.", args.match_size)))
 }
 
@@ -475,15 +471,28 @@ pub async fn set_settings<C: Context>(ctx: &C, sender: &Session, args: SetArgs) 
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let mut mp_match = multiplayer::fetch_one(ctx, match_id).await?;
     if mp_match.host_user_id != sender.user_id
         && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: Need update_match function to change team_type, scoring_type, and size
-    // await match.update_match(mp_match.match_id, match_team_type=args.team_mode, match_scoring_type=args.score_mode.unwrap_or(mp_match.match_scoring_type));
+    // Update match settings
+    mp_match.team_type = MatchTeamType::try_from(args.team_mode)
+        .map_err(|_| AppError::CommandsInvalidArgument("Invalid team mode"))?;
+    if let Some(score_mode) = args.score_mode {
+        mp_match.win_condition = WinCondition::try_from(score_mode)
+            .map_err(|_| AppError::CommandsInvalidArgument("Invalid score mode"))?;
+    }
+
+    // Update the match
+    multiplayer::update(ctx, mp_match).await?;
+
+    // Update match size if argument is present
+    if let Some(match_size) = args.match_size {
+        multiplayer::resize_match(ctx, match_id, match_size as _).await?;
+    }
 
     Ok(Some("Match settings have been updated!".to_string()))
 }
@@ -533,21 +542,22 @@ pub struct PasswordArgs {
 pub async fn set_password<C: Context>(
     ctx: &C,
     sender: &Session,
-    _args: PasswordArgs,
+    args: PasswordArgs,
 ) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let mut mp_match = multiplayer::fetch_one(ctx, match_id).await?;
     if mp_match.host_user_id != sender.user_id
         && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: Need change_password function
-    // await match.changePassword(mp_match.match_id, args.new_password);
+    // Update match password
+    mp_match.password = args.new_password;
+    multiplayer::update(ctx, mp_match).await?;
 
     Ok(Some("Match password has been changed!".to_string()))
 }
@@ -558,16 +568,17 @@ pub async fn randomize_password<C: Context>(ctx: &C, sender: &Session) -> Comman
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let mut mp_match = multiplayer::fetch_one(ctx, match_id).await?;
     if mp_match.host_user_id != sender.user_id
         && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: Need change_password function with random password
-    // let new_password = Uuid::new_v4().to_string();
-    // multiplayer::change_password(ctx, match_id, &new_password).await?;
+    // Generate random password
+    let new_password = uuid::Uuid::new_v4().to_string();
+    mp_match.password = new_password;
+    crate::repositories::multiplayer::update(ctx, mp_match.as_entity(), true).await?;
 
     Ok(Some("Match password has been randomized.".to_string()))
 }
@@ -613,7 +624,7 @@ pub async fn set_user_team<C: Context>(
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    if mp_match.team_type != MatchTeamType::Vs || mp_match.team_type != MatchTeamType::TagVs {
+    if mp_match.team_type != MatchTeamType::Vs && mp_match.team_type != MatchTeamType::TagVs {
         return Ok(Some("Command only available in versus mode.".to_string()));
     }
 
@@ -624,7 +635,12 @@ pub async fn set_user_team<C: Context>(
 
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
 
-    // TODO: multiplayer::set_user_team(ctx, match_id, target_user.user_id).await?;
+    let new_team = if colour == "red" {
+        MatchTeam::Red
+    } else {
+        MatchTeam::Blue
+    };
+    multiplayer::set_user_team(ctx, match_id, target_user.user_id, new_team).await?;
 
     Ok(Some(format!(
         "{} is now in {} team",
@@ -666,28 +682,29 @@ pub async fn set_scorev<C: Context>(
     sender: &Session,
     args: SetScoreVArgs,
 ) -> CommandResult {
-    if args.version != "1" && args.version != "2" {
-        return Ok(Some("Incorrect syntax: !mp scorev <1|2>.".to_string()));
-    }
-
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let mut mp_match = multiplayer::fetch_one(ctx, match_id).await?;
     if mp_match.host_user_id != sender.user_id
         && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: Need update_match function to change scoring type
-    // let new_scoring_type = if args.version == "2" { matchScoringTypes.SCORE_V2 } else { matchScoringTypes.SCORE };
-    // await match.update_match(mp_match.match_id, match_scoring_type=new_scoring_type);
+    // Update scoring type
+    let new_scoring_type = if args.version == "2" {
+        WinCondition::ScoreV2
+    } else {
+        WinCondition::Score
+    };
+    mp_match.win_condition = new_scoring_type;
+    multiplayer::update(ctx, mp_match).await?;
 
     Ok(Some(format!(
-        "Match scoring type set to scorev{}.",
-        args.version
+        "Match win condition set to {:?}.",
+        new_scoring_type,
     )))
 }
 
