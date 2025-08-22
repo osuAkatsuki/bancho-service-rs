@@ -53,6 +53,16 @@ impl MultiplayerMatch {
         (self.match_id & 0xFFFF) as _
     }
 
+    pub fn invite_message(&self) -> String {
+        let safe_password = self.password.replace(" ", "_");
+        format!(
+            "\x01ACTION has invited you to their multiplayer match: [osump://{}/{} {}]",
+            self.ingame_match_id(),
+            safe_password,
+            self.name,
+        )
+    }
+
     pub fn as_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match<'_> {
         let freemods = match self.freemod_enabled {
             true => Some(slots.to_mods()),

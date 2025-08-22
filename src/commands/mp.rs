@@ -6,8 +6,10 @@ use crate::common::context::Context;
 use crate::common::error::AppError;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
-use crate::usecases::{multiplayer, users};
-use bancho_protocol::structures::Mods;
+use crate::repositories::streams::StreamName;
+use crate::usecases::{multiplayer, sessions, streams, users};
+use bancho_protocol::messages::server::ChatMessage;
+use bancho_protocol::structures::{IrcMessage, Mods};
 use bancho_service_macros::{FromCommandArgs, command};
 
 pub static COMMANDS: CommandRouterFactory = commands![
@@ -24,7 +26,7 @@ pub static COMMANDS: CommandRouterFactory = commands![
     close,
     start,
     abort,
-    invite,
+    invite_user,
     map,
     set,
     kick,
@@ -311,22 +313,25 @@ pub async fn close<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
 
 #[derive(Debug, FromCommandArgs)]
 pub struct StartArgs {
-    pub time: Option<u32>,
+    pub time: u32,
 }
 
 #[command("start")]
-pub async fn start<C: Context>(ctx: &C, sender: &Session, _args: StartArgs) -> CommandResult {
+pub async fn start<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: Option<StartArgs>,
+) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     // TODO: Need start_match function and timer logic
     // if let Some(start_time) = args.time {
@@ -351,17 +356,14 @@ pub async fn abort<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
-
-    // TODO: Need abort_match function
-    // await match.abort(mp_match.match_id);
-
+    // TODO: multiplayer::abort(ctx, mp_match.match_id).await?;
     Ok(Some("Match aborted!".to_string()))
 }
 
@@ -371,21 +373,32 @@ pub struct InviteArgs {
 }
 
 #[command("invite")]
-pub async fn invite<C: Context>(ctx: &C, sender: &Session, args: InviteArgs) -> CommandResult {
+pub async fn invite_user<C: Context>(ctx: &C, sender: &Session, args: InviteArgs) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
-
-    // TODO: Need invite function
-    // await match.invite(mp_match.match_id, sender_user_id=CHATBOT_USER_ID, recipient_user_id=target_user.user_id);
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    let target_session = sessions::fetch_primary_by_username(ctx, &args.safe_username).await?;
+    let invite = mp_match.invite_message();
+    let invite_message = IrcMessage {
+        sender: &sender.username,
+        sender_id: sender.user_id as _,
+        text: &invite,
+        recipient: &target_session.username,
+    };
+    streams::broadcast_message(
+        ctx,
+        StreamName::User(target_session.session_id),
+        ChatMessage(&invite_message),
+        None,
+        None,
+    )
+    .await?;
 
     Ok(Some(format!(
         "An invite to this match has been sent to {}.",
-        target_user.username
+        target_session.username
     )))
 }
 
