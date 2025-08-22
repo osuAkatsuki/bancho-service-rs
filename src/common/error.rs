@@ -23,6 +23,7 @@ pub enum AppError {
     UnsupportedClientVersion,
     ClientTooOld,
     InteractionBlocked,
+    MaintenanceModeEnabled,
 
     BeatmapsNotFound,
 
@@ -87,6 +88,7 @@ impl AppError {
             AppError::UnsupportedClientVersion => "unsupported_client_version",
             AppError::ClientTooOld => "client_too_old",
             AppError::InteractionBlocked => "interaction_blocked",
+            AppError::MaintenanceModeEnabled => "maintenance_mode_enabled",
 
             AppError::BeatmapsNotFound => "beatmaps.not_found",
 
@@ -141,6 +143,7 @@ impl AppError {
             AppError::InteractionBlocked => {
                 "You do not have permission to interact with this user."
             }
+            AppError::MaintenanceModeEnabled => "Maintenance mode is enabled.",
 
             AppError::BeatmapsNotFound => "Beatmap could not be found.",
 
@@ -223,7 +226,8 @@ impl AppError {
             | AppError::MultiplayerMatchFull
             | AppError::SessionsLoginForbidden
             | AppError::SessionsLimitReached
-            | AppError::MessagesUserSilenced => StatusCode::FORBIDDEN,
+            | AppError::MessagesUserSilenced
+            | AppError::MaintenanceModeEnabled => StatusCode::FORBIDDEN,
 
             AppError::BadgesNotFound
             | AppError::BeatmapsNotFound

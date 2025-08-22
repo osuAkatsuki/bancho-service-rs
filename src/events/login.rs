@@ -5,7 +5,7 @@ use crate::entities::channels::ChannelName;
 use crate::models::bancho::{BanchoResponse, LoginArgs, LoginError};
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{channels, messages, presences, relationships, sessions, streams};
+use crate::usecases::{bancho_settings, channels, messages, presences, relationships, sessions, streams};
 use bancho_protocol::concat_messages;
 use bancho_protocol::messages::server::{
     Alert, ChannelInfo, ChannelInfoEnd, ChannelJoinSuccess, ChatMessage, FriendsList, LoginResult,
@@ -42,6 +42,12 @@ fn login_error(e: AppError) -> BanchoResponse {
 }
 
 pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
+    match bancho_settings::in_maintenance_mode(ctx).await {
+        Ok(true) => return login_error(AppError::MaintenanceModeEnabled),
+        Err(e) => return login_error(e),
+        _ => {}
+    }
+
     let (session, presence) = match sessions::create(ctx, args).await {
         Ok(res) => res,
         Err(e) => return login_error(e),
