@@ -182,7 +182,7 @@ pub async fn report_user<C: Context>(
     Ok(Some("Report successful!".to_owned()))
 }
 
-#[command("overwrite")]
+/*#[command("overwrite")]
 pub async fn overwrite_score<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
     Ok(todo!())
-}
+}*/
