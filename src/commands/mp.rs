@@ -39,7 +39,7 @@ pub static COMMANDS: CommandRouterFactory = commands![
     help,
     link,
     timer,
-    aborttimer
+    aborttimer,
 ];
 
 #[derive(Debug, FromCommandArgs)]
