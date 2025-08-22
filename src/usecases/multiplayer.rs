@@ -337,6 +337,23 @@ pub async fn update<C: Context>(
     Ok(MultiplayerMatch::try_from(mp_match)?)
 }
 
+pub async fn fetch_user_slot<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    user_id: i64,
+) -> ServiceResult<(usize, MultiplayerMatchSlot)> {
+    let slots = fetch_all_slots(ctx, match_id).await?;
+    let slot = slots
+        .into_iter()
+        .enumerate()
+        .find(|(_, slot)| {
+            slot.user
+                .is_some_and(|slot_user| slot_user.user_id == user_id)
+        })
+        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    Ok(slot)
+}
+
 pub async fn fetch_session_slot<C: Context>(
     ctx: &C,
     match_id: i64,
@@ -446,6 +463,31 @@ pub async fn clear_host<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()>
         }
         Err(e) => unexpected(e),
     }
+}
+
+pub async fn swap_slots<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    from_slot_id: usize,
+    to_slot_id: usize,
+) -> ServiceResult<()> {
+    let mp_match = fetch_one(ctx, match_id).await?;
+    let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+
+    let from_slot = slots[from_slot_id];
+    let to_slot = slots[to_slot_id];
+
+    slots[from_slot_id] = to_slot;
+    slots[to_slot_id] = from_slot;
+
+    multiplayer::update_slots(
+        ctx,
+        match_id,
+        [(from_slot_id, to_slot), (to_slot_id, from_slot)],
+    )
+    .await?;
+    broadcast_update(ctx, &mp_match, MultiplayerMatchSlot::from(slots)).await?;
+    Ok(())
 }
 
 pub async fn swap_session_slots<C: Context>(

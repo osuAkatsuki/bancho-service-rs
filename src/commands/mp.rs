@@ -224,18 +224,10 @@ pub async fn move_cmd<C: Context>(ctx: &C, sender: &Session, args: MoveArgs) -> 
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let _mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-
-    // TODO: Check if user is referee - need referee functions
-    // let referees = match::get_referees(mp_match.match_id).await?;
-    // if !referees.contains(&sender.user_id) {
-    //     return Ok(Some("You are not a referee for this match.".to_string()));
-    // }
-
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
+    let (slot_id, _slot) = multiplayer::fetch_user_slot(ctx, match_id, target_user.user_id).await?;
 
-    // TODO: Need user_change_slot function
-    // let success = await match.userChangeSlot(mp_match.match_id, target_user.user_id, args.slot);
+    multiplayer::swap_slots(ctx, match_id, slot_id, args.slot as _).await?;
 
     Ok(Some(format!(
         "{} moved to slot {}.",
