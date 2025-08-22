@@ -34,7 +34,7 @@ pub async fn create<C: Context>(
     if let Some(match_id) =
         multiplayer::fetch_session_match_id(ctx, host_session.session_id).await?
     {
-        leave(ctx, host_session, Some(match_id)).await?;
+        leave(ctx, host_session.identity(), Some(match_id)).await?;
     }
 
     let (mp_match, slots) = multiplayer::create(
@@ -164,7 +164,7 @@ pub async fn join<C: Context>(
     password: &str,
 ) -> ServiceResult<(MultiplayerMatch, MultiplayerMatchSlots)> {
     if let Some(match_id) = multiplayer::fetch_session_match_id(ctx, session.session_id).await? {
-        leave(ctx, session, Some(match_id)).await?;
+        leave(ctx, session.identity(), Some(match_id)).await?;
     }
 
     let mp_match = fetch_one(ctx, match_id).await?;
@@ -201,7 +201,7 @@ pub async fn join<C: Context>(
 
 pub async fn leave<C: Context>(
     ctx: &C,
-    session: &Session,
+    session: SessionIdentity,
     match_id: Option<i64>,
 ) -> ServiceResult<()> {
     let match_id = match match_id {
@@ -566,7 +566,7 @@ pub async fn set_slot_status<C: Context>(
         slot.clear();
         // kick the user
         if let Ok(session) = sessions::fetch_one(ctx, slot_user.session_id).await {
-            leave(ctx, &session, Some(match_id)).await?;
+            leave(ctx, session.identity(), Some(match_id)).await?;
             let notification = concat_messages!(
                 MatchJoinFailed,
                 Alert {

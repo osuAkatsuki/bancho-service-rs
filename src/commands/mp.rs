@@ -223,6 +223,12 @@ pub async fn move_cmd<C: Context>(ctx: &C, sender: &Session, args: MoveArgs) -> 
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
 
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
     let (slot_id, _slot) = multiplayer::fetch_user_slot(ctx, match_id, target_user.user_id).await?;
@@ -254,19 +260,23 @@ pub async fn make<C: Context>(ctx: &C, sender: &Session, args: MakeArgs) -> Comm
         return Ok(Some("You are already in a match.".to_string()));
     }
 
-    // TODO: Need create_tournament_match function
-    // let multiplayer_match = await matchList.createMatch(
-    //     args.name,
-    //     match_password=secrets.token_hex(16),
-    //     beatmap_id=0,
-    //     beatmap_name="Tournament",
-    //     beatmap_md5="",
-    //     game_mode=0,
-    //     host_user_id=-1,
-    //     is_tourney=True,
-    // );
+    let mp_match = multiplayer::create(
+        ctx,
+        sender,
+        &args.name,
+        "",
+        "Tournament",
+        "",
+        0,
+        crate::entities::gamemodes::Gamemode::Standard,
+        16,
+    )
+    .await?;
 
-    Ok(Some("Tourney match created!".to_string()))
+    Ok(Some(format!(
+        "Tourney match created with ID {}.",
+        mp_match.match_id
+    )))
 }
 
 #[command("close")]
@@ -276,20 +286,23 @@ pub async fn close<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id {
-        // TODO: Check if user is referee - need referee functions
-        // let referees = match::get_referees(mp_match.match_id).await?;
-        // if !referees.contains(&sender.user_id) {
-        //     return Ok(Some("You are not a referee for this match.".to_string()));
-        // }
-        return Ok(Some("You are not the host of this match.".to_string()));
+    if mp_match.host_user_id != sender.user_id
+        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
+
+    let slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+    for slot in slots {
+        match slot.user {
+            Some(slot_user) => {
+                multiplayer::leave(ctx, slot_user, Some(match_id)).await?;
+            }
+            None => {}
+        }
     }
 
     multiplayer::delete(ctx, mp_match.match_id).await?;
-
-    // TODO: Need dispose_match function
-    // await matchList.disposeMatch(mp_match.match_id);
-
     Ok(Some(format!(
         "Multiplayer match #{} disposed successfully.",
         mp_match.match_id
