@@ -1,5 +1,5 @@
 use crate::common::context::Context;
-use crate::common::error::ServiceResult;
+use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::models::beatmaps::{Beatmap, RankedStatus};
 use crate::repositories::beatmaps;
 
@@ -19,6 +19,14 @@ pub fn generate_mirror_links(beatmap_set_id: i32, song_name: &str) -> Vec<String
             format!("{mirror_name}: [{mirror_url}/{beatmap_set_id} {song_name}]")
         })
         .collect()
+}
+
+pub async fn fetch_by_id<C: Context>(ctx: &C, map_id: i32) -> ServiceResult<Beatmap> {
+    match beatmaps::fetch_by_id(ctx, map_id).await {
+        Ok(beatmap) => Ok(Beatmap::from(beatmap)),
+        Err(sqlx::Error::RowNotFound) => Err(AppError::BeatmapsNotFound),
+        Err(e) => unexpected(e),
+    }
 }
 
 pub async fn change_map_status<C: Context>(

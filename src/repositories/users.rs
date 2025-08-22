@@ -1,5 +1,5 @@
 use crate::common::chat::safe_username;
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::users::User;
 use crate::models::privileges::Privileges;
 use chrono::{TimeDelta, Utc};

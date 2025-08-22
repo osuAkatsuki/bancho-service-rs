@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::common::error::{AppError, ServiceResult};
 use crate::entities::channels::ChannelName;
 use crate::entities::streams::{MessageInfo, StreamMessage, StreamReadMessage, StreamReadReply};

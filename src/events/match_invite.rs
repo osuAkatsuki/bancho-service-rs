@@ -15,13 +15,8 @@ pub async fn handle<C: Context>(ctx: &C, session: &Session, args: MatchInvite) -
     let target_session = sessions::fetch_primary_by_user_id(ctx, args.user_id as _).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    let safe_password = mp_match.password.replace(" ", "_");
-    let invite = format!(
-        "\x01ACTION has invited you to their multiplayer match: [osump://{}/{} {}]",
-        mp_match.ingame_match_id(),
-        safe_password,
-        mp_match.name,
-    );
+
+    let invite = mp_match.invite_message();
     let invite_message = IrcMessage {
         sender: &session.username,
         sender_id: session.user_id as _,

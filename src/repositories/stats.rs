@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
 use crate::entities::stats::Stats;
 use bancho_protocol::structures::{Country, Mode};

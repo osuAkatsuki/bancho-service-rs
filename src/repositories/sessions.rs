@@ -1,6 +1,6 @@
 use crate::common::chat;
 use crate::common::chat::safe_username;
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::common::redis_json::Json;
 use crate::entities::sessions::{CreateSessionArgs, FallbackSession, Session};
 use redis::AsyncCommands;

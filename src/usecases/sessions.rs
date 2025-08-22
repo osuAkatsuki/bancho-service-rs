@@ -201,7 +201,7 @@ pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()>
     channels::leave_all(ctx, session.session_id).await?;
     spectators::leave(ctx, session, None).await?;
     spectators::close(ctx, session.session_id).await?;
-    multiplayer::leave(ctx, session, None).await?;
+    multiplayer::leave(ctx, session.identity(), None).await?;
 
     let new_primary_session = sessions::fetch_random_non_primary(ctx, session.user_id).await?;
     let user_offline = new_primary_session.is_none();

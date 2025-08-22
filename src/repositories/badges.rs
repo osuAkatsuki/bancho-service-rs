@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::badges::{Badge, UserBadge};
 
 pub async fn fetch_badge_by_name<C: Context>(ctx: &C, name: &str) -> sqlx::Result<Badge> {

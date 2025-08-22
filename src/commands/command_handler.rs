@@ -2,7 +2,7 @@ use crate::commands::from_args::FromCommandArgs;
 use crate::commands::{CommandResponse, CommandResult};
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult};
-use crate::common::redis_pool::PoolResult;
+use crate::common::redis_pool::RedisPool;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use async_trait::async_trait;
@@ -45,14 +45,27 @@ pub trait CommandHandlerProxy: Send + Sync {
     ) -> ServiceResult<Option<CommandResponse>>;
 }
 
-struct CommandContext<'a>(&'a dyn Context);
-#[async_trait]
-impl Context for CommandContext<'_> {
-    fn db(&self) -> &Pool<MySql> {
-        self.0.db()
+struct CommandContext {
+    db: Pool<MySql>,
+    redis: RedisPool,
+}
+
+impl CommandContext {
+    pub fn from_ctx(ctx: &dyn Context) -> Self {
+        Self {
+            db: ctx.db_pool().clone(),
+            redis: ctx.redis_pool().clone(),
+        }
     }
-    async fn redis(&self) -> PoolResult {
-        self.0.redis().await
+}
+
+impl Context for CommandContext {
+    fn db_pool(&self) -> &Pool<MySql> {
+        &self.db
+    }
+
+    fn redis_pool(&self) -> &RedisPool {
+        &self.redis
     }
 }
 
@@ -68,19 +81,19 @@ impl Default for CommandProperties {
 }
 
 #[async_trait]
-impl<C: Command> CommandHandlerProxy for C {
+impl<CMD: Command> CommandHandlerProxy for CMD {
     async fn handle(
         &self,
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
     ) -> ServiceResult<Option<CommandResponse>> {
-        let ctx = CommandContext(ctx);
-        let args = C::Args::from_args(args)?;
-        let answer = C::handle(&ctx, session, args).await?;
+        let ctx = CommandContext::from_ctx(ctx);
+        let args = CMD::Args::from_args(args)?;
+        let answer = CMD::handle(&ctx, session, args).await?;
         Ok(Some(CommandResponse {
             answer,
-            properties: C::PROPERTIES,
+            properties: CMD::PROPERTIES,
         }))
     }
 }

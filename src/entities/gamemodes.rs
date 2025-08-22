@@ -2,7 +2,7 @@ use crate::entities::scores::MinimalScore;
 use bancho_protocol::structures::{Mode, Mods};
 
 #[repr(u8)]
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
 pub enum Gamemode {
     #[default]
     Standard = 0,
