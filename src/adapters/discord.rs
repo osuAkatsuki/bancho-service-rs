@@ -12,7 +12,7 @@ const LOGS_PURPLE_EMBED_COLOR: u32 = 0x6611FF;
 const LOGS_RED_EMBED_COLOR: u32 = 0xFF5555;
 const LOGS_BLUE_EMBED_COLOR: u32 = 0x00a2ff;
 
-const BEATMAPS_RANKED_EMBED_COLOR: u32 = 0x6611FF;
+const BEATMAPS_RANKED_EMBED_COLOR: u32 = 0x6BCEFF;
 const BEATMAPS_LOVED_EMBED_COLOR: u32 = 0xFF66AA;
 const BEATMAPS_PENDING_EMBED_COLOR: u32 = 0x696969;
 
@@ -132,7 +132,7 @@ pub async fn send_ranked_maps_embed(
             r#"
             ### This map has received a status update. 📝
             **Length**: `{}:{}` **BPM**: `{}`
-            **AR**: `{:.2}` **OD**: `{:.2}` **Combo**: `{}x
+            **AR**: `{:.2}` **OD**: `{:.2}` **Combo**: `{}x`
             "#
         ),
         beatmap_mins, beatmap_secs, beatmap.bpm, beatmap.ar, beatmap.od, beatmap.max_combo,
@@ -155,12 +155,12 @@ pub async fn send_ranked_maps_embed(
                         let previous_status_text = format!(
                             "<:{previous_status:?}:{previous_status_emoji}>・{previous_status:?}"
                         );
-                        field.name("Previous Status").value(previous_status_text)
+                        field.name("Previous Status").value(previous_status_text).inline(true)
                     })
                     .field(|field| {
                         let leaderboard_text =
                             format!("\n{AKATSUKI_ICON}・[`Akatsuki`]({beatmap_link})");
-                        field.name("Leaderboard").value(leaderboard_text)
+                        field.name("Leaderboard").value(leaderboard_text).inline(true)
                     })
                     .color(status_color)
                     .footer(|footer| footer.text("bancho-service 🎵"))
