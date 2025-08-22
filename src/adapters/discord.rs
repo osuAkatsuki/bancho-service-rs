@@ -155,12 +155,18 @@ pub async fn send_ranked_maps_embed(
                         let previous_status_text = format!(
                             "<:{previous_status:?}:{previous_status_emoji}>・{previous_status:?}"
                         );
-                        field.name("Previous Status").value(previous_status_text).inline(true)
+                        field
+                            .name("Previous Status")
+                            .value(previous_status_text)
+                            .inline(true)
                     })
                     .field(|field| {
                         let leaderboard_text =
                             format!("\n{AKATSUKI_ICON}・[`Akatsuki`]({beatmap_link})");
-                        field.name("Leaderboard").value(leaderboard_text).inline(true)
+                        field
+                            .name("Leaderboard")
+                            .value(leaderboard_text)
+                            .inline(true)
                     })
                     .color(status_color)
                     .footer(|footer| footer.text("bancho-service 🎵"))

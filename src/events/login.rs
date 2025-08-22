@@ -5,7 +5,9 @@ use crate::entities::channels::ChannelName;
 use crate::models::bancho::{BanchoResponse, LoginArgs, LoginError};
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{bancho_settings, channels, messages, presences, relationships, sessions, streams};
+use crate::usecases::{
+    bancho_settings, channels, messages, presences, relationships, sessions, streams,
+};
 use bancho_protocol::concat_messages;
 use bancho_protocol::messages::server::{
     Alert, ChannelInfo, ChannelInfoEnd, ChannelJoinSuccess, ChatMessage, FriendsList, LoginResult,
