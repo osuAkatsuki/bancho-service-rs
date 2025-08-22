@@ -1,7 +1,8 @@
+use std::ops::Deref;
 use std::str::FromStr;
 
 use crate::commands;
-use crate::commands::{CommandResult, CommandRouterFactory};
+use crate::commands::{COMMAND_PREFIX, CommandResult, CommandRouterInstance};
 use crate::common::context::Context;
 use crate::common::error::AppError;
 use crate::common::website;
@@ -15,7 +16,7 @@ use bancho_protocol::messages::server::ChatMessage;
 use bancho_protocol::structures::{IrcMessage, MatchTeam, MatchTeamType, Mode, Mods, WinCondition};
 use bancho_service_macros::{FromCommandArgs, command};
 
-pub static COMMANDS: CommandRouterFactory = commands![
+pub static COMMANDS: CommandRouterInstance = commands![
     set_host,
     add_referee,
     remove_referee,
@@ -731,9 +732,27 @@ pub async fn set_scorev<C: Context>(
     )))
 }
 
-#[command("help")]
-pub async fn help<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
-    Ok(Some(format!("Supported multiplayer subcommands: <>.")))
+#[command("help", forward_message = false)]
+pub async fn help<C: Context>(_ctx: &C, sender: &Session) -> CommandResult {
+    let mut response = "Supported multiplayer subcommands:\n".to_owned();
+    for (name, cmd) in COMMANDS.deref().commands.iter() {
+        match cmd.properties.required_privileges {
+            Some(required_privileges) if sender.has_all_privileges(required_privileges) => {
+                response.push_str(COMMAND_PREFIX);
+                response.push_str("mp ");
+                response.push_str(name);
+                response.push('\n');
+            }
+            None => {
+                response.push_str(COMMAND_PREFIX);
+                response.push_str("mp ");
+                response.push_str(name);
+                response.push('\n');
+            }
+            _ => {}
+        }
+    }
+    Ok(Some(response))
 }
 
 #[command("link")]

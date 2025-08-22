@@ -29,7 +29,6 @@ pub struct RegisteredCommand {
     handler: Box<dyn CommandHandlerProxy>,
 }
 
-pub type CommandRouterFactory = fn() -> CommandRouter;
 pub type CommandRouterInstance = std::sync::LazyLock<CommandRouter>;
 pub struct CommandRouter {
     pub commands: HashMap<&'static str, RegisteredCommand>,
@@ -104,7 +103,7 @@ macro_rules! commands {
         include = [$( $p:expr => $cc:expr ),* $(,)?],
         $($c:path),* $(,)?
     ) => {
-        || {
+        std::sync::LazyLock::new(|| {
             use $crate::commands::{Command, CommandRouter, RegisteredCommand};
             fn into_pair<B: 'static + Command>(c: B) -> (&'static str, RegisteredCommand) {
                 (B::PROPERTIES.name, RegisteredCommand::new(c))
@@ -112,9 +111,9 @@ macro_rules! commands {
 
             #[allow(unused_mut)]
             let mut router = CommandRouter::from([ $(into_pair($c)),* ]);
-            $(router.nest($p, $cc);)*
+            $(router.nest($p, std::ops::Deref::deref(&$cc));)*
             router
-        }
+        })
     };
     ($($c:path),* $(,)?) => {
         $crate::commands!(include=[], $($c),*)
@@ -151,14 +150,14 @@ impl CommandRouter {
             .insert(C::PROPERTIES.name, RegisteredCommand::new(cmd));
     }
 
-    pub fn nest(&mut self, name: &'static str, router: CommandRouterFactory) {
+    pub fn nest(&mut self, name: &'static str, router: &'static CommandRouter) {
         self.commands
-            .insert(name, RegisteredCommand::group(name, router()));
+            .insert(name, RegisteredCommand::group(name, router));
     }
 }
 
 #[async_trait]
-impl CommandHandlerProxy for CommandRouter {
+impl CommandHandlerProxy for &'static CommandRouter {
     async fn handle(
         &self,
         ctx: &dyn Context,

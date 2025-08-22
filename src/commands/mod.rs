@@ -4,11 +4,12 @@ pub mod misc;
 pub mod mp;
 pub mod staff;
 pub mod system;
+
 use command_handler::CommandHandlerProxy;
+use std::ops::Deref;
 
 pub use command_handler::{
-    Command, CommandProperties, CommandRouter, CommandRouterFactory, CommandRouterInstance,
-    RegisteredCommand,
+    Command, CommandProperties, CommandRouter, CommandRouterInstance, RegisteredCommand,
 };
 pub use from_args::FromCommandArgs;
 
@@ -20,11 +21,10 @@ use crate::models::performance::PerformanceRequestArgs;
 use crate::models::sessions::Session;
 use crate::models::tillerino::NowPlayingMessage;
 use crate::usecases::{performance, tillerino};
-use std::sync::LazyLock;
 
 pub const COMMAND_PREFIX: &str = "!";
 
-static COMMAND_ROUTER: CommandRouterInstance = LazyLock::new(commands![
+static COMMAND_ROUTER: CommandRouterInstance = commands![
     include = [
         "mp" => mp::COMMANDS,
         "system" => system::COMMANDS,
@@ -52,7 +52,7 @@ static COMMAND_ROUTER: CommandRouterInstance = LazyLock::new(commands![
     staff::unrestrict_user,
     staff::unsilence_user,
     staff::whitelist_user,
-]);
+];
 
 #[derive(Debug)]
 pub struct CommandResponse {
@@ -82,7 +82,10 @@ pub async fn handle_command<C: Context>(
 ) -> ServiceResult<Option<CommandResponse>> {
     // Message does not start with command prefix, ignore
     let cmd_message = message_content.strip_prefix(COMMAND_PREFIX);
-    COMMAND_ROUTER.handle(ctx, sender, cmd_message).await
+    COMMAND_ROUTER
+        .deref()
+        .handle(ctx, sender, cmd_message)
+        .await
 }
 
 pub async fn try_handle_command<C: Context>(

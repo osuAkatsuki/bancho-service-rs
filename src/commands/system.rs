@@ -1,12 +1,12 @@
 use crate::commands;
-use crate::commands::{CommandResult, CommandRouterFactory};
+use crate::commands::{CommandResult, CommandRouterInstance};
 use crate::common::context::Context;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::usecases::bancho_settings;
 use bancho_service_macros::command;
 
-pub static COMMANDS: CommandRouterFactory = commands![maintenance];
+pub static COMMANDS: CommandRouterInstance = commands![maintenance];
 
 #[command(
     "maintenance",

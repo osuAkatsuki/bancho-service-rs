@@ -15,7 +15,7 @@ use bancho_protocol::messages::server::{Alert, ChatMessage};
 use bancho_protocol::structures::IrcMessage;
 use bancho_service_macros::{FromCommandArgs, command};
 
-#[command("help")]
+#[command("help", forward_message = false)]
 pub async fn help<C: Context>(_ctx: &C, sender: &Session) -> CommandResult {
     let mut response = "Available commands:\n".to_owned();
     for (name, cmd) in COMMAND_ROUTER.commands.iter() {

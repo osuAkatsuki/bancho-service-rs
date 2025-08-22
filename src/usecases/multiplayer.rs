@@ -1095,9 +1095,11 @@ pub async fn resize_match<C: Context>(
         .cloned()
         .collect();
     // Clear all slots and reset to empty
-    for slot in &mut slots {
+    for (i, slot) in slots.iter_mut().enumerate() {
         slot.clear();
-        slot.status = SlotStatus::Locked.bits();
+        if i >= new_size {
+            slot.status = SlotStatus::Locked.bits();
+        }
     }
 
     // Place players at the beginning
