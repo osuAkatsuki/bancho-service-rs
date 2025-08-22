@@ -157,7 +157,7 @@ impl CommandRouter {
 }
 
 #[async_trait]
-impl CommandHandlerProxy for &'static CommandRouter {
+impl CommandHandlerProxy for &CommandRouter {
     async fn handle(
         &self,
         ctx: &dyn Context,
