@@ -29,6 +29,7 @@ bitflags = "2.9.1"
 chrono = { version = "0.4", features = ["default", "serde"] }
 const-str = "0.6.2"
 deadpool = { version = "0.12", features = ["managed", "rt_tokio_1"] }
+dedent = "0.1.1"
 discord-webhook2 = "0.4.3"
 dotenv = "0.15"
 hashbrown = "0.15.4"

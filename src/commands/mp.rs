@@ -442,11 +442,10 @@ pub async fn set_map<C: Context>(ctx: &C, sender: &Session, args: MapArgs) -> Co
     mp_match.beatmap_md5 = beatmap.beatmap_md5;
 
     let new_mode = match args.gamemode {
-        Some(gamemode) if beatmap.mode == 0 => gamemode,
-        _ => beatmap.mode as u8,
+        Some(gamemode) if beatmap.mode == Mode::Standard => Mode::try_from(gamemode)
+            .map_err(|_| AppError::CommandsInvalidArgument("Invalid gamemode"))?,
+        _ => beatmap.mode,
     };
-    let new_mode = Mode::try_from(new_mode)
-        .map_err(|_| AppError::CommandsInvalidArgument("Invalid gamemode"))?;
 
     // osu! mode changed, reset mods.
     if mp_match.mode.as_bancho() != new_mode {

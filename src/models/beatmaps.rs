@@ -1,15 +1,28 @@
+use bancho_protocol::structures::Mode;
+
 use crate::entities::beatmaps::Beatmap as BeatmapEntity;
 
 #[repr(i8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RankedStatus {
-    Unranked = 0,
+    Pending = 0,
     Ranked = 2,
     Approved = 3,
     Qualified = 4,
     Loved = 5,
 }
 
+impl From<i8> for RankedStatus {
+    fn from(value: i8) -> Self {
+        match value {
+            2 => Self::Ranked,
+            3 => Self::Approved,
+            4 => Self::Qualified,
+            5 => Self::Loved,
+            _ => Self::Pending,
+        }
+    }
+}
 pub struct Beatmap {
     pub beatmap_id: i32,
     pub beatmapset_id: i32,
@@ -18,11 +31,11 @@ pub struct Beatmap {
     pub file_name: String,
     pub ar: f32,
     pub od: f32,
-    pub mode: i32,
+    pub mode: Mode,
     pub max_combo: i32,
     pub hit_length: i32,
     pub bpm: i32,
-    pub ranked: i8,
+    pub ranked_status: RankedStatus,
     pub latest_update: i32,
     pub ranked_status_freezed: bool,
     pub playcount: i32,
@@ -42,11 +55,11 @@ impl From<BeatmapEntity> for Beatmap {
             file_name: entity.file_name,
             ar: entity.ar,
             od: entity.od,
-            mode: entity.mode,
+            mode: Mode::try_from(entity.mode as u8).expect("Invalid mode"),
             max_combo: entity.max_combo,
             hit_length: entity.hit_length,
             bpm: entity.bpm,
-            ranked: entity.ranked,
+            ranked_status: RankedStatus::from(entity.ranked),
             latest_update: entity.latest_update,
             ranked_status_freezed: entity.ranked_status_freezed,
             playcount: entity.playcount,

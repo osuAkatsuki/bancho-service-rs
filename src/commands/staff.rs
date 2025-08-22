@@ -27,7 +27,7 @@ pub struct EditMapArgs {
 pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) -> CommandResult {
     const RANKED_STATUS_MODIFICATIONS: [(&str, RankedStatus); 3] = [
         ("rank", RankedStatus::Ranked),
-        ("unrank", RankedStatus::Unranked),
+        ("unrank", RankedStatus::Pending),
         ("love", RankedStatus::Loved),
     ];
 
@@ -50,16 +50,30 @@ pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) 
         }
     };
 
-    // TODO: Add the new ranked maps discord webhook
-
     match args.scope.as_str() {
         "map" => {
-            let _beatmap = beatmaps::change_map_status(ctx, last_np.beatmap_id, new_status).await?;
+            let (beatmap, previous_status) =
+                beatmaps::change_map_status(ctx, last_np.beatmap_id, new_status).await?;
+            let _ = discord::send_ranked_maps_embed(
+                &beatmap,
+                previous_status,
+                &sender.username,
+                sender.user_id,
+            )
+            .await;
             Ok(Some("Map status changed".to_owned()))
         }
         "set" => {
-            let _beatmaps =
-                beatmaps::change_set_status(ctx, last_np.beatmap_id, new_status).await?;
+            let beatmaps = beatmaps::change_set_status(ctx, last_np.beatmap_id, new_status).await?;
+            for (beatmap, previous_status) in beatmaps {
+                let _ = discord::send_ranked_maps_embed(
+                    &beatmap,
+                    previous_status,
+                    &sender.username,
+                    sender.user_id,
+                )
+                .await;
+            }
             Ok(Some("Set status changed".to_owned()))
         }
         _ => {
@@ -109,7 +123,7 @@ pub async fn add_bn<C: Context>(ctx: &C, sender: &Session, args: AddBNArgs) -> C
         "[{}]({}) has given BN to [{}]({}).",
         sender.username, sender_profile, target_user.username, target_profile
     );
-    let _ = discord::send_purple_embed("BN Added", &log_message, None).await;
+    let _ = discord::send_logs_purple_embed("BN Added", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}] has been given BN",
@@ -158,7 +172,7 @@ pub async fn remove_bn<C: Context>(ctx: &C, sender: &Session, args: RemoveBNArgs
         "[{}]({}) has removed BN from [{}]({}).",
         sender.username, sender_profile, target_user.username, target_profile
     );
-    let _ = discord::send_purple_embed("BN Removed", &log_message, None).await;
+    let _ = discord::send_logs_purple_embed("BN Removed", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}] has been removed from BN",
@@ -196,7 +210,7 @@ pub async fn kick<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> Comm
         "[{}]({}) has kicked [{}]({}) for: {}",
         sender.username, sender_profile, args.safe_username, target_profile, args.reason
     );
-    let _ = discord::send_purple_embed("User Kicked", &log_message, None).await;
+    let _ = discord::send_logs_purple_embed("User Kicked", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}] has been kicked from the server",
@@ -243,7 +257,7 @@ pub async fn ban_user<C: Context>(ctx: &C, sender: &Session, args: BanArgs) -> C
         "[{}]({}) has banned [{}]({}) for: {}",
         sender.username, sender_profile, target_user.username, target_profile, args.reason
     );
-    let _ = discord::send_red_embed("User Banned", &log_message, None).await;
+    let _ = discord::send_logs_red_embed("User Banned", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}] has been banned",
@@ -272,7 +286,7 @@ pub async fn unban_user<C: Context>(ctx: &C, sender: &Session, args: UnbanArgs) 
         "[{}]({}) has unbanned [{}]({}) for: {}",
         sender.username, sender_profile, target_user.username, target_profile, args.reason
     );
-    let _ = discord::send_blue_embed("User Unbanned", &log_message, None).await;
+    let _ = discord::send_logs_blue_embed("User Unbanned", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}] has been unbanned",
@@ -327,7 +341,7 @@ pub async fn restrict_user<C: Context>(
         "[{}]({}) has restricted [{}]({}) for: {}",
         sender.username, sender_profile, target_user.username, target_profile, args.reason
     );
-    let _ = discord::send_red_embed("User Restricted", &log_message, None).await;
+    let _ = discord::send_logs_red_embed("User Restricted", &log_message, None).await;
     let osu_format_reply = format!(
         "[{} {}] has been restricted for: {}",
         target_profile, target_user.username, args.reason
@@ -361,7 +375,7 @@ pub async fn unrestrict_user<C: Context>(
         "[{}]({}) has unrestricted [{}]({}) for: {}",
         sender.username, sender_profile, target_user.username, target_profile, args.reason
     );
-    let _ = discord::send_blue_embed("User Unrestricted", &log_message, None).await;
+    let _ = discord::send_logs_blue_embed("User Unrestricted", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}] has been unrestricted",
@@ -397,7 +411,7 @@ pub async fn freeze_user<C: Context>(ctx: &C, sender: &Session, args: FreezeArgs
         "[{}]({}) has frozen [{}]({}) for: {}",
         sender.username, sender_profile, target_user.username, target_profile, args.reason
     );
-    let _ = discord::send_red_embed("User Frozen", &log_message, None).await;
+    let _ = discord::send_logs_red_embed("User Frozen", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}] has been frozen",
@@ -437,7 +451,7 @@ pub async fn unfreeze_user<C: Context>(
         "[{}]({}) has unfrozen [{}]({}) for: {}",
         sender.username, sender_profile, target_user.username, target_profile, args.reason
     );
-    let _ = discord::send_blue_embed("User Unfrozen", &log_message, None).await;
+    let _ = discord::send_logs_blue_embed("User Unfrozen", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}] has been unfrozen",
@@ -482,7 +496,7 @@ pub async fn whitelist_user<C: Context>(
         args.bit,
         args.reason
     );
-    let _ = discord::send_blue_embed("Whitelist Updated", &log_message, None).await;
+    let _ = discord::send_logs_blue_embed("Whitelist Updated", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}]'s whitelist status has been set to {}",
@@ -524,7 +538,7 @@ pub async fn silence_user<C: Context>(
         "[{}]({}) has silenced [{}]({}) for: {}",
         sender.username, sender_profile, target_user.username, target_profile, args.reason
     );
-    let _ = discord::send_red_embed("User Silenced", &log_message, None).await;
+    let _ = discord::send_logs_red_embed("User Silenced", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}] has been silenced for: {}",
@@ -559,7 +573,7 @@ pub async fn unsilence_user<C: Context>(
         "[{}]({}) has unsilenced [{}]({}) for: {}",
         sender.username, sender_profile, target_user.username, target_profile, args.reason
     );
-    let _ = discord::send_blue_embed("User Unsilenced", &log_message, None).await;
+    let _ = discord::send_logs_blue_embed("User Unsilenced", &log_message, None).await;
 
     let osu_format_reply = format!(
         "[{} {}]'s silence has been reset",

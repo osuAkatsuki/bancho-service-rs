@@ -28,7 +28,8 @@ pub struct AppSettings {
     pub performance_service_base_url: String,
 
     pub frontend_base_url: String,
-    pub discord_webhook_url: Option<String>,
+    pub discord_logs_webhook_url: Option<String>,
+    pub discord_ranked_maps_webhook_url: Option<String>,
 }
 
 impl AppSettings {
@@ -59,7 +60,10 @@ impl AppSettings {
         let beatmaps_service_base_url = env::var("BEATMAPS_SERVICE_BASE_URL")?;
         let performance_service_base_url = env::var("PERFORMANCE_SERVICE_BASE_URL")?;
         let frontend_base_url = env::var("FRONTEND_URL")?;
-        let discord_webhook_url = env::var("DISCORD_WEBHOOK_URL")
+        let discord_logs_webhook_url = env::var("DISCORD_LOGS_WEBHOOK_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty());
+        let discord_ranked_maps_webhook_url = env::var("DISCORD_RANKED_MAPS_WEBHOOK_URL")
             .ok()
             .filter(|url| !url.trim().is_empty());
 
@@ -84,7 +88,8 @@ impl AppSettings {
             beatmaps_service_base_url,
             performance_service_base_url,
             frontend_base_url,
-            discord_webhook_url,
+            discord_logs_webhook_url,
+            discord_ranked_maps_webhook_url,
         })
     }
 
