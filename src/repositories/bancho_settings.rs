@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::bancho_settings::BanchoSetting;
 
 pub async fn fetch<C: Context>(ctx: &C, key: &str) -> sqlx::Result<BanchoSetting> {

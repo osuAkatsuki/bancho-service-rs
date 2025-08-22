@@ -1,5 +1,7 @@
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::common::state::AppState;
+use crate::entities::bot;
 use crate::entities::channels::ChannelName;
 use crate::entities::gamemodes::Gamemode;
 use crate::entities::match_events::MatchEventType;
@@ -16,12 +18,14 @@ use crate::usecases::{channels, match_events, presences, sessions, stats, stream
 use bancho_protocol::concat_messages;
 use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::server::{
-    Alert, MatchAborted, MatchAllPlayersLoaded, MatchComplete, MatchCreated, MatchDisposed,
-    MatchJoinFailed, MatchPlayerFailed, MatchPlayerSkipped, MatchSkip, MatchStart, MatchUpdate,
+    Alert, ChatMessage, MatchAborted, MatchAllPlayersLoaded, MatchComplete, MatchCreated,
+    MatchDisposed, MatchJoinFailed, MatchPlayerFailed, MatchPlayerSkipped, MatchSkip, MatchStart,
+    MatchUpdate,
 };
 use bancho_protocol::serde::BinarySerialize;
-use bancho_protocol::structures::{Match, MatchTeam, Mods, SlotStatus};
+use bancho_protocol::structures::{IrcMessage, Match, MatchTeam, Mods, SlotStatus};
 use std::time::Duration;
+use tracing::error;
 use uuid::Uuid;
 
 pub async fn create<C: Context>(
@@ -978,35 +982,64 @@ pub async fn get_referees<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<V
 }
 
 pub fn start_timer<C: Context>(ctx: &C, match_id: i64, timer_type: TimerType, seconds: u64) {
-    todo!()
-    /*tokio::spawn(async move {
-        run_timer(ctx, match_id, timer_type, seconds).await;
-    });*/
+    let state = AppState::from_ctx(ctx);
+    tokio::spawn(async move {
+        if let Err(e) = run_timer(state, match_id, timer_type, seconds).await {
+            error!("Error running timer: {e:?}");
+        }
+    });
 }
 
 async fn run_timer<C: Context>(
-    ctx: &C,
+    ctx: C,
     match_id: i64,
     timer_type: TimerType,
     seconds: u64,
 ) -> ServiceResult<()> {
-    multiplayer::set_timer(ctx, match_id, timer_type, seconds).await?;
+    multiplayer::set_timer(&ctx, match_id, timer_type, seconds).await?;
     let mut interval = tokio::time::interval(Duration::from_secs(1));
     interval.tick().await;
     loop {
         interval.tick().await;
-        if multiplayer::get_timer(ctx, match_id, timer_type)
+        // Timer was aborted externally
+        if multiplayer::get_timer(&ctx, match_id, timer_type)
             .await?
             .is_none()
         {
             break;
         }
 
-        let remaining_seconds = multiplayer::decrease_timer(ctx, match_id, timer_type).await?;
+        let remaining_seconds = multiplayer::decrease_timer(&ctx, match_id, timer_type).await?;
         if remaining_seconds <= 0 {
+            multiplayer::abort_timer(&ctx, match_id, timer_type).await?;
+            match timer_type {
+                TimerType::Regular => send_timer_ended_message(&ctx, match_id).await?,
+                TimerType::MatchStart => start_game(&ctx, match_id, None).await?,
+            }
             break;
         }
     }
+
+    Ok(())
+}
+
+async fn send_timer_ended_message<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
+    let mp_match = fetch_one(ctx, match_id).await?;
+
+    let bot_message = IrcMessage {
+        sender_id: bot::BOT_ID as _,
+        sender: bot::BOT_NAME,
+        text: "Timer has ended",
+        recipient: "#multiplayer",
+    };
+    streams::broadcast_message(
+        ctx,
+        StreamName::Multiplayer(mp_match.match_id),
+        ChatMessage(&bot_message),
+        None,
+        None,
+    )
+    .await?;
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::common::redis_json::Json;
 use crate::entities::tillerino::NowPlayingState;
 use redis::{AsyncCommands, SetExpiry, SetOptions};

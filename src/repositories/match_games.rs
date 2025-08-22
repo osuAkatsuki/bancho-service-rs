@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 
 pub async fn create<C: Context>(
     ctx: &C,

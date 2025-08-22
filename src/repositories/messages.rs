@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::channels::ChannelName;
 use crate::entities::messages::Message;
 use chrono::Utc;

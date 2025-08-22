@@ -1,4 +1,4 @@
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use std::net::IpAddr;
 
 pub async fn create<C: Context>(ctx: &C, user_id: i64, ip_addr: IpAddr) -> sqlx::Result<()> {

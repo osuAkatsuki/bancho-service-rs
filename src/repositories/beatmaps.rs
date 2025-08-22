@@ -1,6 +1,6 @@
 use redis::AsyncCommands;
 
-use crate::common::context::Context;
+use crate::common::context::{Context, PoolContext};
 use crate::entities::beatmaps::Beatmap;
 
 const READ_FIELDS: &str = r#"beatmap_id, beatmapset_id, beatmap_md5,
