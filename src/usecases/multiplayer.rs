@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::channels::ChannelName;
@@ -7,6 +9,7 @@ use crate::entities::multiplayer::MultiplayerMatchSlot as SlotEntity;
 use crate::entities::sessions::SessionIdentity;
 use crate::models::multiplayer::{MultiplayerMatch, MultiplayerMatchSlot, MultiplayerMatchSlots};
 use crate::models::sessions::Session;
+use crate::repositories::multiplayer::TimerType;
 use crate::repositories::streams::StreamName;
 use crate::repositories::{match_games, multiplayer};
 use crate::usecases::{channels, match_events, sessions, streams};
@@ -921,6 +924,49 @@ pub async fn remove_referee<C: Context>(
 pub async fn get_referees<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<Vec<i64>> {
     let referees = multiplayer::get_referees(ctx, match_id).await?;
     Ok(referees)
+}
+
+pub fn start_timer<C: Context>(ctx: &C, match_id: i64, timer_type: TimerType, seconds: u64) {
+    todo!()
+    /*tokio::spawn(async move {
+        run_timer(ctx, match_id, timer_type, seconds).await;
+    });*/
+}
+
+async fn run_timer<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+    seconds: u64,
+) -> ServiceResult<()> {
+    multiplayer::set_timer(ctx, match_id, timer_type, seconds).await?;
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    interval.tick().await;
+    loop {
+        interval.tick().await;
+        if multiplayer::get_timer(ctx, match_id, timer_type)
+            .await?
+            .is_none()
+        {
+            break;
+        }
+
+        let remaining_seconds = multiplayer::decrease_timer(ctx, match_id, timer_type).await?;
+        if remaining_seconds <= 0 {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn abort_timer<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+) -> ServiceResult<()> {
+    multiplayer::abort_timer(ctx, match_id, timer_type).await?;
+    Ok(())
 }
 
 // utility

@@ -7,6 +7,7 @@ use redis::AsyncCommands;
 use std::ops::DerefMut;
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TimerType {
     Regular,
     MatchStart,
@@ -349,11 +350,11 @@ pub async fn set_timer<C: Context>(
     ctx: &C,
     match_id: i64,
     timer_type: TimerType,
-    timer: i64,
+    seconds: u64,
 ) -> anyhow::Result<()> {
     let mut redis = ctx.redis().await?;
     let timer_key = make_timer_key(match_id, timer_type);
-    let _: () = redis.set(timer_key, timer).await?;
+    let _: () = redis.set(timer_key, seconds).await?;
     Ok(())
 }
 
@@ -361,7 +362,7 @@ pub async fn get_timer<C: Context>(
     ctx: &C,
     match_id: i64,
     timer_type: TimerType,
-) -> anyhow::Result<i64> {
+) -> anyhow::Result<Option<i64>> {
     let mut redis = ctx.redis().await?;
     let timer_key = make_timer_key(match_id, timer_type);
     let remaining_seconds = redis.get(timer_key).await?;
@@ -372,11 +373,22 @@ pub async fn decrease_timer<C: Context>(
     ctx: &C,
     match_id: i64,
     timer_type: TimerType,
-) -> anyhow::Result<u64> {
+) -> anyhow::Result<i64> {
     let mut redis = ctx.redis().await?;
     let timer_key = make_timer_key(match_id, timer_type);
     let remaining_seconds = redis.decr(timer_key, 1).await?;
     Ok(remaining_seconds)
+}
+
+pub async fn abort_timer<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let timer_key = make_timer_key(match_id, timer_type);
+    let _: () = redis.del(timer_key).await?;
+    Ok(())
 }
 
 // utility

@@ -7,6 +7,7 @@ use crate::common::error::AppError;
 use crate::common::website;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
+use crate::repositories::multiplayer::TimerType;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{multiplayer, sessions, streams, users};
 use bancho_protocol::messages::server::ChatMessage;
@@ -315,14 +316,14 @@ pub async fn close<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
 
 #[derive(Debug, FromCommandArgs)]
 pub struct StartArgs {
-    pub time: u32,
+    pub timer_seconds: u32,
 }
 
 #[command("start")]
 pub async fn start<C: Context>(
     ctx: &C,
     sender: &Session,
-    _args: Option<StartArgs>,
+    args: Option<StartArgs>,
 ) -> CommandResult {
     let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
         .await?
@@ -335,21 +336,24 @@ pub async fn start<C: Context>(
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: Need start_match function and timer logic
-    // if let Some(start_time) = args.time {
-    //     // Start countdown timer
-    //     return Ok(Some(format!("Match starts in {} seconds. The match has been locked.", start_time)));
-    // } else {
-    //     // Start immediately
-    //     let success = await match.start(mp_match.match_id);
-    //     if success {
-    //         return Ok(Some("Starting match".to_string()));
-    //     } else {
-    //         return Ok(Some("Couldn't start match. Make sure there are enough players and teams are valid.".to_string()));
-    //     }
-    // }
-
-    Ok(Some("Starting match".to_string()))
+    match args {
+        Some(args) => {
+            multiplayer::start_timer(
+                ctx,
+                match_id,
+                TimerType::MatchStart,
+                args.timer_seconds as u64,
+            );
+            Ok(Some(format!(
+                "Countdown started. Match starts in {} second(s).",
+                args.timer_seconds,
+            )))
+        }
+        None => {
+            multiplayer::start_game(ctx, match_id, None).await?;
+            Ok(Some("Starting match".to_string()))
+        }
+    }
 }
 
 #[command("abort")]
@@ -365,7 +369,12 @@ pub async fn abort<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: multiplayer::abort(ctx, mp_match.match_id).await?;
+    if mp_match.in_progress {
+        // TODO: multiplayer::abort(ctx, mp_match.match_id).await?;
+    } else {
+        multiplayer::abort_timer(ctx, match_id, TimerType::MatchStart).await?;
+    }
+
     Ok(Some("Match aborted!".to_string()))
 }
 
@@ -700,18 +709,18 @@ pub async fn match_history_link<C: Context>(ctx: &C, sender: &Session) -> Comman
 
 #[derive(Debug, FromCommandArgs)]
 pub struct TimerArgs {
-    pub time: u32,
+    pub seconds: u32,
 }
 
 #[command("timer")]
 pub async fn timer<C: Context>(ctx: &C, sender: &Session, args: TimerArgs) -> CommandResult {
-    if args.time < 1 {
+    if args.seconds < 1 {
         return Ok(Some(
             "Countdown time must be at least 1 second.".to_string(),
         ));
     }
 
-    if args.time > 300 {
+    if args.seconds > 300 {
         return Ok(Some(
             "Countdown time must be less than 5 minutes.".to_string(),
         ));
@@ -728,22 +737,11 @@ pub async fn timer<C: Context>(ctx: &C, sender: &Session, args: TimerArgs) -> Co
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: Need timer functions and countdown logic
-    // if mp_match.is_timer_running {
-    //     return Ok(Some("A countdown is already running.".to_string()));
-    // }
-
-    // await match.update_match(mp_match.match_id, is_timer_running=true);
-
-    let minutes = args.time / 60;
-    let seconds = args.time % 60;
-    let message = if minutes > 0 && seconds == 0 {
-        format!("Countdown ends in {} minute(s)", minutes)
-    } else {
-        format!("Countdown ends in {} second(s)", seconds)
-    };
-
-    Ok(Some(message))
+    multiplayer::start_timer(ctx, match_id, TimerType::Regular, args.seconds as u64);
+    Ok(Some(format!(
+        "Countdown started. Ends in {} second(s).",
+        args.seconds,
+    )))
 }
 
 #[command("aborttimer")]
@@ -759,8 +757,7 @@ pub async fn aborttimer<C: Context>(ctx: &C, sender: &Session) -> CommandResult 
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    // TODO: Need update_match function to set is_timer_running=false
-    // await match.update_match(mp_match.match_id, is_timer_running=false);
+    multiplayer::abort_timer(ctx, match_id, TimerType::Regular).await?;
 
     Ok(Some("Countdown stopped.".to_string()))
 }
