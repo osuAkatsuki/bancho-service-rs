@@ -1160,6 +1160,10 @@ pub async fn abort<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
         .await?
         .ok_or(AppError::MultiplayerNotFound)?;
 
+    if !mp_match.in_progress {
+        return Ok(());
+    }
+
     // Set match as not in progress
     mp_match.in_progress = false;
 
@@ -1175,10 +1179,12 @@ pub async fn abort<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
         }
     }
 
-    streams::broadcast_message(
+    // Of course just MatchAborted isn't enough...
+    let match_aborted = concat_messages!(MatchAllPlayersLoaded, MatchAborted,);
+    streams::broadcast_data(
         ctx,
         StreamName::Multiplaying(match_id),
-        MatchAborted,
+        &match_aborted,
         None,
         None,
     )

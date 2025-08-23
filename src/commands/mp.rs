@@ -300,6 +300,14 @@ pub async fn close<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         match slot.user {
             Some(slot_user) => {
                 multiplayer::leave(ctx, slot_user, Some(match_id)).await?;
+                streams::broadcast_message(
+                    ctx,
+                    StreamName::User(slot_user.session_id),
+                    MatchJoinFailed,
+                    None,
+                    None,
+                )
+                .await?;
             }
             None => {}
         }
