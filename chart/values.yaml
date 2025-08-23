@@ -36,3 +36,25 @@ apps:
     service:
       type: ClusterIP
       port: 80
+
+  - name: bancho-service-rs-pubsub-daemon
+    environment: production
+    codebase: bancho-service-rs
+    replicaCount: 1
+    container:
+      image:
+          repository: osuakatsuki/bancho-service-rs
+          tag: latest
+      port: 80
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 75m
+          memory: 75Mi
+      env:
+        - name: APP_COMPONENT
+          value: pubsub-daemon
+      imagePullSecrets:
+        - name: osuakatsuki-registry-secret
