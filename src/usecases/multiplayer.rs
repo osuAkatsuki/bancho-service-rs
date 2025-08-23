@@ -1052,24 +1052,87 @@ async fn run_timer<C: Context>(
         let remaining_seconds = multiplayer::decrease_timer(&ctx, match_id, timer_type).await?;
         if remaining_seconds <= 0 {
             multiplayer::abort_timer(&ctx, match_id, timer_type).await?;
+            send_timer_ended_message(&ctx, match_id, timer_type).await?;
             match timer_type {
-                TimerType::Regular => send_timer_ended_message(&ctx, match_id).await?,
-                TimerType::MatchStart => start_game(&ctx, match_id, None).await?,
+                TimerType::Regular => {}
+                TimerType::MatchStart => {
+                    start_game(&ctx, match_id, None).await?;
+                }
             }
             break;
+        } else if remaining_seconds <= 5
+            || remaining_seconds == 10
+            || remaining_seconds == 30
+            || (remaining_seconds % 60) == 0
+        {
+            send_timer_remaining_message(&ctx, match_id, remaining_seconds, timer_type).await?;
         }
     }
 
     Ok(())
 }
 
-async fn send_timer_ended_message<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
+async fn send_timer_ended_message<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    timer_type: TimerType,
+) -> ServiceResult<()> {
     let mp_match = fetch_one(ctx, match_id).await?;
+    let message_text = match timer_type {
+        TimerType::Regular => "Timer has ended.",
+        TimerType::MatchStart => "Match is starting!",
+    };
 
     let bot_message = IrcMessage {
         sender_id: bot::BOT_ID as _,
         sender: bot::BOT_NAME,
-        text: "Timer has ended",
+        text: message_text,
+        recipient: "#multiplayer",
+    };
+    streams::broadcast_message(
+        ctx,
+        StreamName::Multiplayer(mp_match.match_id),
+        ChatMessage(&bot_message),
+        None,
+        None,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn send_timer_remaining_message<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    remaining_seconds: i64,
+    timer_type: TimerType,
+) -> ServiceResult<()> {
+    let mp_match = fetch_one(ctx, match_id).await?;
+
+    let prefix = match timer_type {
+        TimerType::Regular => "Timer is ending in",
+        TimerType::MatchStart => "Match is starting in",
+    };
+
+    let minutes = remaining_seconds / 60;
+    let seconds = remaining_seconds % 60;
+
+    let minutes_text = match minutes {
+        0 => String::new(),
+        1 => format!("{} minute", minutes),
+        mins => format!("{} minutes", mins),
+    };
+
+    let seconds_text = match seconds {
+        0 => String::new(),
+        1 => format!("{} second", seconds),
+        secs => format!("{} seconds", secs),
+    };
+
+    let timer_remaining_text = format!("{prefix}{minutes_text}{seconds_text}");
+    let bot_message = IrcMessage {
+        sender_id: bot::BOT_ID as _,
+        sender: bot::BOT_NAME,
+        text: &timer_remaining_text,
         recipient: "#multiplayer",
     };
     streams::broadcast_message(
