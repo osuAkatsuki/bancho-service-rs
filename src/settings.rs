@@ -29,6 +29,7 @@ pub struct AppSettings {
 
     pub frontend_base_url: String,
     pub discord_logs_webhook_url: Option<String>,
+    pub discord_hw_webhook_url: Option<String>,
     pub discord_ranked_maps_webhook_url: Option<String>,
 }
 
@@ -63,6 +64,9 @@ impl AppSettings {
         let discord_logs_webhook_url = env::var("DISCORD_LOGS_WEBHOOK_URL")
             .ok()
             .filter(|url| !url.trim().is_empty());
+        let discord_hw_webhook_url = env::var("DISCORD_HW_WEBHOOK_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty());
         let discord_ranked_maps_webhook_url = env::var("DISCORD_RANKED_MAPS_WEBHOOK_URL")
             .ok()
             .filter(|url| !url.trim().is_empty());
@@ -89,6 +93,7 @@ impl AppSettings {
             performance_service_base_url,
             frontend_base_url,
             discord_logs_webhook_url,
+            discord_hw_webhook_url,
             discord_ranked_maps_webhook_url,
         })
     }

@@ -1,5 +1,5 @@
 use deadpool::managed::{Manager, Metrics, Object, Pool, PoolError, RecycleResult};
-use redis::{AsyncConnectionConfig, RedisError, RedisResult};
+use redis::{AsyncCommands, AsyncConnectionConfig, RedisError, RedisResult};
 
 pub struct RedisPoolManager {
     client: redis::Client,
@@ -25,9 +25,10 @@ impl Manager for RedisPoolManager {
     // TODO: maybe trace metrics
     async fn recycle(
         &self,
-        _obj: &mut Self::Type,
+        connection: &mut Self::Type,
         _metrics: &Metrics,
     ) -> RecycleResult<Self::Error> {
+        let _: () = connection.ping().await?;
         Ok(())
     }
 }

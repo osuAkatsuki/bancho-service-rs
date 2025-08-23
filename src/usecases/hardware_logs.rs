@@ -125,7 +125,7 @@ async fn do_verification_checks<C: Context>(
                 "[{}]({}) may have created a multiaccount [{}]({})\nHardware Usage Percentage: {:.2}%",
                 match_username, match_user_id, username, user_id, usage_percent,
             );
-            let _ = discord::send_logs_red_embed(
+            let _ = discord::send_hw_red_embed(
                 "Possible multiaccount association",
                 &notification,
                 None,
@@ -166,13 +166,13 @@ async fn do_regular_checks<C: Context>(
                         match_usage_percent * 100.0,
                     );
                     let _ =
-                        discord::send_logs_red_embed("Possible multiaccount", &notification, None)
+                        discord::send_hw_red_embed("Possible multiaccount", &notification, None)
                             .await;
                 } else {
                     let notification = format!(
                         "[{username}]({user_id}) logged in with [{match_username}]({match_user_id})'s hardware."
                     );
-                    let _ = discord::send_logs_blue_embed(
+                    let _ = discord::send_hw_blue_embed(
                         "User logged in with another users' hardware",
                         &notification,
                         None,
@@ -211,7 +211,7 @@ async fn do_regular_checks<C: Context>(
                         "[{username}]({user_id}) has hardware match with [{match_username}]({match_user_id}), who is restricted."
                     );
                     let _ =
-                        discord::send_logs_blue_embed("Possible Multiaccount", &notification, None)
+                        discord::send_hw_blue_embed("Possible Multiaccount", &notification, None)
                             .await;
                 }
             } else if match_usage_percent > usage_percent {
@@ -224,7 +224,7 @@ async fn do_regular_checks<C: Context>(
                     match_user_id,
                     match_usage_percent * 100.0,
                 );
-                let _ = discord::send_logs_blue_embed(
+                let _ = discord::send_hw_blue_embed(
                     "User logged in with another users' hardware",
                     &notification,
                     None,
