@@ -752,14 +752,6 @@ pub async fn start_game<C: Context>(
     streams::broadcast_message(
         ctx,
         StreamName::Multiplayer(match_id),
-        MatchUpdate(&bancho_match),
-        None,
-        None,
-    )
-    .await?;
-    streams::broadcast_message(
-        ctx,
-        StreamName::Multiplaying(match_id),
         MatchStart(&bancho_match),
         None,
         None,
@@ -1118,14 +1110,14 @@ async fn send_timer_remaining_message<C: Context>(
 
     let minutes_text = match minutes {
         0 => String::new(),
-        1 => format!("{} minute", minutes),
-        mins => format!("{} minutes", mins),
+        1 => format!(" {} minute", minutes),
+        mins => format!(" {} minutes", mins),
     };
 
     let seconds_text = match seconds {
         0 => String::new(),
-        1 => format!("{} second", seconds),
-        secs => format!("{} seconds", secs),
+        1 => format!(" {} second", seconds),
+        secs => format!(" {} seconds", secs),
     };
 
     let timer_remaining_text = format!("{prefix}{minutes_text}{seconds_text}");
