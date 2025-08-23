@@ -173,13 +173,13 @@ pub async fn handle_events(
 ) -> BanchoResponse {
     // If the session is used from a different IP
     // than the IP that created it, we will log a warning
-    if session.create_ip_address != ctx.request_ip.ip_addr {
+    /*if session.create_ip_address != ctx.request_ip.ip_addr {
         warn!(
             create_ip_address = session.create_ip_address.to_string(),
             request_ip_address = ctx.request_ip.ip_addr.to_string(),
             "Received events from an IP address different from the creation IP"
         );
-    }
+    }*/
 
     let events = match Events::try_from(&request_data) {
         Ok(events) => events,

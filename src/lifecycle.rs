@@ -2,6 +2,7 @@ use crate::common::redis_pool::{RedisPool, RedisPoolManager};
 use crate::common::state::AppState;
 use crate::settings::AppSettings;
 use deadpool::Runtime;
+use redis::io::tcp::TcpSettings;
 use redis::{AsyncConnectionConfig, Commands};
 use sqlx::mysql::MySqlPoolOptions;
 use sqlx::{MySql, Pool};
@@ -34,7 +35,8 @@ pub fn initialize_redis(settings: &AppSettings) -> anyhow::Result<RedisPool> {
     let _: () = conn.ping()?;
     let redis_cfg = AsyncConnectionConfig::new()
         .set_connection_timeout(settings.redis_connection_timeout)
-        .set_response_timeout(settings.redis_response_timeout);
+        .set_response_timeout(settings.redis_response_timeout)
+        .set_tcp_settings(TcpSettings::default().set_keepalive(socket2::TcpKeepalive::new()));
 
     let redis_manager = RedisPoolManager::new(redis_client, redis_cfg);
     let redis = RedisPool::builder(redis_manager)
