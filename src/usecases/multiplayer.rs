@@ -1235,7 +1235,7 @@ pub async fn abort<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
     }
 
     // Of course just MatchAborted isn't enough...
-    let match_aborted = concat_messages!(MatchAllPlayersLoaded, MatchAborted,);
+    let match_aborted = concat_messages!(MatchAllPlayersLoaded, MatchAborted);
     streams::broadcast_data(
         ctx,
         StreamName::Multiplaying(match_id),
