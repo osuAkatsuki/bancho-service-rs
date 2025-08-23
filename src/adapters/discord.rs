@@ -47,12 +47,67 @@ pub async fn send_logs_embed(
     color: u32,
 ) -> ServiceResult<()> {
     let settings = AppSettings::get();
-    if settings.discord_logs_webhook_url.is_none() {
-        tracing::warn!(title, description, url, "Discord Logs Webhook url not set");
-        return Ok(());
+    match &settings.discord_logs_webhook_url {
+        None => {
+            tracing::warn!(title, description, url, "Discord Logs Webhook url not set");
+            Ok(())
+        }
+        Some(webhook_url) => send_embed(webhook_url, title, description, url, color).await,
     }
+}
 
-    let webhook_url = settings.discord_logs_webhook_url.as_ref().unwrap();
+pub async fn send_hw_purple_embed(
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+) -> ServiceResult<()> {
+    send_hw_embed(title, description, url, LOGS_PURPLE_EMBED_COLOR).await
+}
+
+pub async fn send_hw_blue_embed(
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+) -> ServiceResult<()> {
+    send_hw_embed(title, description, url, LOGS_BLUE_EMBED_COLOR).await
+}
+
+pub async fn send_hw_red_embed(
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+) -> ServiceResult<()> {
+    send_hw_embed(title, description, url, LOGS_RED_EMBED_COLOR).await
+}
+
+pub async fn send_hw_embed(
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+    color: u32,
+) -> ServiceResult<()> {
+    let settings = AppSettings::get();
+    match &settings.discord_hw_webhook_url {
+        None => {
+            tracing::warn!(
+                title,
+                description,
+                url,
+                "Discord Hardware Logs Webhook url not set"
+            );
+            Ok(())
+        }
+        Some(webhook_url) => send_embed(webhook_url, title, description, url, color).await,
+    }
+}
+
+pub async fn send_embed(
+    webhook_url: &str,
+    title: &str,
+    description: &str,
+    url: Option<&str>,
+    color: u32,
+) -> ServiceResult<()> {
     let webhook = DiscordWebhook::new(webhook_url)?;
     webhook
         .send(&Message::new(|message| {
