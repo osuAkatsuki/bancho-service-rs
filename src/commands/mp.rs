@@ -1,6 +1,3 @@
-use std::ops::Deref;
-use std::str::FromStr;
-
 use crate::commands;
 use crate::commands::{COMMAND_PREFIX, CommandResult, CommandRouterInstance};
 use crate::common::context::Context;
@@ -15,6 +12,9 @@ use crate::usecases::{beatmaps, multiplayer, sessions, streams, users};
 use bancho_protocol::messages::server::{ChatMessage, MatchJoinFailed};
 use bancho_protocol::structures::{IrcMessage, MatchTeam, MatchTeamType, Mode, Mods, WinCondition};
 use bancho_service_macros::{FromCommandArgs, command};
+use std::ops::Deref;
+use std::str::FromStr;
+use std::time::Duration;
 
 pub static COMMANDS: CommandRouterInstance = commands![
     set_host,
@@ -300,6 +300,14 @@ pub async fn close<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
         match slot.user {
             Some(slot_user) => {
                 multiplayer::leave(ctx, slot_user, Some(match_id)).await?;
+                streams::broadcast_message(
+                    ctx,
+                    StreamName::User(slot_user.session_id),
+                    MatchJoinFailed,
+                    None,
+                    None,
+                )
+                .await?;
             }
             None => {}
         }
@@ -314,7 +322,7 @@ pub async fn close<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
 
 #[derive(Debug, FromCommandArgs)]
 pub struct StartArgs {
-    pub timer_seconds: u32,
+    pub timer_duration: Duration,
 }
 
 #[command("start")]
@@ -340,16 +348,16 @@ pub async fn start<C: Context>(
                 ctx,
                 match_id,
                 TimerType::MatchStart,
-                args.timer_seconds as u64,
+                args.timer_duration.as_secs(),
             );
             Ok(Some(format!(
-                "Countdown started. Match starts in {} second(s).",
-                args.timer_seconds,
+                "Countdown started. Match starts in {:?} second(s).",
+                args.timer_duration.as_secs(),
             )))
         }
         None => {
             multiplayer::start_game(ctx, match_id, None).await?;
-            Ok(Some("Starting match".to_string()))
+            Ok(Some("Match is starting!".to_string()))
         }
     }
 }
@@ -777,18 +785,19 @@ pub async fn match_history_link<C: Context>(ctx: &C, sender: &Session) -> Comman
 
 #[derive(Debug, FromCommandArgs)]
 pub struct TimerArgs {
-    pub seconds: u32,
+    pub timer_duration: Duration,
 }
 
 #[command("timer")]
 pub async fn timer<C: Context>(ctx: &C, sender: &Session, args: TimerArgs) -> CommandResult {
-    if args.seconds < 1 {
+    let timer_seconds = args.timer_duration.as_secs();
+    if timer_seconds < 1 {
         return Ok(Some(
             "Countdown time must be at least 1 second.".to_string(),
         ));
     }
 
-    if args.seconds > 300 {
+    if timer_seconds > 300 {
         return Ok(Some(
             "Countdown time must be less than 5 minutes.".to_string(),
         ));
@@ -805,10 +814,9 @@ pub async fn timer<C: Context>(ctx: &C, sender: &Session, args: TimerArgs) -> Co
         return Err(AppError::MultiplayerUnauthorized);
     }
 
-    multiplayer::start_timer(ctx, match_id, TimerType::Regular, args.seconds as u64);
+    multiplayer::start_timer(ctx, match_id, TimerType::Regular, timer_seconds);
     Ok(Some(format!(
-        "Countdown started. Ends in {} second(s).",
-        args.seconds,
+        "Countdown started. Ends in {timer_seconds} second(s)."
     )))
 }
 

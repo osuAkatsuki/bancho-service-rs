@@ -39,7 +39,7 @@ pub async fn fetch_foreign_matching_hardware<C: Context>(
             "MAX(hw.created_at) AS last_used ",
             "FROM hw_user hw ",
             "INNER JOIN users u ON hw.userid = u.id ",
-            "WHERE hw.userid != ? AND (hw.mac = ? OR hw.unique_id = ? OR hw.disk_id = ?) ",
+            "WHERE hw.userid != ? AND (hw.mac = ? OR hw.unique_id = ?) AND hw.disk_id = ? ",
             "GROUP BY hw.mac, hw.unique_id, hw.disk_id, hw.userid ",
             "ORDER BY hw.userid"
         );
