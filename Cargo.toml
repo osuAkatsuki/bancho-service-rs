@@ -35,11 +35,12 @@ dotenv = "0.15"
 hashbrown = "0.15.4"
 iso8061-timestamp = "0.1.7"
 rand = "0.9.1"
-redis = { version = "0.32.2", features = ["aio", "tokio-comp", "default", "hashbrown", "json", "uuid", "safe_iterators"] }
+redis = { version = "0.32.5", features = ["aio", "tokio-comp", "default", "hashbrown", "json", "uuid", "safe_iterators"] }
 reqwest = { version = "0.12.19", features = ["json"] }
 rust_decimal = "1.37.1"
 serde = "1.0"
 serde_json = "1.0"
+socket2 = "0.6"
 sqlx = { version = "0.8.6", features = ["default", "runtime-tokio", "chrono", "rust_decimal", "mysql"] }
 tokio = { version = "1.45.1", features = ["rt-multi-thread", "macros", "net"] }
 tracing = "0.1"
