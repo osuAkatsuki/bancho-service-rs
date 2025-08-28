@@ -7,7 +7,7 @@ use crate::repositories::channels;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{multiplayer, spectators, streams};
 use bancho_protocol::messages::server::ChannelInfo;
-use tracing::info;
+use tracing::{error, info};
 use uuid::Uuid;
 
 pub async fn get_channel_name<'a, C: Context>(
@@ -104,8 +104,20 @@ pub async fn leave<C: Context>(
 pub async fn leave_all<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<()> {
     let channels = channels::fetch_session_channels(ctx, session_id).await?;
     for channel in channels {
-        leave(ctx, session_id, ChannelName::Chat(&channel)).await?;
+        match leave(ctx, session_id, ChannelName::Chat(&channel)).await {
+            Ok(_) => {}
+            Err(AppError::ChannelsNotFound) => {
+                error!(
+                    session_id = session_id.to_string(),
+                    channel_name = channel,
+                    "Failed to leave non-existent channel",
+                );
+            }
+            Err(e) => return Err(e),
+        }
     }
+
+    channels::clear_session_channels(ctx, session_id).await?;
     Ok(())
 }
 

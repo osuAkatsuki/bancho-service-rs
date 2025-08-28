@@ -3,7 +3,7 @@ use crate::common::error::ServiceResult;
 use crate::usecases::sessions;
 use chrono::{TimeDelta, Utc};
 use std::ops::Add;
-use tracing::info;
+use tracing::{error, info};
 
 const CLIENT_TIMEOUT: i64 = 5 * 60;
 
@@ -19,7 +19,13 @@ pub async fn cleanup_sessions<C: Context>(ctx: &C) -> ServiceResult<()> {
             user_id = session.user_id,
             "Session timed out..."
         );
-        sessions::delete(ctx, &session).await?;
+        if let Err(e) = sessions::delete(ctx, &session).await {
+            error!(
+                session_id = session.session_id.to_string(),
+                user_id = session.user_id,
+                "Failed to time out session: {e:?}",
+            );
+        }
     }
     Ok(())
 }
