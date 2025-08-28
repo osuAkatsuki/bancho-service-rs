@@ -38,7 +38,9 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     }
 
     let mut user = User::try_from(user)?;
-    if !user.privileges.contains(Privileges::CanLogin) {
+    if !user.privileges.contains(Privileges::CanLogin)
+        && !user.privileges.contains(Privileges::PendingVerification)
+    {
         return Err(AppError::SessionsLoginForbidden);
     }
 
