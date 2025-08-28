@@ -91,3 +91,10 @@ pub async fn leave<C: Context>(
         .await?;
     Ok(member_count[0])
 }
+
+pub async fn clear_session_channels<C: Context>(ctx: &C, session_id: Uuid) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let session_channels_key = make_session_channels_key(session_id);
+    let _: () = redis.del(session_channels_key).await?;
+    Ok(())
+}
