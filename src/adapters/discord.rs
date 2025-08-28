@@ -186,7 +186,7 @@ pub async fn send_ranked_maps_embed(
         dedent!(
             r#"
             ### This map has received a status update. 📝
-            **Length**: `{}:{}` **BPM**: `{}`
+            **Length**: `{:02}:{:02}` **BPM**: `{}`
             **AR**: `{:.2}` **OD**: `{:.2}` **Combo**: `{}x`
             "#
         ),

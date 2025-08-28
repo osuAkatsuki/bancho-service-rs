@@ -135,6 +135,9 @@ pub async fn read_pending_messages<C: Context>(
 ) -> anyhow::Result<Vec<StreamReadMessage>> {
     let mut redis = ctx.redis().await?;
     let mut offsets = get_offsets(&mut redis, session_id).await?;
+    if offsets.is_empty() {
+        return Ok(vec![]);
+    }
 
     let streams: Vec<&String> = offsets.keys().collect();
     let ids: Vec<&String> = offsets.values().collect();
