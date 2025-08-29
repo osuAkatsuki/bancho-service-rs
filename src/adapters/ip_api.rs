@@ -10,11 +10,11 @@ fn make_url<T: Display>(ip: T) -> String {
 #[derive(Debug, Deserialize)]
 pub struct IPLocation {
     #[serde(rename = "countryCode")]
-    pub country_code: String,
+    pub country_code: Option<String>,
     #[serde(rename = "lat")]
-    pub latitude: f32,
+    pub latitude: Option<f32>,
     #[serde(rename = "lon")]
-    pub longitude: f32,
+    pub longitude: Option<f32>,
 }
 
 pub async fn get_ip_info(ip: IpAddr) -> ServiceResult<IPLocation> {

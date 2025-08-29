@@ -11,12 +11,13 @@ pub async fn get_location(
 ) -> LocationInformation {
     match ip_api::get_ip_info(ip_address).await {
         Ok(location) => {
-            let country =
-                Country::try_from_iso3166_2(&location.country_code).unwrap_or(user_country);
+            let country = location.country_code.map_or(user_country, |code| {
+                Country::try_from_iso3166_2(&code).unwrap_or(user_country)
+            });
             let location = LocationInformation {
                 country,
-                latitude: location.latitude,
-                longitude: location.longitude,
+                latitude: location.latitude.unwrap_or(0.0),
+                longitude: location.longitude.unwrap_or(0.0),
             };
             location.offset_randomly(show_exact)
         }
