@@ -2,7 +2,7 @@ use crate::adapters::ip_api;
 use crate::models::location::LocationInformation;
 use bancho_protocol::structures::Country;
 use std::net::IpAddr;
-use tracing::error;
+use tracing::warn;
 
 pub async fn get_location(
     ip_address: IpAddr,
@@ -21,7 +21,10 @@ pub async fn get_location(
             location.offset_randomly(show_exact)
         }
         Err(e) => {
-            error!("Error getting location for session: {e:?}");
+            warn!(
+                ip_address = ip_address.to_string(),
+                "Failed getting location for IP address: {e:?}"
+            );
             LocationInformation {
                 country: user_country,
                 latitude: 0.0,

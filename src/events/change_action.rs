@@ -1,11 +1,14 @@
 use crate::api::RequestContext;
 use crate::common::error::AppError;
 use crate::events::EventResult;
-use crate::models::presences::{Presence, PresenceAction, PresenceStats};
+use crate::models::presences::{
+    Presence, PresenceAction, PresenceLocationInformation, PresenceStats,
+};
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{presences, stats, streams};
+use crate::usecases::{location, presences, stats, streams};
 use bancho_protocol::messages::client::ChangeAction;
+use bancho_protocol::structures::Country;
 
 pub async fn handle(
     ctx: &RequestContext,
@@ -15,9 +18,22 @@ pub async fn handle(
     let mut presence = match presences::fetch_one(ctx, session.user_id).await {
         Ok(presence) => presence,
         Err(AppError::PresencesNotFound) => {
-            let mut presence = Presence::default();
-            presence.user_id = session.user_id;
-            presence
+            let location =
+                location::get_location(session.create_ip_address, Country::Unknown, false).await;
+
+            Presence {
+                user_id: session.user_id,
+                username: session.username.clone(),
+                privileges: session.privileges.to_bancho(),
+                action: PresenceAction::default(),
+                stats: PresenceStats::default(),
+                location: PresenceLocationInformation {
+                    country: location.country,
+                    longitude: location.longitude,
+                    latitude: location.latitude,
+                    utc_offset: 0,
+                },
+            }
         }
         Err(e) => return Err(e),
     };
