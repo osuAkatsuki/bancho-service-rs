@@ -9,12 +9,29 @@ use tracing::info;
 pub async fn fetch_last_user_score<C: Context>(
     ctx: &C,
     user_id: i64,
-    custom_gamemode: CustomGamemode,
 ) -> ServiceResult<LastUserScore> {
-    match scores::fetch_last_user_score(ctx, user_id, custom_gamemode).await {
-        Ok(Some(score)) => Ok(LastUserScore::from(score)),
-        Ok(None) => Err(AppError::ScoresNotFound),
-        Err(e) => unexpected(e),
+    let mut last_score =
+        scores::fetch_last_user_score(ctx, user_id, CustomGamemode::Vanilla).await?;
+    let last_score_rx = scores::fetch_last_user_score(ctx, user_id, CustomGamemode::Relax).await?;
+    if last_score
+        .as_ref()
+        .is_none_or(|score| last_score_rx.as_ref().is_none_or(|rx| rx.time > score.time))
+    {
+        last_score = last_score_rx;
+    }
+
+    let last_score_ap =
+        scores::fetch_last_user_score(ctx, user_id, CustomGamemode::Autopilot).await?;
+    if last_score
+        .as_ref()
+        .is_none_or(|score| last_score_ap.as_ref().is_none_or(|ap| ap.time > score.time))
+    {
+        last_score = last_score_ap;
+    }
+
+    match last_score {
+        Some(score) => Ok(LastUserScore::from(score)),
+        None => Err(AppError::ScoresNotFound),
     }
 }
 

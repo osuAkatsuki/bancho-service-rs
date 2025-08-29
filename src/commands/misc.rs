@@ -145,10 +145,7 @@ pub async fn pp_with<C: Context>(ctx: &C, sender: &Session, args: String) -> Com
 
 #[command("last")]
 pub async fn last_user_score<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let presence = presences::fetch_one(ctx, sender.user_id).await?;
-    let last_score =
-        scores::fetch_last_user_score(ctx, sender.user_id, presence.action.mode.custom_gamemode())
-            .await?;
+    let last_score = scores::fetch_last_user_score(ctx, sender.user_id).await?;
     let settings = AppSettings::get();
     let response = format!(
         "{} | [{}/b/{} {}] {} | {}/{} {:.2}% {:.2}pp",
