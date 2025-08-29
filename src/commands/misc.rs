@@ -14,6 +14,8 @@ use crate::usecases::{
 use bancho_protocol::messages::server::{Alert, ChatMessage};
 use bancho_protocol::structures::IrcMessage;
 use bancho_service_macros::{FromCommandArgs, command};
+use chrono::Utc;
+use dedent::dedent;
 
 #[command("help", forward_message = false)]
 pub async fn help<C: Context>(_ctx: &C, sender: &Session) -> CommandResult {
@@ -179,7 +181,34 @@ pub async fn report_user<C: Context>(
     Ok(Some("Report successful!".to_owned()))
 }
 
-/*#[command("overwrite")]
-pub async fn overwrite_score<C: Context>(_ctx: &C, _sender: &Session) -> CommandResult {
-    Ok(todo!())
-}*/
+#[command("overwrite")]
+pub async fn overwrite_best_score_with_last<C: Context>(
+    ctx: &C,
+    sender: &Session,
+) -> CommandResult {
+    let previous_overwrite = users::fetch_previous_overwrite(ctx, sender.user_id).await?;
+    if previous_overwrite.is_none() {
+        users::unlock_overwrite(ctx, sender.user_id).await?;
+        let warning = dedent!(
+            r#"
+            Since this is your first time using this command, I'll give a brief description.
+            This command allows you to force your most recent score to overwrite any previous scores you had on the map.
+            For example, say you just set some cool EZ score but you already had a nomod fc, and it didnt overwrite, you can use this to force it to overwrite the previous score.
+            The command has now been unlocked.
+        "#
+        );
+        return Ok(Some(warning.to_owned()));
+    }
+
+    let previous_overwrite_timestamp = previous_overwrite.unwrap();
+    let now_timestamp = Utc::now().timestamp();
+    let time_since_overwrite = now_timestamp - previous_overwrite_timestamp;
+    if time_since_overwrite < 30 {
+        return Ok(Some(
+            "You can only use this command once every 30 seconds.".to_owned(),
+        ));
+    }
+
+    scores::overwrite_best_score_with_last_score(ctx, sender.user_id).await?;
+    Ok(Some("Best score overwritten successfully!".to_owned()))
+}
