@@ -1,7 +1,7 @@
 use crate::common::context::Context;
-use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::common::error::{AppError, ServiceResult};
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
-use crate::models::scores::LastUserScore;
+use crate::models::scores::{LastUserScore, ScoreStatus};
 use crate::repositories::scores;
 use bancho_protocol::structures::Mode;
 use tracing::info;
@@ -9,12 +9,29 @@ use tracing::info;
 pub async fn fetch_last_user_score<C: Context>(
     ctx: &C,
     user_id: i64,
-    custom_gamemode: CustomGamemode,
 ) -> ServiceResult<LastUserScore> {
-    match scores::fetch_last_user_score(ctx, user_id, custom_gamemode).await {
-        Ok(Some(score)) => Ok(LastUserScore::from(score)),
-        Ok(None) => Err(AppError::ScoresNotFound),
-        Err(e) => unexpected(e),
+    let mut last_score =
+        scores::fetch_last_user_score(ctx, user_id, CustomGamemode::Vanilla).await?;
+    let last_score_rx = scores::fetch_last_user_score(ctx, user_id, CustomGamemode::Relax).await?;
+    if last_score
+        .as_ref()
+        .is_none_or(|score| last_score_rx.as_ref().is_none_or(|rx| rx.time > score.time))
+    {
+        last_score = last_score_rx;
+    }
+
+    let last_score_ap =
+        scores::fetch_last_user_score(ctx, user_id, CustomGamemode::Autopilot).await?;
+    if last_score
+        .as_ref()
+        .is_none_or(|score| last_score_ap.as_ref().is_none_or(|ap| ap.time > score.time))
+    {
+        last_score = last_score_ap;
+    }
+
+    match last_score {
+        Some(score) => Ok(LastUserScore::from(score)),
+        None => Err(AppError::ScoresNotFound),
     }
 }
 
@@ -73,5 +90,45 @@ pub async fn recalculate_user_first_places<C: Context>(ctx: &C, user_id: i64) ->
         }
     }
 
+    Ok(())
+}
+
+pub async fn overwrite_best_score_with_last_score<C: Context>(
+    ctx: &C,
+    user_id: i64,
+) -> ServiceResult<()> {
+    let last_score = fetch_last_user_score(ctx, user_id).await?;
+    if last_score.status == ScoreStatus::RankedScore {
+        return Ok(());
+    } else if last_score.status != ScoreStatus::Passed {
+        return Ok(());
+    }
+
+    let game_mode = Gamemode::from_mode_and_mods(last_score.mode, last_score.mods);
+    let custom_gamemode = game_mode.custom_gamemode();
+
+    let best_score =
+        scores::fetch_best_user_score_on_map(ctx, user_id, &last_score.beatmap_md5, game_mode)
+            .await?;
+    match best_score {
+        Some(best_score) if best_score.score_id != last_score.score_id => {
+            scores::update_score_status(
+                ctx,
+                best_score.score_id,
+                ScoreStatus::Passed as _,
+                custom_gamemode,
+            )
+            .await?;
+
+            scores::update_score_status(
+                ctx,
+                last_score.score_id,
+                ScoreStatus::RankedScore as _,
+                custom_gamemode,
+            )
+            .await?;
+        }
+        _ => (),
+    }
     Ok(())
 }

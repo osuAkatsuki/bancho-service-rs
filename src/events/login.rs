@@ -28,7 +28,7 @@ fn login_error(e: AppError) -> BanchoResponse {
     let login_error = match e {
         AppError::SessionsInvalidCredentials => LoginError::InvalidCredentials,
         AppError::ClientTooOld => LoginError::OldVersion,
-        AppError::SessionsLoginForbidden => LoginError::UnexpectedError,
+        AppError::SessionsLoginForbidden => LoginError::InvalidCredentials,
         AppError::SessionsLimitReached => LoginError::OldVersion,
         _ => LoginError::UnexpectedError,
     };

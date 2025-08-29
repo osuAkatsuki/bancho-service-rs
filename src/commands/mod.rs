@@ -38,6 +38,7 @@ static COMMAND_ROUTER: CommandRouterInstance = commands![
     misc::report_user,
     misc::roll,
     misc::pp_with,
+    misc::overwrite_best_score_with_last,
 
     staff::add_bn,
     staff::ban_user,

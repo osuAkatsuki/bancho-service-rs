@@ -29,6 +29,8 @@ pub struct LastUserScore {
     pub max_combo: i32,
     pub accuracy: f32,
     pub time: i32,
+    #[sqlx(rename = "completed")]
+    pub status: i8,
 
     pub beatmap_id: i32,
     #[sqlx(rename = "beatmapset_id")]
