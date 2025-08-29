@@ -64,7 +64,8 @@ pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) 
             Ok(Some("Map status changed".to_owned()))
         }
         "set" => {
-            let beatmaps = beatmaps::change_set_status(ctx, last_np.beatmap_id, new_status).await?;
+            let beatmaps =
+                beatmaps::change_set_status(ctx, last_np.beatmap_set_id, new_status).await?;
             for (beatmap, previous_status) in beatmaps {
                 let _ = discord::send_ranked_maps_embed(
                     &beatmap,
