@@ -1,5 +1,5 @@
 use crate::common::context::Context;
-use crate::common::error::{AppError, ServiceResult, unexpected};
+use crate::common::error::{AppError, ServiceResult};
 use crate::entities::gamemodes::{CustomGamemode, Gamemode};
 use crate::models::scores::LastUserScore;
 use crate::repositories::scores;
