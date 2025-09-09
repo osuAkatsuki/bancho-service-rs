@@ -192,6 +192,10 @@ pub async fn join<C: Context>(
     match_id: i64,
     password: &str,
 ) -> ServiceResult<(MultiplayerMatch, MultiplayerMatchSlots)> {
+    if !session.is_publicly_visible() {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
+
     if let Some(match_id) = multiplayer::fetch_session_match_id(ctx, session.session_id).await? {
         leave(ctx, session.identity(), Some(match_id)).await?;
     }
