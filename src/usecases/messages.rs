@@ -84,6 +84,10 @@ pub async fn send<C: Context>(
     recipient: &Recipient<'_>,
     message_content: &str,
 ) -> ServiceResult<MessageSendResult> {
+    if !session.is_publicly_visible() {
+        return Err(AppError::InteractionBlocked);
+    }
+
     if session.is_silenced() {
         return Err(AppError::MessagesUserSilenced);
     }

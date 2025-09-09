@@ -33,6 +33,25 @@ pub async fn handle(ctx: &RequestContext, session: &Session, args: StartSpectati
         return Ok(Some(alert));
     }
 
+    if !session.is_publicly_visible() {
+        let alert = concat_messages!(
+            // redirecting the user to themselves forces the client to stop spectating
+            SpectatorFrames {
+                frames: &ReplayFrameBundle {
+                    action: ReplayAction::WatchingOther,
+                    extra: session.user_id as _,
+                    frames: PrefixedVec::from(vec![]),
+                    score_frame: ScoreFrame::default(),
+                    sequence: 0,
+                }
+            },
+            Alert {
+                message: "You are not allowed to spectate.",
+            }
+        );
+        return Ok(Some(alert));
+    }
+
     let spec_channel_notify = Message::serialize(ChannelJoinSuccess { name: "#spectator" });
     match spectators::join(ctx, session, args.target_id as _).await {
         Ok(spectators) => {
