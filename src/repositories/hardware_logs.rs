@@ -9,8 +9,32 @@ pub async fn fetch_foreign_matching_hardware<C: Context>(
     unique_id: &str,
     disk_id: &str,
 ) -> sqlx::Result<Vec<MatchingHardwareLog>> {
-    // md5("runningunderwine"), osu! is running on wine
-    if mac == "b4ec3c4334a0249dae95c284ec5983df" {
+    // unique_id = md5(md5("00000000-0000-0000-0000-000000000000"))
+    // disk_id = md5(md5("0"))
+    if unique_id == "06a9e146cb8cc0853ded03bb15f2260e"
+        || disk_id == "dcfcd07e645d245babe887e5e2daa016"
+    {
+        const QUERY: &str = const_str::concat!(
+            "SELECT hw.userid, u.username, u.privileges, ",
+            "hw.mac, hw.unique_id, hw.disk_id, ",
+            "SUM(hw.occurencies) AS occurencies, ",
+            "MAX(hw.activated) AS activated, ",
+            "MAX(hw.created_at) AS last_used ",
+            "FROM hw_user hw ",
+            "INNER JOIN users u ON hw.userid = u.id ",
+            "WHERE hw.userid != ? AND hw.mac = ? AND hw.unique_id = ? AND hw.disk_id = ? ",
+            "GROUP BY hw.mac, hw.unique_id, hw.disk_id, hw.userid ",
+            "ORDER BY hw.userid"
+        );
+        sqlx::query_as(QUERY)
+            .bind(user_id)
+            .bind(mac)
+            .bind(unique_id)
+            .bind(disk_id)
+            .fetch_all(ctx.db())
+            .await
+    } else if mac == "b4ec3c4334a0249dae95c284ec5983df" {
+        // md5("runningunderwine"), osu! is running on wine
         // Only match by unique_id
         // TODO: is matching by disk_id possible here?
         const QUERY: &str = const_str::concat!(
