@@ -124,3 +124,24 @@ pub async fn create<C: Context>(
         .await?;
     Ok(())
 }
+
+pub async fn is_shared_device<C: Context>(
+    ctx: &C,
+    mac: &str,
+    unique_id: &str,
+    disk_id: &str,
+) -> sqlx::Result<bool> {
+    const QUERY: &str = const_str::concat!(
+        "SELECT EXISTS(",
+        "  SELECT 1 FROM shared_devices ",
+        "  WHERE mac = ? AND unique_id = ? AND disk_id = ?",
+        ") AS is_shared"
+    );
+    let result: bool = sqlx::query_scalar(QUERY)
+        .bind(mac)
+        .bind(unique_id)
+        .bind(disk_id)
+        .fetch_one(ctx.db())
+        .await?;
+    Ok(result.0)
+}
