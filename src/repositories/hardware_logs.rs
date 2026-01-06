@@ -137,7 +137,7 @@ pub async fn is_shared_device<C: Context>(
         "  WHERE mac = ? AND unique_id = ? AND disk_id = ?",
         ") AS is_shared"
     );
-    let result: (bool,) = sqlx::query_as(QUERY)
+    let result: bool = sqlx::query_scalar(QUERY)
         .bind(mac)
         .bind(unique_id)
         .bind(disk_id)
