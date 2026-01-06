@@ -72,6 +72,20 @@ pub async fn check_for_multiaccounts<C: Context>(
     user_verification_pending: bool,
     client_hashes: &ClientHashes,
 ) -> ServiceResult<()> {
+    // Check if this hardware is approved as a shared device
+    let is_shared = hardware_logs::is_shared_device(
+        ctx,
+        &client_hashes.adapters_md5,
+        &client_hashes.uninstall_md5,
+        &client_hashes.disk_signature_md5,
+    )
+    .await?;
+
+    // If it's an approved shared device, skip all multi-account checks
+    if is_shared {
+        return Ok(());
+    }
+
     let hw_matches = fetch_aggregate_hardware_matches(ctx, user_id, client_hashes).await?;
     if hw_matches.total_hardware_matches == 0 {
         return Ok(());
