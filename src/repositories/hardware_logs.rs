@@ -125,7 +125,6 @@ pub async fn create<C: Context>(
     Ok(())
 }
 
-/// Check if a hardware combination is marked as a shared device
 pub async fn is_shared_device<C: Context>(
     ctx: &C,
     mac: &str,
