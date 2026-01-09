@@ -213,17 +213,3 @@ pub async fn update_previous_overwrite<C: Context>(ctx: &C, user_id: i64) -> Ser
         Err(e) => unexpected(e),
     }
 }
-
-pub async fn publish_ban_event<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
-    match users::publish_ban_event(ctx, user_id).await {
-        Ok(_) => Ok(()),
-        Err(e) => unexpected(e),
-    }
-}
-
-pub async fn publish_unban_event<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
-    match users::publish_unban_event(ctx, user_id).await {
-        Ok(_) => Ok(()),
-        Err(e) => unexpected(e),
-    }
-}
