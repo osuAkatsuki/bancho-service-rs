@@ -93,28 +93,44 @@ pub async fn change_username<C: Context>(
 
 pub async fn ban_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
     match users::ban(ctx, user_id).await {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            // Publish ban event to trigger first place removal and leaderboard updates
+            users::publish_ban_event(ctx, user_id).await?;
+            Ok(())
+        }
         Err(e) => unexpected(e),
     }
 }
 
 pub async fn unban_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
     match users::unban(ctx, user_id).await {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            // Publish unban event to trigger first place recalculation and leaderboard updates
+            users::publish_unban_event(ctx, user_id).await?;
+            Ok(())
+        }
         Err(e) => unexpected(e),
     }
 }
 
 pub async fn restrict_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
     match users::restrict(ctx, user_id).await {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            // Publish ban event to trigger first place removal and leaderboard updates
+            users::publish_ban_event(ctx, user_id).await?;
+            Ok(())
+        }
         Err(e) => unexpected(e),
     }
 }
 
 pub async fn unrestrict_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
     match users::unrestrict(ctx, user_id).await {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            // Publish unban event to trigger first place recalculation and leaderboard updates
+            users::publish_unban_event(ctx, user_id).await?;
+            Ok(())
+        }
         Err(e) => unexpected(e),
     }
 }
