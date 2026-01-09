@@ -236,6 +236,9 @@ pub async fn ban_user<C: Context>(ctx: &C, sender: &Session, args: BanArgs) -> C
     // Ban the user (remove login privileges)
     users::ban_user(ctx, target_user.user_id).await?;
 
+    // Publish ban event to trigger first place removal and leaderboard updates
+    users::publish_ban_event(ctx, target_user.user_id).await?;
+
     // Send ban packet to online sessions
     let target_sessions = sessions::fetch_by_username(ctx, &target_user.username).await?;
     for session in target_sessions {
@@ -281,6 +284,9 @@ pub async fn unban_user<C: Context>(ctx: &C, sender: &Session, args: UnbanArgs) 
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
     users::unban_user(ctx, target_user.user_id).await?;
 
+    // Publish unban event to trigger first place recalculation and leaderboard updates
+    users::publish_unban_event(ctx, target_user.user_id).await?;
+
     let sender_profile = website::get_profile_link(sender.user_id);
     let target_profile = website::get_profile_link(target_user.user_id);
     let log_message = format!(
@@ -315,6 +321,9 @@ pub async fn restrict_user<C: Context>(
 
     // Restrict the user (remove publicly visible privileges)
     users::restrict_user(ctx, target_user.user_id).await?;
+
+    // Publish ban event to trigger first place removal and leaderboard updates
+    users::publish_ban_event(ctx, target_user.user_id).await?;
 
     // Notify online sessions
     let target_sessions = sessions::fetch_by_username(ctx, &target_user.username).await?;
@@ -369,6 +378,9 @@ pub async fn unrestrict_user<C: Context>(
 
     // Unrestrict the user (restore publicly visible privileges)
     users::unrestrict_user(ctx, target_user.user_id).await?;
+
+    // Publish unban event to trigger first place recalculation and leaderboard updates
+    users::publish_unban_event(ctx, target_user.user_id).await?;
 
     let sender_profile = website::get_profile_link(sender.user_id);
     let target_profile = website::get_profile_link(target_user.user_id);

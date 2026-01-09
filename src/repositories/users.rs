@@ -248,3 +248,15 @@ pub async fn update_previous_overwrite<C: Context>(
         .await?;
     Ok(())
 }
+
+pub async fn publish_ban_event<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let _: () = redis.publish("peppy:ban", user_id.to_string()).await?;
+    Ok(())
+}
+
+pub async fn publish_unban_event<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<()> {
+    let mut redis = ctx.redis().await?;
+    let _: () = redis.publish("peppy:unban", user_id.to_string()).await?;
+    Ok(())
+}
