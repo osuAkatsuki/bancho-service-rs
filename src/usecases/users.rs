@@ -92,43 +92,27 @@ pub async fn change_username<C: Context>(
 }
 
 pub async fn ban_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
-    match users::ban(ctx, user_id).await {
-        Ok(_) => {
-            users::publish_ban_event(ctx, user_id).await?;
-            Ok(())
-        }
-        Err(e) => unexpected(e),
-    }
+    users::ban(ctx, user_id).await?;
+    users::publish_ban_event(ctx, user_id).await?;
+    Ok(())
 }
 
 pub async fn unban_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
-    match users::unban(ctx, user_id).await {
-        Ok(_) => {
-            users::publish_unban_event(ctx, user_id).await?;
-            Ok(())
-        }
-        Err(e) => unexpected(e),
-    }
+    users::unban(ctx, user_id).await?;
+    users::publish_unban_event(ctx, user_id).await?;
+    Ok(())
 }
 
 pub async fn restrict_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
-    match users::restrict(ctx, user_id).await {
-        Ok(_) => {
-            users::publish_ban_event(ctx, user_id).await?;
-            Ok(())
-        }
-        Err(e) => unexpected(e),
-    }
+    users::restrict(ctx, user_id).await?;
+    users::publish_ban_event(ctx, user_id).await?;
+    Ok(())
 }
 
 pub async fn unrestrict_user<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
-    match users::unrestrict(ctx, user_id).await {
-        Ok(_) => {
-            users::publish_unban_event(ctx, user_id).await?;
-            Ok(())
-        }
-        Err(e) => unexpected(e),
-    }
+    users::unrestrict(ctx, user_id).await?;
+    users::publish_unban_event(ctx, user_id).await?;
+    Ok(())
 }
 
 pub async fn freeze_user<C: Context>(ctx: &C, user_id: i64, reason: &str) -> ServiceResult<()> {
