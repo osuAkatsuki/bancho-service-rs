@@ -36,6 +36,3 @@ spec:
           restartPolicy: OnFailure
           imagePullSecrets:
             - name: osuakatsuki-registry-secret
-        metadata:
-          labels:
-            sidecar.istio.io/inject: "false"
