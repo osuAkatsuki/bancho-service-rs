@@ -131,6 +131,18 @@ pub async fn member_count<C: Context>(
     }
 }
 
+pub async fn close<C: Context>(ctx: &C, channel_name: ChannelName<'_>) -> ServiceResult<()> {
+    let member_ids = channels::fetch_channel_members(ctx, channel_name).await?;
+    for session_id in member_ids {
+        match leave(ctx, session_id, channel_name).await {
+            Ok(_) => {}
+            Err(AppError::ChannelsNotFound) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
+}
+
 // utility
 
 async fn broadcast_channel_info_update<C: Context>(

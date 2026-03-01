@@ -176,6 +176,7 @@ fn ingame_match_id(match_id: i64) -> i32 {
 
 pub async fn delete<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
     multiplayer::delete(ctx, match_id).await?;
+    channels::close(ctx, ChannelName::Multiplayer(match_id)).await?;
     streams::clear_stream(ctx, StreamName::Multiplayer(match_id)).await?;
     streams::clear_stream(ctx, StreamName::Multiplaying(match_id)).await?;
     match_events::create(ctx, match_id, MatchEventType::MatchDisbanded, None, None).await?;
@@ -1031,6 +1032,15 @@ pub async fn add_referee<C: Context>(
         return Err(AppError::MultiplayerUnauthorized);
     }
     multiplayer::add_referee(ctx, match_id, user_id).await?;
+    let sessions = sessions::fetch_by_user_id(ctx, user_id).await?;
+    for session in sessions {
+        let _ = channels::join(
+            ctx,
+            &session,
+            ChannelName::Multiplayer(match_id),
+        )
+        .await;
+    }
     Ok(())
 }
 
@@ -1051,6 +1061,15 @@ pub async fn remove_referee<C: Context>(
         return Err(AppError::MultiplayerUnauthorized);
     }
     multiplayer::remove_referee(ctx, match_id, user_id).await?;
+    let sessions = sessions::fetch_by_user_id(ctx, user_id).await?;
+    for session in sessions {
+        let _ = channels::leave(
+            ctx,
+            session.session_id,
+            ChannelName::Multiplayer(match_id),
+        )
+        .await;
+    }
     Ok(())
 }
 
