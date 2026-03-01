@@ -413,7 +413,7 @@ pub async fn invite_user<C: Context>(ctx: &C, sender: &Session, args: InviteArgs
             None,
             None,
         )
-            .await?;
+        .await?;
     }
 
     Ok(Some(format!(

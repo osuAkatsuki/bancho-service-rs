@@ -214,7 +214,8 @@ pub async fn join<C: Context>(
 
     let existing_slots = fetch_all_slots(ctx, match_id).await?;
     if let Some(ghost) = existing_slots.iter().find_map(|s| {
-        s.user.filter(|u| u.user_id == session.user_id && u.session_id != session.session_id)
+        s.user
+            .filter(|u| u.user_id == session.user_id && u.session_id != session.session_id)
     }) {
         tracing::warn!(
             match_id,
@@ -229,15 +230,19 @@ pub async fn join<C: Context>(
             MatchJoinFailed,
             None,
             None,
-        ).await;
+        )
+        .await;
 
         if let Ok(slots) = multiplayer::fetch_all_slots(ctx, match_id).await {
-            let updated: Vec<_> = slots.into_iter().map(|mut s| {
-                if s.user.is_some_and(|u| u.session_id == ghost.session_id) {
-                    s.clear();
-                }
-                s
-            }).collect();
+            let updated: Vec<_> = slots
+                .into_iter()
+                .map(|mut s| {
+                    if s.user.is_some_and(|u| u.session_id == ghost.session_id) {
+                        s.clear();
+                    }
+                    s
+                })
+                .collect();
             if let Ok(updated_array) = updated.try_into() {
                 multiplayer::update_all_slots(ctx, match_id, updated_array).await?;
             }
@@ -1034,12 +1039,7 @@ pub async fn add_referee<C: Context>(
     multiplayer::add_referee(ctx, match_id, user_id).await?;
     let sessions = sessions::fetch_by_user_id(ctx, user_id).await?;
     for session in sessions {
-        let _ = channels::join(
-            ctx,
-            &session,
-            ChannelName::Multiplayer(match_id),
-        )
-        .await;
+        let _ = channels::join(ctx, &session, ChannelName::Multiplayer(match_id)).await;
     }
     Ok(())
 }
@@ -1063,12 +1063,7 @@ pub async fn remove_referee<C: Context>(
     multiplayer::remove_referee(ctx, match_id, user_id).await?;
     let sessions = sessions::fetch_by_user_id(ctx, user_id).await?;
     for session in sessions {
-        let _ = channels::leave(
-            ctx,
-            session.session_id,
-            ChannelName::Multiplayer(match_id),
-        )
-        .await;
+        let _ = channels::leave(ctx, session.session_id, ChannelName::Multiplayer(match_id)).await;
     }
     Ok(())
 }

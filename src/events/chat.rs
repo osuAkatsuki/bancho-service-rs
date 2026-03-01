@@ -96,7 +96,9 @@ pub async fn private_chat_message(
     let recipient = match recipient_name == bot::BOT_NAME {
         true => Recipient::Bot,
         false => {
-            let recipient_sessions: Vec<_> = sessions::fetch_by_username(ctx, recipient_name).await?.collect();
+            let recipient_sessions: Vec<_> = sessions::fetch_by_username(ctx, recipient_name)
+                .await?
+                .collect();
             if recipient_sessions.is_empty() {
                 Recipient::OfflineUser(recipient_name)
             } else {

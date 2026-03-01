@@ -82,7 +82,6 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
 
     let location_info =
         location::get_location(ip_address, user.country, args.client_info.display_city).await;
-    let already_logged_in = user_session_count != 0;
     let session = sessions::create(
         ctx,
         CreateSessionArgs {
@@ -92,7 +91,6 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
             privileges: user.privileges.bits(),
             silence_end: user.silence_end,
             private_dms: args.client_info.pm_private,
-            primary: !already_logged_in,
         },
     )
     .await?;
@@ -188,13 +186,8 @@ pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()>
     spectators::close(ctx, session.session_id).await?;
     multiplayer::leave(ctx, session.identity(), None).await?;
 
-    let user_session_count = sessions::delete(
-        ctx,
-        session.session_id,
-        session.user_id,
-        &session.username,
-    )
-    .await?;
+    let user_session_count =
+        sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;
     streams::clear_stream(ctx, StreamName::User(session.session_id)).await?;
     streams::leave_all(ctx, session.session_id).await?;
 

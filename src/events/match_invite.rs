@@ -31,7 +31,7 @@ pub async fn handle<C: Context>(ctx: &C, session: &Session, args: MatchInvite) -
             None,
             None,
         )
-            .await?;
+        .await?;
     }
     Ok(None)
 }

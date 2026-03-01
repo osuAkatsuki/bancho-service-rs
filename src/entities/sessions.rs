@@ -27,7 +27,6 @@ pub struct CreateSessionArgs {
     pub private_dms: bool,
     pub silence_end: Option<chrono::DateTime<chrono::Utc>>,
     pub ip_address: IpAddr,
-    pub primary: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

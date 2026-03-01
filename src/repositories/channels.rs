@@ -50,7 +50,10 @@ pub async fn fetch_channel_members<C: Context>(
     let mut redis = ctx.redis().await?;
     let members_key = make_channel_members_key(&channel_name);
     let members: Vec<String> = redis.smembers(members_key).await?;
-    Ok(members.iter().filter_map(|m| Uuid::parse_str(m).ok()).collect())
+    Ok(members
+        .iter()
+        .filter_map(|m| Uuid::parse_str(m).ok())
+        .collect())
 }
 
 pub async fn member_count<C: Context>(

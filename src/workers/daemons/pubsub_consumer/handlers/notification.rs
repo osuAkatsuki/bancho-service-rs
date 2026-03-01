@@ -37,7 +37,7 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
             None,
             None,
         )
-            .await?;
+        .await?;
     }
 
     info!(

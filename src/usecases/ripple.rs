@@ -9,8 +9,8 @@ pub async fn fetch_player_match_details<C: Context>(
 ) -> ServiceResult<PlayerMatchDetails> {
     let sessions = sessions::fetch_by_user_id(ctx, args.user_id).await?;
     for session in sessions {
-        let Some(match_id) = multiplayer::fetch_session_match_id(ctx, session.session_id)
-            .await? else {
+        let Some(match_id) = multiplayer::fetch_session_match_id(ctx, session.session_id).await?
+        else {
             continue;
         };
 
