@@ -127,7 +127,13 @@ pub async fn fetch_all_with_slots<C: Context>(
     let matches = fetch_all(ctx).await?;
     let mut result = vec![];
     for mp_match in matches {
-        let slots = fetch_all_slots(ctx, mp_match.match_id).await?;
+        let slots = match fetch_all_slots(ctx, mp_match.match_id).await {
+            Ok(slots) => slots,
+            Err(_) => {
+                delete(ctx, mp_match.match_id).await?;
+                continue;
+            }
+        };
         result.push((mp_match, slots));
     }
     Ok(result)
