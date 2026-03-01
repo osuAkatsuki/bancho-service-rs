@@ -39,6 +39,9 @@ pub mod spectate_frames;
 pub mod start_spectating;
 pub mod stop_spectating;
 pub mod toggle_private_dms;
+pub mod tournament_join_match_channel;
+pub mod tournament_leave_match_channel;
+pub mod tournament_match_info_request;
 pub mod update_stats_request;
 pub mod user_stats_request;
 
@@ -163,6 +166,11 @@ pub async fn handle_event(
         MessageType::MatchChangeTeam => match_change_team::handle,
         MessageType::MatchInvite => match_invite::handle,
         MessageType::MatchChangePassword => match_change_settings::handle,
+
+        // Tournament client events
+        MessageType::TournamentJoinMatchChannel => tournament_join_match_channel::handle,
+        MessageType::TournamentLeaveMatchChannel => tournament_leave_match_channel::handle,
+        MessageType::TournamentMatchInfoRequest => tournament_match_info_request::handle,
     ])
 }
 
