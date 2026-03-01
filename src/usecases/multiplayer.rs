@@ -1032,6 +1032,15 @@ pub async fn add_referee<C: Context>(
         return Err(AppError::MultiplayerUnauthorized);
     }
     multiplayer::add_referee(ctx, match_id, user_id).await?;
+    let sessions = sessions::fetch_by_user_id(ctx, user_id).await?;
+    for session in sessions {
+        let _ = channels::join(
+            ctx,
+            &session,
+            ChannelName::Multiplayer(match_id),
+        )
+        .await;
+    }
     Ok(())
 }
 
@@ -1052,6 +1061,15 @@ pub async fn remove_referee<C: Context>(
         return Err(AppError::MultiplayerUnauthorized);
     }
     multiplayer::remove_referee(ctx, match_id, user_id).await?;
+    let sessions = sessions::fetch_by_user_id(ctx, user_id).await?;
+    for session in sessions {
+        let _ = channels::leave(
+            ctx,
+            session.session_id,
+            ChannelName::Multiplayer(match_id),
+        )
+        .await;
+    }
     Ok(())
 }
 
