@@ -176,6 +176,7 @@ fn ingame_match_id(match_id: i64) -> i32 {
 
 pub async fn delete<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
     multiplayer::delete(ctx, match_id).await?;
+    channels::close(ctx, ChannelName::Multiplayer(match_id)).await?;
     streams::clear_stream(ctx, StreamName::Multiplayer(match_id)).await?;
     streams::clear_stream(ctx, StreamName::Multiplaying(match_id)).await?;
     match_events::create(ctx, match_id, MatchEventType::MatchDisbanded, None, None).await?;
