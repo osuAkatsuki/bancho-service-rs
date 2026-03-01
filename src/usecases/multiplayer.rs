@@ -216,6 +216,14 @@ pub async fn join<C: Context>(
             "evicting ghost slot before join"
         );
 
+        let _ = streams::broadcast_message(
+            ctx,
+            StreamName::User(ghost.session_id),
+            MatchJoinFailed,
+            None,
+            None,
+        ).await;
+
         if let Ok(slots) = multiplayer::fetch_all_slots(ctx, match_id).await {
             let updated: Vec<_> = slots.into_iter().map(|mut s| {
                 if s.user.is_some_and(|u| u.session_id == ghost.session_id) {
