@@ -25,18 +25,20 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
         "Handling notification event for user"
     );
 
-    let session = sessions::fetch_primary_by_user_id(&ctx, args.user_id).await?;
-    let notification = Alert {
-        message: &args.message,
-    };
-    streams::broadcast_message(
-        &ctx,
-        StreamName::User(session.session_id),
-        notification,
-        None,
-        None,
-    )
-    .await?;
+    let sessions = sessions::fetch_by_user_id(&ctx, args.user_id).await?;
+    for session in sessions {
+        let notification = Alert {
+            message: &args.message,
+        };
+        streams::broadcast_message(
+            &ctx,
+            StreamName::User(session.session_id),
+            notification,
+            None,
+            None,
+        )
+            .await?;
+    }
 
     info!(
         user_id = args.user_id,

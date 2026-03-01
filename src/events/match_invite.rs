@@ -12,24 +12,26 @@ pub async fn handle<C: Context>(ctx: &C, session: &Session, args: MatchInvite) -
     let match_id = multiplayer::fetch_session_match_id(ctx, session.session_id)
         .await?
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
-    let target_session = sessions::fetch_primary_by_user_id(ctx, args.user_id as _).await?;
-
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
 
+    let target_sessions = sessions::fetch_by_user_id(ctx, args.user_id as _).await?;
     let invite = mp_match.invite_message();
-    let invite_message = IrcMessage {
-        sender: &session.username,
-        sender_id: session.user_id as _,
-        text: &invite,
-        recipient: &target_session.username,
-    };
-    streams::broadcast_message(
-        ctx,
-        StreamName::User(target_session.session_id),
-        ChatMessage(&invite_message),
-        None,
-        None,
-    )
-    .await?;
+
+    for target_session in target_sessions {
+        let invite_message = IrcMessage {
+            sender: &session.username,
+            sender_id: session.user_id as _,
+            text: &invite,
+            recipient: &target_session.username,
+        };
+        streams::broadcast_message(
+            ctx,
+            StreamName::User(target_session.session_id),
+            ChatMessage(&invite_message),
+            None,
+            None,
+        )
+            .await?;
+    }
     Ok(None)
 }

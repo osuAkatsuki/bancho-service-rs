@@ -1,6 +1,4 @@
 use crate::api::RequestContext;
-use crate::common::error::AppError;
-use crate::models::multiplayer::MultiplayerMatch;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{multiplayer, streams};
@@ -12,12 +10,7 @@ pub async fn handle(
     session: &Session,
     match_id: i32,
 ) -> super::EventResult {
-    let mp_match = multiplayer::fetch_all(ctx)
-        .await?
-        .into_iter()
-        .find(|m: &MultiplayerMatch| (m.match_id & 0xFFFF) as i32 == match_id)
-        .ok_or(AppError::MultiplayerNotFound)?;
-
+    let mp_match = multiplayer::fetch_one(ctx, match_id as _).await?;
     tracing::info!(
         session_id = ?session.session_id,
         user_id = session.user_id,

@@ -44,7 +44,10 @@ pub async fn join<C: Context>(
         leave(ctx, session, Some(host_session_id)).await?;
     }
 
-    let host_session = sessions::fetch_primary_by_user_id(ctx, host_id).await?;
+    let host_sessions = sessions::fetch_by_user_id(ctx, host_id).await?;
+    let host_session = host_sessions
+        .max_by(|session1, session2| session1.updated_at.cmp(&session2.updated_at))
+        .ok_or(AppError::UsersNotFound)?;
     if !host_session.is_publicly_visible() {
         return Err(AppError::InteractionBlocked);
     }

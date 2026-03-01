@@ -132,7 +132,8 @@ async fn get_recipient_info<'a, C: Context>(
                 ..Default::default()
             })
         }
-        Recipient::UserSession(receiver_session) => {
+        Recipient::UserSessions(receiver_sessions) => {
+            let receiver_session = receiver_sessions.first().ok_or(AppError::UsersNotFound)?;
             if !receiver_session.is_publicly_visible()
                 && !sender.has_all_privileges(Privileges::AdminCaker)
             {
