@@ -205,6 +205,42 @@ pub async fn join<C: Context>(
         return Err(AppError::MultiplayerInvalidPassword);
     }
 
+    let existing_slots = fetch_all_slots(ctx, match_id).await?;
+    if let Some(ghost) = existing_slots.iter().find_map(|s| {
+        s.user.filter(|u| u.user_id == session.user_id && u.session_id != session.session_id)
+    }) {
+        tracing::warn!(
+            match_id,
+            user_id = session.user_id,
+            ghost_session_id = ?ghost.session_id,
+            "evicting ghost slot before join"
+        );
+
+        let _ = streams::broadcast_message(
+            ctx,
+            StreamName::User(ghost.session_id),
+            MatchJoinFailed,
+            None,
+            None,
+        ).await;
+
+        if let Ok(slots) = multiplayer::fetch_all_slots(ctx, match_id).await {
+            let updated: Vec<_> = slots.into_iter().map(|mut s| {
+                if s.user.is_some_and(|u| u.session_id == ghost.session_id) {
+                    s.clear();
+                }
+                s
+            }).collect();
+            if let Ok(updated_array) = updated.try_into() {
+                multiplayer::update_all_slots(ctx, match_id, updated_array).await?;
+            }
+        }
+
+        let _ = streams::leave(ctx, ghost.session_id, StreamName::Multiplayer(match_id)).await;
+        let _ = streams::leave(ctx, ghost.session_id, StreamName::Multiplaying(match_id)).await;
+        let _ = channels::leave(ctx, ghost.session_id, ChannelName::Multiplayer(match_id)).await;
+    }
+
     streams::leave(ctx, session.session_id, StreamName::Lobby).await?;
     let slots = multiplayer::join(ctx, session.identity(), mp_match.match_id)
         .await?
