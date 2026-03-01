@@ -2,14 +2,13 @@ use crate::commands::CommandResponse;
 use crate::entities::channels::ChannelName;
 use crate::entities::messages::Message as MessageEntity;
 use crate::models::sessions::Session;
-use crate::repositories::streams::StreamName;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 #[derive(Clone)]
 pub enum Recipient<'a> {
     Channel(ChannelName<'a>),
-    UserSession(Session),
+    UserSessions(Vec<Session>),
     OfflineUser(&'a str),
     Bot,
 }
@@ -57,11 +56,11 @@ impl<'a> Recipient<'a> {
         }
     }
 
-    pub fn get_message_stream(self) -> Option<StreamName<'a>> {
+    /*pub fn get_message_stream(self) -> Option<StreamName<'a>> {
         match self {
             Recipient::Channel(channel_name) => Some(channel_name.get_message_stream()),
             Recipient::UserSession(session) => Some(StreamName::User(session.session_id)),
             Recipient::Bot | Recipient::OfflineUser(_) => None,
         }
-    }
+    }*/
 }

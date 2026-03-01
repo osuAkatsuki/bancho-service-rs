@@ -396,26 +396,29 @@ pub async fn invite_user<C: Context>(ctx: &C, sender: &Session, args: InviteArgs
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    let target_session = sessions::fetch_primary_by_username(ctx, &args.safe_username).await?;
+    let target_sessions = sessions::fetch_by_username(ctx, &args.safe_username).await?;
     let invite = mp_match.invite_message();
-    let invite_message = IrcMessage {
-        sender: &sender.username,
-        sender_id: sender.user_id as _,
-        text: &invite,
-        recipient: &target_session.username,
-    };
-    streams::broadcast_message(
-        ctx,
-        StreamName::User(target_session.session_id),
-        ChatMessage(&invite_message),
-        None,
-        None,
-    )
-    .await?;
+
+    for target_session in target_sessions {
+        let invite_message = IrcMessage {
+            sender: &sender.username,
+            sender_id: sender.user_id as _,
+            text: &invite,
+            recipient: &target_session.username,
+        };
+        streams::broadcast_message(
+            ctx,
+            StreamName::User(target_session.session_id),
+            ChatMessage(&invite_message),
+            None,
+            None,
+        )
+            .await?;
+    }
 
     Ok(Some(format!(
         "An invite to this match has been sent to {}.",
-        target_session.username
+        args.safe_username
     )))
 }
 

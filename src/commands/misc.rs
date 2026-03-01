@@ -54,12 +54,15 @@ pub async fn alert_user<C: Context>(
     _sender: &Session,
     args: AlertUserArgs,
 ) -> CommandResult {
-    let session = sessions::fetch_primary_by_username(ctx, &args.username).await?;
-    let alert = Alert {
-        message: &args.message,
-    };
-    streams::broadcast_message(ctx, StreamName::User(session.session_id), alert, None, None)
-        .await?;
+    let sessions = sessions::fetch_by_username(ctx, &args.username).await?;
+
+    for session in sessions {
+        let alert = Alert {
+            message: &args.message,
+        };
+        streams::broadcast_message(ctx, StreamName::User(session.session_id), alert, None, None)
+            .await?;
+    }
     Ok(Some("Alert sent successfully.".to_owned()))
 }
 

@@ -27,7 +27,6 @@ pub async fn create<C: Context>(ctx: &C, args: CreateSessionArgs) -> anyhow::Res
         create_ip_address: args.ip_address,
         private_dms: args.private_dms,
         silence_end: args.silence_end,
-        primary: args.primary,
         updated_at: chrono::Utc::now(),
     };
     let user_id_key = make_id_key(args.user_id);
@@ -112,12 +111,12 @@ pub async fn fetch_count<C: Context>(ctx: &C) -> anyhow::Result<u64> {
     Ok(redis.hlen(SESSIONS_KEY).await?)
 }
 
-pub async fn extend<C: Context>(ctx: &C, mut session: Session) -> anyhow::Result<Session> {
-    session.updated_at = chrono::Utc::now();
+pub async fn extend<C: Context>(ctx: &C, session: Session) -> anyhow::Result<Session> {
     update(ctx, session).await
 }
 
-pub async fn update<C: Context>(ctx: &C, session: Session) -> anyhow::Result<Session> {
+pub async fn update<C: Context>(ctx: &C, mut session: Session) -> anyhow::Result<Session> {
+    session.updated_at = chrono::Utc::now();
     let mut redis = ctx.redis().await?;
     let _: () = redis
         .hset(SESSIONS_KEY, session.session_id, Json(&session))
@@ -125,27 +124,11 @@ pub async fn update<C: Context>(ctx: &C, session: Session) -> anyhow::Result<Ses
     Ok(session)
 }
 
-pub async fn fetch_random_non_primary<C: Context>(
-    ctx: &C,
-    user_id: i64,
-) -> anyhow::Result<Option<Session>> {
-    let mut redis = ctx.redis().await?;
-    let user_id_key = make_id_key(user_id);
-    // fetching 2 random sessions guarantees one of them is not a primary session
-    let session_ids: Vec<Uuid> = redis.srandmember_multiple(user_id_key, 2).await?;
-    if session_ids.len() != 2 {
-        return Ok(None);
-    }
-    let mut sessions = fetch_many(ctx, &session_ids).await?;
-    Ok(sessions.find(|x| !x.primary))
-}
-
 pub async fn delete<C: Context>(
     ctx: &C,
     session_id: Uuid,
     user_id: i64,
     username: &str,
-    new_primary_session: Option<Session>,
 ) -> anyhow::Result<u64> {
     let mut redis = ctx.redis().await?;
     let user_id_key = make_id_key(user_id);
@@ -160,15 +143,6 @@ pub async fn delete<C: Context>(
         .srem(username_key, session_id)
         .ignore()
         .scard(user_id_key);
-    if let Some(mut new_primary_session) = new_primary_session {
-        new_primary_session.primary = true;
-        pipe.hset(
-            SESSIONS_KEY,
-            new_primary_session.session_id,
-            Json(new_primary_session),
-        )
-        .ignore();
-    }
     let size: [u64; 1] = pipe.query_async(redis.deref_mut()).await?;
     Ok(size[0])
 }
