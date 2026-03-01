@@ -13,7 +13,6 @@ pub struct Session {
     pub create_ip_address: IpAddr,
     pub private_dms: bool,
     pub silence_end: Option<DateTime<Utc>>,
-    pub primary: bool,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -73,7 +72,6 @@ impl Into<SessionEntity> for Session {
             create_ip_address: self.create_ip_address,
             private_dms: self.private_dms,
             silence_end: self.silence_end,
-            primary: self.primary,
             updated_at: self.updated_at,
         }
     }
@@ -89,7 +87,6 @@ impl From<SessionEntity> for Session {
             create_ip_address: value.create_ip_address,
             private_dms: value.private_dms,
             silence_end: value.silence_end,
-            primary: value.primary,
             updated_at: value.updated_at,
         }
     }

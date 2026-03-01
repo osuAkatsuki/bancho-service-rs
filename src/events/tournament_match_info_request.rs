@@ -1,21 +1,11 @@
 use crate::api::RequestContext;
-use crate::common::error::AppError;
-use crate::models::multiplayer::MultiplayerMatch;
 use crate::models::sessions::Session;
 use crate::usecases::multiplayer;
 use bancho_protocol::messages::Message;
 use bancho_protocol::messages::server::MatchUpdate;
 
-pub async fn handle(
-    ctx: &RequestContext,
-    session: &Session,
-    match_id: i32,
-) -> super::EventResult {
-    let mp_match = multiplayer::fetch_all(ctx)
-        .await?
-        .into_iter()
-        .find(|m: &MultiplayerMatch| (m.match_id & 0xFFFF) as i32 == match_id)
-        .ok_or(AppError::MultiplayerNotFound)?;
+pub async fn handle(ctx: &RequestContext, session: &Session, match_id: i32) -> super::EventResult {
+    let mp_match = multiplayer::fetch_one(ctx, match_id as _).await?;
 
     tracing::debug!(
         session_id = ?session.session_id,

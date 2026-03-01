@@ -82,7 +82,6 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
 
     let location_info =
         location::get_location(ip_address, user.country, args.client_info.display_city).await;
-    let already_logged_in = user_session_count != 0;
     let session = sessions::create(
         ctx,
         CreateSessionArgs {
@@ -92,7 +91,6 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
             privileges: user.privileges.bits(),
             silence_end: user.silence_end,
             private_dms: args.client_info.pm_private,
-            primary: !already_logged_in,
         },
     )
     .await?;
@@ -149,29 +147,12 @@ pub async fn fetch_by_user_id<C: Context>(
     Ok(sessions.map(Session::from))
 }
 
-pub async fn fetch_primary_by_user_id<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<Session> {
-    let mut host_sessions = fetch_by_user_id(ctx, user_id).await?;
-    host_sessions
-        .find(|s| s.primary)
-        .ok_or(AppError::SessionsNotFound)
-}
-
 pub async fn fetch_by_username<C: Context>(
     ctx: &C,
     username: &str,
 ) -> ServiceResult<impl Iterator<Item = Session>> {
     let sessions = sessions::fetch_by_username(ctx, username).await?;
     Ok(sessions.map(Session::from))
-}
-
-pub async fn fetch_primary_by_username<C: Context>(
-    ctx: &C,
-    username: &str,
-) -> ServiceResult<Session> {
-    let mut host_sessions = fetch_by_username(ctx, username).await?;
-    host_sessions
-        .find(|s| s.primary)
-        .ok_or(AppError::SessionsNotFound)
 }
 
 pub async fn is_online<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<bool> {
@@ -205,20 +186,12 @@ pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()>
     spectators::close(ctx, session.session_id).await?;
     multiplayer::leave(ctx, session.identity(), None).await?;
 
-    let new_primary_session = sessions::fetch_random_non_primary(ctx, session.user_id).await?;
-    let user_offline = new_primary_session.is_none();
-    sessions::delete(
-        ctx,
-        session.session_id,
-        session.user_id,
-        &session.username,
-        new_primary_session,
-    )
-    .await?;
+    let user_session_count =
+        sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;
     streams::clear_stream(ctx, StreamName::User(session.session_id)).await?;
     streams::leave_all(ctx, session.session_id).await?;
 
-    if user_offline {
+    if user_session_count == 0 {
         presences::delete(ctx, session.user_id).await?;
         // notify everyone
         let logout_notification = UserLogout::new(session.user_id as _);
