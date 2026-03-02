@@ -117,7 +117,6 @@ pub async fn handle_event(
     event_handlers!(ctx, session, event, [
         // Ignored events
         MessageType::Ping
-        | MessageType::CantSpectate
         | MessageType::ReceiveUpdates
         | MessageType::SetAwayMessage => ignore_event,
         // Miscellaneous events
@@ -141,6 +140,7 @@ pub async fn handle_event(
         MessageType::StartSpectating => start_spectating::handle,
         MessageType::StopSpectating => stop_spectating::handle,
         MessageType::SpectateFrames => spectate_frames::handle,
+        MessageType::CantSpectate => cant_spectate::handle,
 
         // Multiplayer events
         MessageType::LeaveLobby => lobby_leave::handle,
