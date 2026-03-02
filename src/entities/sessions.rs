@@ -18,6 +18,12 @@ pub struct Session {
     pub private_dms: bool,
     pub silence_end: Option<chrono::DateTime<chrono::Utc>>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    #[serde(default = "default_presence_filter")]
+    pub presence_filter: u32,
+}
+
+fn default_presence_filter() -> u32 {
+    1
 }
 
 pub struct CreateSessionArgs {

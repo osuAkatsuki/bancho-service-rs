@@ -118,8 +118,9 @@ pub async fn handle_event(
         // Ignored events
         MessageType::Ping
         | MessageType::CantSpectate
-        | MessageType::ReceiveUpdates
         | MessageType::SetAwayMessage => ignore_event,
+
+        MessageType::ReceiveUpdates => receive_updates::handle,
         // Miscellaneous events
         MessageType::Logout => logout::handle,
         MessageType::ChangeAction => change_action::handle,

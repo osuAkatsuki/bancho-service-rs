@@ -14,6 +14,25 @@ pub struct Session {
     pub private_dms: bool,
     pub silence_end: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
+    pub presence_filter: PresenceFilter,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum PresenceFilter {
+    None = 0,
+    All = 1,
+    FriendsOnly = 2,
+}
+
+impl From<u32> for PresenceFilter {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::None,
+            2 => Self::FriendsOnly,
+            _ => Self::All,
+        }
+    }
 }
 
 impl Session {
@@ -73,6 +92,7 @@ impl Into<SessionEntity> for Session {
             private_dms: self.private_dms,
             silence_end: self.silence_end,
             updated_at: self.updated_at,
+            presence_filter: self.presence_filter as u32,
         }
     }
 }
@@ -88,6 +108,7 @@ impl From<SessionEntity> for Session {
             private_dms: value.private_dms,
             silence_end: value.silence_end,
             updated_at: value.updated_at,
+            presence_filter: PresenceFilter::from(value.presence_filter),
         }
     }
 }
