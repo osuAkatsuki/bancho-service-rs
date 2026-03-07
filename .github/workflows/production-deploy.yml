@@ -48,5 +48,5 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /opt/akatsuki
-            docker compose pull __SERVICES__
-            docker compose up -d __SERVICES__
+            docker compose pull bancho-service-rs-api bancho-service-rs-pubsub-daemon bancho-service-rs-cleanup-cron
+            docker compose up -d bancho-service-rs-api bancho-service-rs-pubsub-daemon bancho-service-rs-cleanup-cron
