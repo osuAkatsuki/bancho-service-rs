@@ -73,8 +73,6 @@ pub struct FallbackSession {
     pub total_score: i64,
     pub global_rank: i64,
     pub pp: i64,
-
-    pub amplitude_device_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
