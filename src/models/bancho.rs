@@ -167,6 +167,33 @@ pub struct NetworkAdapters {
     pub adapters: String,
 }
 
+const LOCALLY_ADMINISTERED_BIT: u8 = 0b0010;
+
+impl NetworkAdapters {
+    /// Check whether any adapter has the locally administered bit set in
+    /// every octet, indicating a synthetically generated MAC address.
+    pub fn has_synthetic_mac(&self) -> bool {
+        self.adapters
+            .split('.')
+            .filter(|mac| mac.len() == 12)
+            .any(|mac| {
+                mac.as_bytes()
+                    .iter()
+                    .skip(1)
+                    .step_by(2)
+                    .all(|&byte| {
+                        let nibble = match byte {
+                            b'0'..=b'9' => byte - b'0',
+                            b'A'..=b'F' => byte - b'A' + 10,
+                            b'a'..=b'f' => byte - b'a' + 10,
+                            _ => return false,
+                        };
+                        nibble & LOCALLY_ADMINISTERED_BIT != 0
+                    })
+            })
+    }
+}
+
 impl IntoResponse for BanchoResponse {
     fn into_response(self) -> Response {
         IntoResponse::into_response(([("cho-token", self.cho_token)], self.response_data))
