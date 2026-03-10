@@ -65,6 +65,32 @@ pub async fn fetch_aggregate_hardware_matches<C: Context>(
     Ok(AggregateHardwareMatch::aggregate_by_user(hw_match_entries))
 }
 
+pub async fn check_for_maple_pattern<C: Context>(
+    ctx: &C,
+    user_id: i64,
+    username: &str,
+    client_hashes: &ClientHashes,
+) {
+    if !client_hashes.adapters.has_maple_pattern() {
+        return;
+    }
+
+    tracing::warn!(
+        user_id,
+        username,
+        adapters = client_hashes.adapters.adapters,
+        "Maple-pattern MAC address detected on login"
+    );
+
+    let profile_link = website::get_profile_link(user_id);
+    let notification = format!(
+        "[{username}]({profile_link}) logged in with a maple-pattern MAC address.\n\
+         Adapters: `{}`",
+        client_hashes.adapters.adapters,
+    );
+    let _ = discord::send_hw_purple_embed("Maple-pattern MAC detected", &notification, None).await;
+}
+
 pub async fn check_for_multiaccounts<C: Context>(
     ctx: &C,
     user_id: i64,

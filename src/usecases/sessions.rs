@@ -56,6 +56,14 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     )
     .await?;
 
+    hardware_logs::check_for_maple_pattern(
+        ctx,
+        user.user_id,
+        &user.username,
+        &args.client_info.client_hashes,
+    )
+    .await;
+
     hardware_logs::check_for_multiaccounts(
         ctx,
         user.user_id,
