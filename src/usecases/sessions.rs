@@ -57,7 +57,6 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
     .await?;
 
     hardware_logs::check_for_synthetic_adapters(
-        ctx,
         user.user_id,
         &user.username,
         &args.client_info.client_hashes,

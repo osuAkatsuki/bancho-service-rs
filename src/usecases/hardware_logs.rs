@@ -65,8 +65,7 @@ pub async fn fetch_aggregate_hardware_matches<C: Context>(
     Ok(AggregateHardwareMatch::aggregate_by_user(hw_match_entries))
 }
 
-pub async fn check_for_synthetic_adapters<C: Context>(
-    ctx: &C,
+pub async fn check_for_synthetic_adapters(
     user_id: i64,
     username: &str,
     client_hashes: &ClientHashes,
