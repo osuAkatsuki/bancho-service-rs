@@ -169,28 +169,46 @@ pub struct NetworkAdapters {
 
 const LOCALLY_ADMINISTERED_BIT: u8 = 0b0010;
 
+fn parse_hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        _ => None,
+    }
+}
+
+/// Check if all second nibbles in a MAC have the locally administered bit set.
+fn has_full_la_pattern(mac: &[u8]) -> bool {
+    mac.iter()
+        .skip(1)
+        .step_by(2)
+        .all(|&b| parse_hex_nibble(b).is_some_and(|n| n & LOCALLY_ADMINISTERED_BIT != 0))
+}
+
+/// Check if a MAC address is universally administered (real hardware NIC)
+/// by inspecting the LA bit in the first octet only.
+fn is_universally_administered(mac: &[u8]) -> bool {
+    mac.get(1)
+        .and_then(|&b| parse_hex_nibble(b))
+        .is_some_and(|n| n & LOCALLY_ADMINISTERED_BIT == 0)
+}
+
 impl NetworkAdapters {
-    /// Check whether any adapter has the locally administered bit set in
-    /// every octet, indicating a synthetically generated MAC address.
+    /// Detect synthetically generated adapters: at least one MAC has the
+    /// locally administered bit set in every octet, AND no MAC on the
+    /// machine is universally administered (i.e. real hardware).
     pub fn has_synthetic_mac(&self) -> bool {
-        self.adapters
+        let macs: Vec<&str> = self
+            .adapters
             .split('.')
             .filter(|mac| mac.len() == 12)
-            .any(|mac| {
-                mac.as_bytes()
-                    .iter()
-                    .skip(1)
-                    .step_by(2)
-                    .all(|&byte| {
-                        let nibble = match byte {
-                            b'0'..=b'9' => byte - b'0',
-                            b'A'..=b'F' => byte - b'A' + 10,
-                            b'a'..=b'f' => byte - b'a' + 10,
-                            _ => return false,
-                        };
-                        nibble & LOCALLY_ADMINISTERED_BIT != 0
-                    })
-            })
+            .collect();
+
+        let has_pattern = macs.iter().any(|mac| has_full_la_pattern(mac.as_bytes()));
+        let has_real_nic = macs.iter().any(|mac| is_universally_administered(mac.as_bytes()));
+
+        has_pattern && !has_real_nic
     }
 }
 
