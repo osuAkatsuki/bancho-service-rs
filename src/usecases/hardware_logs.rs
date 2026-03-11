@@ -70,7 +70,7 @@ pub async fn check_for_synthetic_adapters(
     username: &str,
     client_hashes: &ClientHashes,
 ) {
-    if !client_hashes.adapters.has_synthetic_mac() {
+    if !client_hashes.adapters.has_locally_administered() {
         return;
     }
 

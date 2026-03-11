@@ -171,25 +171,21 @@ const LOCALLY_ADMINISTERED_BIT: u8 = 0b0010;
 
 impl NetworkAdapters {
     /// Check whether any adapter has the locally administered bit set in
-    /// every octet, indicating a synthetically generated MAC address.
-    pub fn has_synthetic_mac(&self) -> bool {
+    /// every the first octet, indicating a synthetically generated MAC address.
+    /// https://en.wikipedia.org/wiki/MAC_address#/media/File:MAC-48_Address.svg
+    pub fn has_locally_administered(&self) -> bool {
         self.adapters
             .split('.')
             .filter(|mac| mac.len() == 12)
             .any(|mac| {
-                mac.as_bytes()
-                    .iter()
-                    .skip(1)
-                    .step_by(2)
-                    .all(|&byte| {
-                        let nibble = match byte {
-                            b'0'..=b'9' => byte - b'0',
-                            b'A'..=b'F' => byte - b'A' + 10,
-                            b'a'..=b'f' => byte - b'a' + 10,
-                            _ => return false,
-                        };
-                        nibble & LOCALLY_ADMINISTERED_BIT != 0
-                    })
+                // get the lower 4 bits of the first byte
+                let nibble = match mac.as_bytes()[1] {
+                    byte @ b'0'..=b'9' => byte - b'0',
+                    byte @ b'A'..=b'F' => byte - b'A' + 10,
+                    byte @ b'a'..=b'f' => byte - b'a' + 10,
+                    _ => return false,
+                };
+                (nibble & LOCALLY_ADMINISTERED_BIT) != 0
             })
     }
 }
