@@ -1,5 +1,3 @@
-use redis::AsyncCommands;
-
 use crate::common::context::{Context, PoolContext};
 use crate::entities::beatmaps::Beatmap;
 
@@ -61,16 +59,5 @@ pub async fn update_set_ranked_status<C: Context>(
         .bind(set_id)
         .execute(ctx.db())
         .await?;
-    Ok(())
-}
-
-pub async fn publish_map_update<C: Context>(
-    ctx: &C,
-    map_md5: &str,
-    new_status: i8,
-) -> anyhow::Result<()> {
-    let mut redis = ctx.redis().await?;
-    let msg = format!("{map_md5},{new_status}");
-    let _: () = redis.publish("cache:map_update", msg).await?;
     Ok(())
 }

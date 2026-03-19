@@ -293,7 +293,11 @@ pub async fn leave<C: Context>(
         },
     };
 
-    let mut mp_match = fetch_one(ctx, match_id).await?;
+    let mut mp_match = match fetch_one(ctx, match_id).await {
+        Ok(mp_match) => mp_match,
+        Err(AppError::MultiplayerNotFound) => return Ok(()),
+        Err(e) => return Err(e),
+    };
     let (user_count, slots) =
         match multiplayer::leave(ctx, session.session_id, mp_match.match_id).await? {
             Some((user_count, slots)) => (user_count, MultiplayerMatchSlot::from(slots)),
