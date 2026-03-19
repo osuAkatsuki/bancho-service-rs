@@ -189,7 +189,7 @@ dependencies = [
  "discord-webhook2",
  "dotenv",
  "hashbrown 0.16.1",
- "iso8061-timestamp",
+ "iso8601-timestamp",
  "rand 0.9.1",
  "redis",
  "reqwest 0.13.2",

@@ -14,11 +14,18 @@ pub async fn fetch_player_match_details<C: Context>(
             continue;
         };
 
-        let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-        let last_game_id = mp_match.last_game_id.ok_or(AppError::MultiplayerNotFound)?;
+        let Ok(mp_match) = multiplayer::fetch_one(ctx, match_id).await else {
+            continue;
+        };
+        let Some(last_game_id) = mp_match.last_game_id else {
+            continue;
+        };
 
-        let (slot_id, slot) =
-            multiplayer::fetch_session_slot(ctx, mp_match.match_id, session.session_id).await?;
+        let Ok((slot_id, slot)) =
+            multiplayer::fetch_session_slot(ctx, mp_match.match_id, session.session_id).await
+        else {
+            continue;
+        };
 
         return Ok(PlayerMatchDetails {
             match_id,

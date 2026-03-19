@@ -33,7 +33,7 @@ dedent = "0.1.1"
 discord-webhook2 = "0.4.3"
 dotenv = "0.15"
 hashbrown = "0.16.1"
-iso8061-timestamp = "0.1"
+iso8601-timestamp = "0.1.11"
 rand = "0.9.1"
 redis = { version = "0.32.7", features = ["aio", "tokio-comp", "default", "hashbrown", "json", "uuid", "safe_iterators"] }
 reqwest = { version = "0.13.2", features = ["json", "query"] }

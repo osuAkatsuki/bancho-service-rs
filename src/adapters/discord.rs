@@ -6,7 +6,7 @@ use bancho_protocol::structures::Mode;
 use dedent::dedent;
 use discord_webhook2::message::Message;
 use discord_webhook2::webhook::DiscordWebhook;
-use iso8061_timestamp::Timestamp;
+use iso8601_timestamp::Timestamp;
 
 const LOGS_PURPLE_EMBED_COLOR: u32 = 0x6611FF;
 const LOGS_RED_EMBED_COLOR: u32 = 0xFF5555;
