@@ -52,9 +52,11 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           envs: GHCR_TOKEN
           script: |
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u github-actions --password-stdin
+            TMP_CFG_DIR=$(mktemp -d)
+            echo "$GHCR_TOKEN" | docker --config "$TMP_CFG_DIR" login ghcr.io -u github-actions --password-stdin
             cd /opt/akatsuki
-            docker compose pull bancho-service-rs-api bancho-service-rs-pubsub-daemon bancho-service-rs-cleanup-cron
-            docker compose up -d bancho-service-rs-api bancho-service-rs-pubsub-daemon bancho-service-rs-cleanup-cron
+            docker --config "$TMP_CFG_DIR" compose pull bancho-service-rs-api bancho-service-rs-pubsub-daemon
+            docker compose up -d bancho-service-rs-api bancho-service-rs-pubsub-daemon
+            rm -rf "$TMP_CFG_DIR"
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
