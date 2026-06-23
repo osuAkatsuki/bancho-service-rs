@@ -18,6 +18,8 @@ pub struct Session {
     pub private_dms: bool,
     pub silence_end: Option<chrono::DateTime<chrono::Utc>>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    #[serde(default)]
+    pub away_message: Option<String>,
 }
 
 pub struct CreateSessionArgs {
