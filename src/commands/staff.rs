@@ -477,7 +477,7 @@ pub async fn whitelist_user<C: Context>(
     sender: &Session,
     args: WhitelistArgs,
 ) -> CommandResult {
-    if !(0..=3).contains(&args.bit) {
+    if !(0..=7).contains(&args.bit) {
         return Ok(Some("Invalid bit.".to_owned()));
     }
 
