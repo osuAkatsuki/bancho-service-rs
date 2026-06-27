@@ -9,7 +9,11 @@ pub enum Whitelist {
     None = 0,
     Vanilla = 1,
     Relax = 2,
-    All = 3,
+    VanillaRelax = 3,
+    Autopilot = 4,
+    VanillaAutopilot = 5,
+    RelaxAutopilot = 6,
+    All = 7,
 }
 
 #[derive(Debug)]
@@ -68,7 +72,11 @@ impl TryFrom<i8> for Whitelist {
             0 => Ok(Whitelist::None),
             1 => Ok(Whitelist::Vanilla),
             2 => Ok(Whitelist::Relax),
-            3 => Ok(Whitelist::All),
+            3 => Ok(Whitelist::VanillaRelax),
+            4 => Ok(Whitelist::Autopilot),
+            5 => Ok(Whitelist::VanillaAutopilot),
+            6 => Ok(Whitelist::RelaxAutopilot),
+            7 => Ok(Whitelist::All),
             _ => Err(AppError::InternalServerError("invalid whitelist value")),
         }
     }
