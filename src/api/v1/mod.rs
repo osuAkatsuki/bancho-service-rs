@@ -12,4 +12,8 @@ pub fn router() -> Router<AppState> {
         .route("/verifiedStatus", get(ripple::verified_status))
         .route("/playerMatchDetails", get(ripple::player_match_details))
         .route("/fokabotMessage", get(ripple::send_chatbot_message))
+        .route(
+            "/fokabotDirectMessage",
+            get(ripple::send_chatbot_direct_message),
+        )
 }
