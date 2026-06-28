@@ -28,6 +28,16 @@ pub struct SendChatbotMessageArgs {
     pub content: String,
 }
 
+#[derive(Deserialize)]
+pub struct SendChatbotDirectMessageArgs {
+    #[serde(rename = "k")]
+    pub key: String,
+    #[serde(rename = "to")]
+    pub user_id: i64,
+    #[serde(rename = "msg")]
+    pub content: String,
+}
+
 #[derive(Serialize)]
 pub struct BaseSuccessData {
     pub message: &'static str,
@@ -55,6 +65,19 @@ pub struct OnlineUsersResponse {
     #[serde(flatten)]
     pub base: BaseSuccessData,
     pub result: u64,
+}
+
+#[derive(Default, Serialize)]
+pub struct SendChatbotDirectMessageResult {
+    pub online: bool,
+    pub sent_sessions: usize,
+}
+
+#[derive(Default, Serialize)]
+pub struct SendChatbotDirectMessageResponse {
+    #[serde(flatten)]
+    pub base: BaseSuccessData,
+    pub result: SendChatbotDirectMessageResult,
 }
 
 #[derive(Default, Serialize)]

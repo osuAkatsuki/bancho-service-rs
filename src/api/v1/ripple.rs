@@ -4,9 +4,11 @@ use crate::entities::bot;
 use crate::entities::channels::ChannelName;
 use crate::models::ripple::{
     BaseSuccessData, FetchPlayerMatchDetailsArgs, IsOnlineArgs, IsOnlineResponse, IsVerifiedArgs,
-    OnlineUsersResponse, PlayerMatchDetailsResponse, SendChatbotMessageArgs,
+    OnlineUsersResponse, PlayerMatchDetailsResponse, SendChatbotDirectMessageArgs,
+    SendChatbotDirectMessageResponse, SendChatbotDirectMessageResult, SendChatbotMessageArgs,
     VerifiedStatusResponse,
 };
+use crate::repositories::streams::StreamName;
 use crate::settings::AppSettings;
 use crate::usecases::{channels, ripple, sessions, streams, users};
 use axum::Json;
@@ -96,4 +98,52 @@ pub async fn send_chatbot_message(
     };
     streams::broadcast_message(&ctx, msg_stream, ChatMessage(&msg), None, None).await?;
     Ok(Json(Default::default()))
+}
+
+pub async fn send_chatbot_direct_message(
+    ctx: RequestContext,
+    Query(args): Query<SendChatbotDirectMessageArgs>,
+) -> ServiceResponse<SendChatbotDirectMessageResponse> {
+    let settings = AppSettings::get();
+    if args.key != settings.app_ci_key {
+        return Err(AppError::Unauthorized);
+    }
+
+    let recipient_sessions: Vec<_> = sessions::fetch_by_user_id(&ctx, args.user_id)
+        .await?
+        .collect();
+    if recipient_sessions.is_empty() {
+        return Ok(Json(SendChatbotDirectMessageResponse {
+            result: SendChatbotDirectMessageResult {
+                online: false,
+                sent_sessions: 0,
+            },
+            ..Default::default()
+        }));
+    }
+
+    for recipient_session in &recipient_sessions {
+        let msg = IrcMessage {
+            sender: bot::BOT_NAME,
+            sender_id: bot::BOT_ID as _,
+            text: &args.content,
+            recipient: &recipient_session.username,
+        };
+        streams::broadcast_message(
+            &ctx,
+            StreamName::User(recipient_session.session_id),
+            ChatMessage(&msg),
+            None,
+            None,
+        )
+        .await?;
+    }
+
+    Ok(Json(SendChatbotDirectMessageResponse {
+        result: SendChatbotDirectMessageResult {
+            online: true,
+            sent_sessions: recipient_sessions.len(),
+        },
+        ..Default::default()
+    }))
 }
