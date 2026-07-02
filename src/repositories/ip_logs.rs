@@ -3,8 +3,8 @@ use std::net::IpAddr;
 
 pub async fn create<C: Context>(ctx: &C, user_id: i64, ip_addr: IpAddr) -> sqlx::Result<()> {
     const QUERY: &str = const_str::concat!(
-        "INSERT INTO ip_user (userid, ip, occurencies) VALUES (?, ?, 1) ",
-        "ON DUPLICATE KEY UPDATE occurencies = occurencies + 1",
+        "INSERT INTO ip_user (userid, ip, occurencies, last_used_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP) ",
+        "ON DUPLICATE KEY UPDATE occurencies = occurencies + 1, last_used_at = CURRENT_TIMESTAMP",
     );
     sqlx::query(QUERY)
         .bind(user_id)
