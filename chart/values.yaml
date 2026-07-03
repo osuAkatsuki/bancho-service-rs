@@ -9,7 +9,7 @@ apps:
       targetCPUUtilizationPercentage: 70
     container:
       image:
-        repository: osuakatsuki/bancho-service-rs
+        repository: ghcr.io/osuakatsuki/bancho-service-rs
         tag: latest
       port: 80
       readinessProbe:
@@ -43,7 +43,7 @@ apps:
     replicaCount: 1
     container:
       image:
-          repository: osuakatsuki/bancho-service-rs
+          repository: ghcr.io/osuakatsuki/bancho-service-rs
           tag: latest
       port: 80
       resources:

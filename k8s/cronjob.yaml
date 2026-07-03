@@ -12,7 +12,7 @@ spec:
         spec:
           containers:
             - name: bancho-service-cleanup-cron-production
-              image: osuakatsuki/bancho-service-rs:latest
+              image: ghcr.io/osuakatsuki/bancho-service-rs:latest
               imagePullPolicy: Always
               env:
                 - name: KUBERNETES
