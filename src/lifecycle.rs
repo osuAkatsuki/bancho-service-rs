@@ -1,5 +1,6 @@
 use crate::common::redis_pool::{RedisPool, RedisPoolManager};
 use crate::common::state::AppState;
+use crate::repositories::multiplayer;
 use crate::settings::AppSettings;
 use deadpool::Runtime;
 use redis::io::tcp::TcpSettings;
@@ -19,7 +20,11 @@ pub fn initialize_logging(settings: &AppSettings) {
 pub async fn initialize_state(settings: &AppSettings) -> anyhow::Result<AppState> {
     let db = initialize_db(&settings).await?;
     let redis = initialize_redis(&settings)?;
-    Ok(AppState { db, redis })
+    let state = AppState { db, redis };
+    if settings.app_component == "api" {
+        multiplayer::initialize_wire_ids(&state).await?;
+    }
+    Ok(state)
 }
 
 pub fn initialize_db(settings: &AppSettings) -> impl Future<Output = sqlx::Result<Pool<MySql>>> {

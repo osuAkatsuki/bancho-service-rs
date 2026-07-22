@@ -8,7 +8,7 @@ use bancho_protocol::messages::server::{ChannelJoinSuccess, MatchJoinSuccess};
 
 pub async fn handle<C: Context>(ctx: &C, session: &Session, args: JoinMatch<'_>) -> EventResult {
     let (mp_match, slots) =
-        multiplayer::join(ctx, session, args.match_id as _, args.password).await?;
+        multiplayer::join_by_wire_id(ctx, session, args.match_id, args.password).await?;
     let mp_match = mp_match.as_bancho(slots);
     let response = concat_messages!(
         MatchJoinSuccess(&mp_match),

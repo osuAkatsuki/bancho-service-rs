@@ -114,6 +114,18 @@ pub async fn fetch_one<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<Mult
     }
 }
 
+pub async fn fetch_by_wire_id<C: Context>(
+    ctx: &C,
+    wire_id: i32,
+) -> ServiceResult<MultiplayerMatch> {
+    let wire_id = u16::try_from(wire_id).map_err(|_| AppError::MultiplayerNotFound)?;
+    match multiplayer::fetch_by_wire_id(ctx, wire_id).await {
+        Ok(Some(mp_match)) => Ok(MultiplayerMatch::try_from(mp_match)?),
+        Ok(None) => Err(AppError::MultiplayerNotFound),
+        Err(e) => unexpected(e),
+    }
+}
+
 pub async fn fetch_all<C: Context>(ctx: &C) -> ServiceResult<Vec<MultiplayerMatch>> {
     match multiplayer::fetch_all(ctx).await {
         Ok(matches) => matches.map(MultiplayerMatch::try_from).collect(),
@@ -170,12 +182,10 @@ pub async fn update_all_slots<C: Context>(
     Ok(slots)
 }
 
-fn ingame_match_id(match_id: i64) -> i32 {
-    (match_id & 0xFFFF) as _
-}
-
 pub async fn delete<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
-    multiplayer::delete(ctx, match_id).await?;
+    let wire_id = multiplayer::delete(ctx, match_id)
+        .await?
+        .unwrap_or(match_id as u16);
     channels::close(ctx, ChannelName::Multiplayer(match_id)).await?;
     streams::clear_stream(ctx, StreamName::Multiplayer(match_id)).await?;
     streams::clear_stream(ctx, StreamName::Multiplaying(match_id)).await?;
@@ -184,13 +194,24 @@ pub async fn delete<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
         ctx,
         StreamName::Lobby,
         MatchDisposed {
-            match_id: ingame_match_id(match_id),
+            match_id: wire_id.into(),
         },
         None,
         None,
     )
     .await?;
+    multiplayer::release_wire_id(ctx, match_id).await?;
     Ok(())
+}
+
+pub async fn join_by_wire_id<C: Context>(
+    ctx: &C,
+    session: &Session,
+    wire_id: i32,
+    password: &str,
+) -> ServiceResult<(MultiplayerMatch, MultiplayerMatchSlots)> {
+    let mp_match = fetch_by_wire_id(ctx, wire_id).await?;
+    join(ctx, session, mp_match.match_id, password).await
 }
 
 pub async fn join<C: Context>(
