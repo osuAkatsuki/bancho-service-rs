@@ -15,8 +15,6 @@ pub struct PersistentMatch {
 #[derive(Default, Deserialize, Serialize)]
 pub struct MultiplayerMatch {
     pub match_id: i64,
-    #[serde(default)]
-    pub wire_id: Option<u16>,
     pub name: String,
     pub password: String,
     pub in_progress: bool,

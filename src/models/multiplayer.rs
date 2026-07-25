@@ -12,7 +12,6 @@ use bancho_protocol::structures::{
 #[derive(Debug, Clone)]
 pub struct MultiplayerMatch {
     pub match_id: i64,
-    pub wire_id: u16,
     pub name: String,
     pub password: String,
     pub in_progress: bool,
@@ -48,7 +47,10 @@ impl MultiplayerMatch {
     }
 
     pub fn ingame_match_id(&self) -> u16 {
-        self.wire_id
+        // We have match identifiers that require 64 bits
+        // osu! only accepts 16 bits to represent your match identifier
+        // thus we take the lower 16 bits of our 64 bit identifier
+        (self.match_id & 0xFFFF) as _
     }
 
     pub fn invite_message(&self) -> String {
@@ -92,7 +94,6 @@ impl Into<Entity> for MultiplayerMatch {
     fn into(self) -> Entity {
         Entity {
             match_id: self.match_id,
-            wire_id: Some(self.wire_id),
             name: self.name,
             password: self.password,
             in_progress: self.in_progress,
@@ -118,7 +119,6 @@ impl TryFrom<Entity> for MultiplayerMatch {
     fn try_from(value: Entity) -> ServiceResult<Self> {
         Ok(Self {
             match_id: value.match_id,
-            wire_id: value.wire_id.ok_or(AppError::Unexpected)?,
             name: value.name,
             password: value.password,
             in_progress: value.in_progress,
@@ -210,38 +210,5 @@ impl<const N: usize> MatchSlotExt<N> for [MultiplayerMatchSlot; N] {
 
     fn to_mods(&self) -> [Mods; N] {
         std::array::from_fn(|i| self[i].mods)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ingame_match_id_uses_allocated_wire_id() {
-        let entity = Entity {
-            match_id: i64::from(u16::MAX) + 1,
-            wire_id: Some(42),
-            ..Default::default()
-        };
-
-        let mp_match = MultiplayerMatch::try_from(entity).unwrap();
-
-        assert_eq!(mp_match.match_id, 65_536);
-        assert_eq!(mp_match.ingame_match_id(), 42);
-        assert_eq!(mp_match.as_entity().wire_id, Some(42));
-    }
-
-    #[test]
-    fn active_match_requires_allocated_wire_id() {
-        let entity = Entity {
-            match_id: 65_536,
-            ..Default::default()
-        };
-
-        assert!(matches!(
-            MultiplayerMatch::try_from(entity),
-            Err(AppError::Unexpected)
-        ));
     }
 }

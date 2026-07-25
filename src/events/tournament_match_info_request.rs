@@ -5,7 +5,7 @@ use bancho_protocol::messages::Message;
 use bancho_protocol::messages::server::MatchUpdate;
 
 pub async fn handle(ctx: &RequestContext, session: &Session, match_id: i32) -> super::EventResult {
-    let mp_match = multiplayer::fetch_by_wire_id(ctx, match_id).await?;
+    let mp_match = multiplayer::fetch_one(ctx, match_id as _).await?;
 
     tracing::debug!(
         session_id = ?session.session_id,
