@@ -121,6 +121,37 @@ pub async fn fetch_all<C: Context>(ctx: &C) -> ServiceResult<Vec<MultiplayerMatc
     }
 }
 
+pub async fn fetch_by_ingame_match_id<C: Context>(
+    ctx: &C,
+    ingame_match_id: i32,
+) -> ServiceResult<MultiplayerMatch> {
+    let ingame_match_id =
+        u16::try_from(ingame_match_id).map_err(|_| AppError::MultiplayerNotFound)?;
+    find_by_ingame_match_id(fetch_all(ctx).await?, ingame_match_id)
+}
+
+fn find_by_ingame_match_id(
+    matches: Vec<MultiplayerMatch>,
+    ingame_match_id: u16,
+) -> ServiceResult<MultiplayerMatch> {
+    let mut matches = matches
+        .into_iter()
+        .filter(|mp_match| mp_match.ingame_match_id() == ingame_match_id);
+    let mp_match = matches.next().ok_or(AppError::MultiplayerNotFound)?;
+
+    if let Some(colliding_match) = matches.next() {
+        error!(
+            ingame_match_id,
+            match_id = mp_match.match_id,
+            colliding_match_id = colliding_match.match_id,
+            "multiple active matches share an in-game match ID"
+        );
+        return Err(AppError::Unexpected);
+    }
+
+    Ok(mp_match)
+}
+
 pub async fn fetch_all_with_slots<C: Context>(
     ctx: &C,
 ) -> ServiceResult<Vec<(MultiplayerMatch, MultiplayerMatchSlots)>> {
@@ -196,7 +227,7 @@ pub async fn delete<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
 pub async fn join<C: Context>(
     ctx: &C,
     session: &Session,
-    match_id: i64,
+    ingame_match_id: i32,
     password: &str,
 ) -> ServiceResult<(MultiplayerMatch, MultiplayerMatchSlots)> {
     if !session.is_publicly_visible() {
@@ -207,7 +238,8 @@ pub async fn join<C: Context>(
         leave(ctx, session.identity(), Some(match_id)).await?;
     }
 
-    let mp_match = fetch_one(ctx, match_id).await?;
+    let mp_match = fetch_by_ingame_match_id(ctx, ingame_match_id).await?;
+    let match_id = mp_match.match_id;
     if mp_match.password != password {
         return Err(AppError::MultiplayerInvalidPassword);
     }
@@ -1397,4 +1429,37 @@ async fn change_playing_state<C: Context, F: Fn(&mut SlotEntity) -> &mut bool>(
     let player_slot = slots[player_slot_id];
     multiplayer::update_slot(ctx, match_id, player_slot_id, player_slot).await?;
     Ok((all, player_slot_id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entities::multiplayer::MultiplayerMatch as MatchEntity;
+
+    fn multiplayer_match(match_id: i64) -> MultiplayerMatch {
+        MultiplayerMatch::try_from(MatchEntity {
+            match_id,
+            ..Default::default()
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn finds_active_match_after_ingame_id_wraps() {
+        let matches = vec![multiplayer_match(65_535), multiplayer_match(65_536)];
+
+        let mp_match = find_by_ingame_match_id(matches, 0).unwrap();
+
+        assert_eq!(mp_match.match_id, 65_536);
+    }
+
+    #[test]
+    fn rejects_colliding_active_ingame_ids() {
+        let matches = vec![multiplayer_match(1), multiplayer_match(65_537)];
+
+        assert!(matches!(
+            find_by_ingame_match_id(matches, 1),
+            Err(AppError::Unexpected)
+        ));
+    }
 }
