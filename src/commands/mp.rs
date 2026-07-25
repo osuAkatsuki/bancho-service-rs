@@ -278,7 +278,7 @@ pub async fn make<C: Context>(ctx: &C, sender: &Session, args: MakeArgs) -> Comm
 
     Ok(Some(format!(
         "Tourney match created with ID {}.",
-        mp_match.match_id
+        mp_match.ingame_match_id()
     )))
 }
 
