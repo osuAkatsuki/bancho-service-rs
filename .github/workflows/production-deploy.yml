@@ -43,6 +43,8 @@ jobs:
             ghcr.io/osuakatsuki/bancho-service-rs:latest
             ghcr.io/osuakatsuki/bancho-service-rs:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Deploy to production
         uses: appleboy/ssh-action@v1
