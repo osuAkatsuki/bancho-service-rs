@@ -14,6 +14,7 @@ pub struct Session {
     pub private_dms: bool,
     pub silence_end: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
+    pub away_message: Option<String>,
 }
 
 impl Session {
@@ -73,6 +74,7 @@ impl Into<SessionEntity> for Session {
             private_dms: self.private_dms,
             silence_end: self.silence_end,
             updated_at: self.updated_at,
+            away_message: self.away_message,
         }
     }
 }
@@ -88,6 +90,7 @@ impl From<SessionEntity> for Session {
             private_dms: value.private_dms,
             silence_end: value.silence_end,
             updated_at: value.updated_at,
+            away_message: value.away_message,
         }
     }
 }
