@@ -63,6 +63,14 @@ impl MultiplayerMatch {
         )
     }
 
+    pub fn as_lobby_match(&self, slots: MultiplayerMatchSlots) -> Match<'_> {
+        let mut public = self.as_bancho(slots);
+        if !public.password.is_empty() {
+            public.password = "*";
+        }
+        public
+    }
+
     pub fn as_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match<'_> {
         let freemods = match self.freemod_enabled {
             true => Some(slots.to_mods()),

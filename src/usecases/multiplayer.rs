@@ -90,7 +90,7 @@ pub async fn create<C: Context>(
     )
     .await?;
 
-    let match_notification = mp_match.as_bancho(slots);
+    let match_notification = mp_match.as_lobby_match(slots);
     streams::broadcast_message(
         ctx,
         StreamName::Lobby,
@@ -638,7 +638,15 @@ pub async fn swap_session_slots<C: Context>(
         .map(|(id, slot)| (id, *slot))
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
 
-    let target_slot = slots[target_slot_id];
+    if target_slot_id == user_slot_id {
+        return Ok(());
+    }
+    let target_slot = *slots
+        .get(target_slot_id)
+        .ok_or(AppError::MultiplayerInvalidSlotID)?;
+    if target_slot.status != SlotStatus::Empty || target_slot.user.is_some() {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
     slots[target_slot_id] = user_slot;
     slots[user_slot_id] = target_slot;
 
@@ -789,6 +797,7 @@ pub async fn start_game<C: Context>(
     mp_match.in_progress = true;
     let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
     for slot in &mut slots {
+        slot.reset_game_flags();
         let slot_status = SlotStatus::from_bits_retain(slot.status);
         if let Some(slot_user) = slot.user {
             if slot_status.intersects(SlotStatus::Ready | SlotStatus::NotReady) {
@@ -838,7 +847,7 @@ pub async fn start_game<C: Context>(
     streams::broadcast_message(
         ctx,
         StreamName::Lobby,
-        MatchUpdate(&bancho_match),
+        MatchUpdate(&mp_match.as_lobby_match(slots)),
         None,
         None,
     )
@@ -871,6 +880,7 @@ pub async fn end_game<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
     let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
     mp_match.in_progress = false;
     slots.iter_mut().for_each(|slot| {
+        slot.reset_game_flags();
         if slot.user.is_some() {
             slot.status = SlotStatus::NotReady.bits();
         }
@@ -973,12 +983,13 @@ pub async fn change_mods<C: Context>(
     let mut mp_match = multiplayer::fetch_one(ctx, match_id)
         .await?
         .ok_or(AppError::MultiplayerNotFound)?;
-    // if a user is making the request, check if they are the host or whether freemod is enabled
-    if let Some(slot_user) = slot_user
-        && mp_match.host_user_id != slot_user.user_id
-        && !mp_match.freemod_enabled
-        && !is_referee(ctx, match_id, slot_user.user_id).await?
-    {
+    let can_change_match_mods = match slot_user {
+        Some(user) if user.user_id != mp_match.host_user_id => {
+            is_referee(ctx, match_id, user.user_id).await?
+        }
+        _ => true,
+    };
+    if !mp_match.freemod_enabled && !can_change_match_mods {
         return Err(AppError::MultiplayerUnauthorized);
     }
 
@@ -987,7 +998,9 @@ pub async fn change_mods<C: Context>(
     let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
     if mp_match.freemod_enabled {
         let (new_slot_mods, match_mods) = split_mods(mods);
-        mp_match.mods = match_mods.bits();
+        if can_change_match_mods {
+            mp_match.mods = match_mods.bits();
+        }
 
         // if a user is making the request, only update their slot
         if let Some(slot_user) = slot_user {
@@ -1050,6 +1063,11 @@ pub async fn change_mods<C: Context>(
         }
     }
 
+    if !can_change_match_mods {
+        // The player updated their own slot only. Do not write a stale copy of the room.
+        let current = fetch_one(ctx, match_id).await?;
+        return broadcast_update(ctx, &current, MultiplayerMatchSlot::from(slots)).await;
+    }
     let mp_match = multiplayer::update(ctx, mp_match, false).await?;
     let mp_match = MultiplayerMatch::try_from(mp_match)?;
     let slots = MultiplayerMatchSlot::from(slots);
@@ -1329,10 +1347,7 @@ pub async fn abort<C: Context>(ctx: &C, match_id: i64) -> ServiceResult<()> {
     for slot in &mut slots {
         if slot.user.is_some() && slot.status == SlotStatus::Playing.bits() {
             slot.status = SlotStatus::NotReady.bits();
-            slot.loaded = false;
-            slot.skipped = false;
-            slot.failed = false;
-            slot.completed = false;
+            slot.reset_game_flags();
         }
     }
 
@@ -1370,7 +1385,10 @@ async fn broadcast_update<C: Context>(
 ) -> ServiceResult<()> {
     let bancho_match = mp_match.as_bancho(slots);
     let match_update = MatchUpdate(&bancho_match).as_message().serialize();
-    streams::broadcast_data(ctx, StreamName::Lobby, &match_update, None, None).await?;
+    let lobby_update = MatchUpdate(&mp_match.as_lobby_match(slots))
+        .as_message()
+        .serialize();
+    streams::broadcast_data(ctx, StreamName::Lobby, &lobby_update, None, None).await?;
     streams::broadcast_data(
         ctx,
         StreamName::Multiplayer(mp_match.match_id),
@@ -1414,8 +1432,8 @@ async fn change_playing_state<C: Context, F: Fn(&mut SlotEntity) -> &mut bool>(
     let mut player_slot_id = None;
     slots
         .iter_mut()
-        .filter(|slot| slot.user.is_some()) // only check slots with a user
         .enumerate()
+        .filter(|(_, slot)| slot.status == SlotStatus::Playing.bits() && slot.user.is_some())
         .for_each(|(id, slot)| {
             let slot_user = slot.user.unwrap();
             let value_binding = slot_map(slot);
@@ -1448,6 +1466,17 @@ mod tests {
             ..Default::default()
         })
         .unwrap()
+    }
+
+    #[test]
+    fn lobby_keeps_password_indicator_without_revealing_password() {
+        let mut room = multiplayer_match(1);
+        let slots = MultiplayerMatchSlot::from([SlotEntity::default(); 16]);
+        assert_eq!(room.as_lobby_match(slots).password, "");
+
+        room.password = "example-room-password".to_string();
+        assert_eq!(room.as_lobby_match(slots).password, "*");
+        assert_eq!(room.as_bancho(slots).password, "example-room-password");
     }
 
     #[test]
