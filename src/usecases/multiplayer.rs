@@ -39,6 +39,12 @@ pub async fn create<C: Context>(
     mode: Gamemode,
     max_player_count: usize,
 ) -> ServiceResult<MultiplayerMatch> {
+    if !host_session.is_publicly_visible() {
+        return Err(AppError::InteractionBlocked);
+    }
+    if host_session.is_silenced() {
+        return Err(AppError::MessagesUserSilenced);
+    }
     if let Some(match_id) =
         multiplayer::fetch_session_match_id(ctx, host_session.session_id).await?
     {

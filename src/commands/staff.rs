@@ -107,9 +107,10 @@ pub async fn add_bn<C: Context>(ctx: &C, sender: &Session, args: AddBNArgs) -> C
     // Update all user sessions
     let target_sessions = sessions::fetch_by_username(ctx, &args.safe_username).await?;
     for session in target_sessions {
-        let mut updated_session = session;
-        updated_session.privileges = new_privileges;
-        sessions::update(ctx, updated_session).await?;
+        sessions::update(ctx, session.session_id, |current| {
+            current.privileges = new_privileges.bits();
+        })
+        .await?;
     }
 
     // Add BN badge
@@ -156,9 +157,10 @@ pub async fn remove_bn<C: Context>(ctx: &C, sender: &Session, args: RemoveBNArgs
     // Update all user sessions
     let target_sessions = sessions::fetch_by_username(ctx, &target_user.username).await?;
     for session in target_sessions {
-        let mut updated_session = session;
-        updated_session.privileges = new_privileges;
-        sessions::update(ctx, updated_session).await?;
+        sessions::update(ctx, session.session_id, |current| {
+            current.privileges = new_privileges.bits();
+        })
+        .await?;
     }
 
     // Remove BN badge

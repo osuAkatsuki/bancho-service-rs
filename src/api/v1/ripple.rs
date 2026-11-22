@@ -13,6 +13,7 @@ use crate::settings::AppSettings;
 use crate::usecases::{channels, ripple, sessions, streams, users};
 use axum::Json;
 use axum::extract::Query;
+use axum::http::HeaderMap;
 use bancho_protocol::messages::server::ChatMessage;
 use bancho_protocol::structures::IrcMessage;
 
@@ -74,14 +75,23 @@ pub async fn player_match_details(
     Ok(Json(response))
 }
 
-pub async fn send_chatbot_message(
-    ctx: RequestContext,
-    Query(args): Query<SendChatbotMessageArgs>,
-) -> ServiceResponse<BaseSuccessData> {
-    let settings = AppSettings::get();
-    if args.key != settings.app_ci_key {
+fn authorize_bot_message(headers: &HeaderMap) -> Result<(), AppError> {
+    let key = &AppSettings::get().app_ci_key;
+    let supplied = headers
+        .get("x-fokabot-key")
+        .and_then(|value| value.to_str().ok());
+    if key.trim().len() < 32 || supplied != Some(key.as_str()) {
         return Err(AppError::Unauthorized);
     }
+    Ok(())
+}
+
+pub async fn send_chatbot_message(
+    ctx: RequestContext,
+    headers: HeaderMap,
+    Query(args): Query<SendChatbotMessageArgs>,
+) -> ServiceResponse<BaseSuccessData> {
+    authorize_bot_message(&headers)?;
 
     if !args.channel.starts_with('#') {
         return Err(AppError::ChannelsInvalidName);
@@ -102,12 +112,10 @@ pub async fn send_chatbot_message(
 
 pub async fn send_chatbot_direct_message(
     ctx: RequestContext,
+    headers: HeaderMap,
     Query(args): Query<SendChatbotDirectMessageArgs>,
 ) -> ServiceResponse<SendChatbotDirectMessageResponse> {
-    let settings = AppSettings::get();
-    if args.key != settings.app_ci_key {
-        return Err(AppError::Unauthorized);
-    }
+    authorize_bot_message(&headers)?;
 
     let recipient_sessions: Vec<_> = sessions::fetch_by_user_id(&ctx, args.user_id)
         .await?

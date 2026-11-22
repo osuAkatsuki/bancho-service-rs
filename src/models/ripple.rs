@@ -20,8 +20,6 @@ pub struct FetchPlayerMatchDetailsArgs {
 
 #[derive(Deserialize)]
 pub struct SendChatbotMessageArgs {
-    #[serde(rename = "k")]
-    pub key: String,
     #[serde(rename = "to")]
     pub channel: String,
     #[serde(rename = "msg")]
@@ -30,8 +28,6 @@ pub struct SendChatbotMessageArgs {
 
 #[derive(Deserialize)]
 pub struct SendChatbotDirectMessageArgs {
-    #[serde(rename = "k")]
-    pub key: String,
     #[serde(rename = "to")]
     pub user_id: i64,
     #[serde(rename = "msg")]

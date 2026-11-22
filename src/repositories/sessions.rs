@@ -95,8 +95,10 @@ pub async fn fetch_by_username<C: Context>(
 ) -> anyhow::Result<impl Iterator<Item = Session>> {
     let mut redis = ctx.redis().await?;
     let username_key = make_username_key(username);
-    let session_ids: Vec<Uuid> = redis.smembers(username_key).await?;
-    fetch_many(ctx, &session_ids).await
+    let session_ids: Vec<Uuid> = redis.smembers(&username_key).await?;
+    Ok(fetch_many(ctx, &session_ids)
+        .await?
+        .filter(move |session| make_username_key(&session.username) == username_key))
 }
 
 pub async fn is_online<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<bool> {
@@ -110,53 +112,88 @@ pub async fn fetch_count<C: Context>(ctx: &C) -> anyhow::Result<u64> {
     Ok(redis.hlen(SESSIONS_KEY).await?)
 }
 
-pub async fn extend<C: Context>(ctx: &C, session: Session) -> anyhow::Result<Session> {
-    update(ctx, session).await
-}
-
-pub async fn update<C: Context>(ctx: &C, mut session: Session) -> anyhow::Result<Session> {
-    session.updated_at = chrono::Utc::now();
-    let mut redis = ctx.redis().await?;
-    let _: () = redis
-        .hset(SESSIONS_KEY, session.session_id, Json(&session))
-        .await?;
-    Ok(session)
-}
-
-pub async fn delete<C: Context>(
+/// Update only the requested fields and keep the username index in sync.
+pub async fn update<C: Context>(
     ctx: &C,
     session_id: Uuid,
-    user_id: i64,
-    username: &str,
-) -> anyhow::Result<u64> {
+    change: impl Fn(&mut Session),
+) -> anyhow::Result<Option<Session>> {
+    let mut redis = ctx.redis().await?;
+    let swap = redis::Script::new(
+        "if redis.call('HGET', KEYS[1], ARGV[1]) ~= ARGV[2] then return 0 end
+         if redis.call('SISMEMBER', KEYS[4], ARGV[1]) == 0 then
+             redis.call('HDEL', KEYS[1], ARGV[1])
+             redis.call('SREM', KEYS[2], ARGV[1])
+             return -1
+         end
+         redis.call('HSET', KEYS[1], ARGV[1], ARGV[3])
+         if KEYS[2] ~= KEYS[3] then
+             redis.call('SREM', KEYS[2], ARGV[1])
+             redis.call('SADD', KEYS[3], ARGV[1])
+         end
+         return 1",
+    );
+
+    loop {
+        let stored: Option<String> = redis.hget(SESSIONS_KEY, session_id).await?;
+        let Some(stored) = stored else {
+            return Ok(None);
+        };
+        let mut session: Session = serde_json::from_str(&stored)?;
+        let old_username_key = make_username_key(&session.username);
+        change(&mut session);
+        session.updated_at = chrono::Utc::now();
+
+        let changed: i32 = swap
+            .key(SESSIONS_KEY)
+            .key(old_username_key)
+            .key(make_username_key(&session.username))
+            .key(make_id_key(session.user_id))
+            .arg(session_id)
+            .arg(stored)
+            .arg(Json(&session))
+            .invoke_async(redis.deref_mut())
+            .await?;
+        match changed {
+            -1 => return Ok(None),
+            1 => return Ok(Some(session)),
+            _ => {}
+        }
+    }
+}
+
+pub async fn delete<C: Context>(ctx: &C, session_id: Uuid, user_id: i64) -> anyhow::Result<u64> {
     let mut redis = ctx.redis().await?;
     let user_id_key = make_id_key(user_id);
-    let username_key = make_username_key(username);
-
-    let mut pipe = redis::pipe();
-    pipe.atomic()
-        .hdel(SESSIONS_KEY, session_id)
-        .ignore()
-        .srem(&user_id_key, session_id)
-        .ignore()
-        .srem(username_key, session_id)
-        .ignore()
-        .scard(user_id_key);
-    let size: [u64; 1] = pipe.query_async(redis.deref_mut()).await?;
-    Ok(size[0])
+    let delete = redis::Script::new(
+        "if redis.call('HGET', KEYS[1], ARGV[1]) ~= ARGV[2] then return nil end
+         redis.call('HDEL', KEYS[1], ARGV[1])
+         redis.call('SREM', KEYS[2], ARGV[1])
+         redis.call('SREM', KEYS[3], ARGV[1])
+         return redis.call('SCARD', KEYS[2])",
+    );
+    loop {
+        let stored: Option<String> = redis.hget(SESSIONS_KEY, session_id).await?;
+        let Some(stored) = stored else {
+            return Ok(redis.scard(&user_id_key).await?);
+        };
+        let session: Session = serde_json::from_str(&stored)?;
+        let remaining: Option<u64> = delete
+            .key(SESSIONS_KEY)
+            .key(&user_id_key)
+            .key(make_username_key(&session.username))
+            .arg(session_id)
+            .arg(stored)
+            .invoke_async(redis.deref_mut())
+            .await?;
+        if let Some(remaining) = remaining {
+            return Ok(remaining);
+        }
+    }
 }
 
 pub async fn count<C: Context>(ctx: &C) -> anyhow::Result<usize> {
     let mut redis = ctx.redis().await?;
     let count: usize = redis.hlen(SESSIONS_KEY).await?;
     Ok(count)
-}
-
-pub async fn set_private_dms<C: Context>(
-    ctx: &C,
-    mut session: Session,
-    private_dms: bool,
-) -> anyhow::Result<Session> {
-    session.private_dms = private_dms;
-    update(ctx, session).await
 }

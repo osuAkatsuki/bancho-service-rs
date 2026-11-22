@@ -80,11 +80,15 @@ pub async fn silence_user<C: Context>(
 }
 
 pub async fn verify_user<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<()> {
-    const QUERY: &str = "UPDATE users SET privileges = ? WHERE id = ?";
-    let privileges = Privileges::PubliclyVisible | Privileges::CanLogin;
+    const QUERY: &str = "UPDATE users SET privileges = (privileges & ~?) | ? \
+        WHERE id = ? AND privileges & ? != 0 AND ban_datetime = 0";
+    let pending = Privileges::PendingVerification.bits();
+    let verified = (Privileges::PubliclyVisible | Privileges::CanLogin).bits();
     sqlx::query(QUERY)
-        .bind(privileges.bits())
+        .bind(pending)
+        .bind(verified)
         .bind(user_id)
+        .bind(pending)
         .execute(ctx.db())
         .await?;
     Ok(())

@@ -39,7 +39,7 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
 
     let mut user = User::try_from(user)?;
     if !user.privileges.contains(Privileges::CanLogin)
-        && !user.privileges.contains(Privileges::PendingVerification)
+        && !(user.privileges.is_pending_verification() && user.ban_datetime == 0)
     {
         return Err(AppError::SessionsLoginForbidden);
     }
@@ -74,7 +74,10 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
 
     if user_verification_pending {
         users::verify_user(ctx, user.user_id).await?;
-        user.privileges.remove(Privileges::PendingVerification);
+        user = User::try_from(users::fetch_one(ctx, user.user_id).await?)?;
+        if !user.privileges.can_login() || user.privileges.is_pending_verification() {
+            return Err(AppError::SessionsLoginForbidden);
+        }
     }
 
     let stats = stats::fetch_one(ctx, user.user_id, Gamemode::Standard).await?;
@@ -166,18 +169,19 @@ pub async fn fetch_count<C: Context>(ctx: &C) -> ServiceResult<u64> {
 }
 
 pub async fn extend<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Session> {
-    let session = fetch_one(ctx, session_id).await?;
-    match sessions::extend(ctx, session.into()).await {
-        Ok(session) => Ok(Session::from(session)),
-        Err(e) => unexpected(e),
-    }
+    update(ctx, session_id, |_| {})
+        .await?
+        .ok_or(AppError::SessionsNotFound)
 }
 
-pub async fn update<C: Context>(ctx: &C, session: Session) -> ServiceResult<Session> {
-    match sessions::update(ctx, session.into()).await {
-        Ok(session) => Ok(Session::from(session)),
-        Err(e) => unexpected(e),
-    }
+pub async fn update<C: Context>(
+    ctx: &C,
+    session_id: Uuid,
+    change: impl Fn(&mut crate::entities::sessions::Session),
+) -> ServiceResult<Option<Session>> {
+    Ok(sessions::update(ctx, session_id, change)
+        .await?
+        .map(Session::from))
 }
 
 pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()> {
@@ -186,8 +190,7 @@ pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()>
     spectators::close(ctx, session.session_id).await?;
     multiplayer::leave(ctx, session.identity(), None).await?;
 
-    let user_session_count =
-        sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;
+    let user_session_count = sessions::delete(ctx, session.session_id, session.user_id).await?;
     streams::clear_stream(ctx, StreamName::User(session.session_id)).await?;
     streams::leave_all(ctx, session.session_id).await?;
 
@@ -205,21 +208,23 @@ pub async fn set_private_dms<C: Context>(
     session: &Session,
     private_dms: bool,
 ) -> ServiceResult<()> {
-    match sessions::set_private_dms(ctx, session.as_entity(), private_dms).await {
-        Ok(_) => Ok(()),
-        Err(e) => unexpected(e),
-    }
+    update(ctx, session.session_id, |current| {
+        current.private_dms = private_dms;
+    })
+    .await?;
+    Ok(())
 }
 
 /// Silences the given session for the given amount of seconds.
 pub async fn silence<C: Context>(
     ctx: &C,
-    mut session: Session,
+    session: Session,
     silence_seconds: i64,
 ) -> ServiceResult<()> {
-    session.silence_end = Some(chrono::Utc::now() + TimeDelta::seconds(silence_seconds));
-    match sessions::update(ctx, session.as_entity()).await {
-        Ok(_) => Ok(()),
-        Err(e) => unexpected(e),
-    }
+    let silence_end = chrono::Utc::now() + TimeDelta::seconds(silence_seconds);
+    update(ctx, session.session_id, |current| {
+        current.silence_end = Some(silence_end);
+    })
+    .await?;
+    Ok(())
 }

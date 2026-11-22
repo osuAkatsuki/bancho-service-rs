@@ -93,7 +93,7 @@ pub async fn send<C: Context>(
     }
 
     let message_content = message_content.trim();
-    if message_content.is_empty() && message_content.len() > 500 {
+    if message_content.is_empty() || message_content.len() > 500 {
         return Err(AppError::MessagesInvalidLength);
     }
 
@@ -115,6 +115,28 @@ pub async fn send<C: Context>(
     Ok(MessageSendResult { message, response })
 }
 
+pub(crate) async fn check_private_recipient<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    receiver_session: &Session,
+) -> ServiceResult<()> {
+    if !receiver_session.is_publicly_visible() && !sender.has_all_privileges(Privileges::AdminCaker)
+    {
+        return Err(AppError::InteractionBlocked);
+    }
+    if receiver_session.private_dms {
+        match relationships::fetch_one(ctx, receiver_session.user_id, sender.user_id).await {
+            Ok(_) => {}
+            Err(AppError::RelationshipsNotFound) => return Err(AppError::InteractionBlocked),
+            Err(e) => {
+                error!("Error fetching relationship: {e:?}");
+                return Err(AppError::InteractionBlocked);
+            }
+        }
+    }
+    Ok(())
+}
+
 async fn get_recipient_info<'a, C: Context>(
     ctx: &C,
     sender: &Session,
@@ -134,21 +156,7 @@ async fn get_recipient_info<'a, C: Context>(
         }
         Recipient::UserSessions(receiver_sessions) => {
             let receiver_session = receiver_sessions.first().ok_or(AppError::UsersNotFound)?;
-            if !receiver_session.is_publicly_visible()
-                && !sender.has_all_privileges(Privileges::AdminCaker)
-            {
-                return Err(AppError::InteractionBlocked);
-            }
-            if receiver_session.private_dms {
-                match relationships::fetch_one(ctx, receiver_session.user_id, sender.user_id).await
-                {
-                    Err(AppError::RelationshipsNotFound) => {
-                        return Err(AppError::InteractionBlocked);
-                    }
-                    Ok(_) => {}
-                    Err(e) => error!("Error fetching relationship: {e:?}"),
-                }
-            }
+            check_private_recipient(ctx, sender, receiver_session).await?;
             Ok(RecipientInfo {
                 recipient_id: Some(receiver_session.user_id),
                 ..Default::default()
