@@ -73,11 +73,40 @@ pub struct LoginArgs {
 
 #[derive(Debug)]
 pub struct ClientInfo {
-    pub osu_version: OsuVersion,
+    pub client_version: ClientVersion,
     pub utc_offset: i8,
     pub display_city: bool,
     pub client_hashes: ClientHashes,
     pub pm_private: bool,
+}
+
+/// The game client logging in, told apart by the version string it sends.
+#[derive(Debug)]
+pub enum ClientVersion {
+    Osu(OsuVersion),
+    /// circles, a client of its own, which sends `circles-<its version>`.
+    Circles,
+}
+
+impl ClientVersion {
+    pub fn is_outdated(&self) -> bool {
+        match self {
+            ClientVersion::Osu(osu_version) => osu_version.is_outdated(),
+            // No version of circles is too old yet
+            ClientVersion::Circles => false,
+        }
+    }
+}
+
+impl FromStr for ClientVersion {
+    type Err = AppError;
+
+    fn from_str(version_string: &str) -> Result<Self, Self::Err> {
+        if version_string.starts_with("circles-") {
+            return Ok(ClientVersion::Circles);
+        }
+        OsuVersion::from_str(version_string).map(ClientVersion::Osu)
+    }
 }
 
 #[derive(Debug)]
@@ -234,8 +263,8 @@ impl FromStr for ClientInfo {
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let mut parts = input.splitn(5, '|');
-        let osu_version_str = parts.next().ok_or(AppError::DecodingRequestFailed)?;
-        let osu_version = OsuVersion::from_str(osu_version_str)?;
+        let client_version_str = parts.next().ok_or(AppError::DecodingRequestFailed)?;
+        let client_version = ClientVersion::from_str(client_version_str)?;
         let utc_offset_str = parts.next().ok_or(AppError::DecodingRequestFailed)?;
         let utc_offset =
             i8::from_str(utc_offset_str).map_err(|_| AppError::DecodingRequestFailed)?;
@@ -244,7 +273,7 @@ impl FromStr for ClientInfo {
         let client_hashes = ClientHashes::from_str(client_hashes_str)?;
         let pm_private = parts.next().ok_or(AppError::DecodingRequestFailed)? == "1";
         Ok(Self {
-            osu_version,
+            client_version,
             utc_offset,
             display_city,
             client_hashes,
@@ -297,5 +326,32 @@ impl FromStr for NetworkAdapters {
         Ok(NetworkAdapters {
             adapters: input.to_string(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MD5: &str = "0123456789abcdef0123456789abcdef";
+
+    fn client_info(version: &str) -> Result<ClientInfo, AppError> {
+        ClientInfo::from_str(&format!(
+            "{version}|-5|0|{MD5}:adapters.:{MD5}:{MD5}:{MD5}:|0"
+        ))
+    }
+
+    #[test]
+    fn circles_logs_in_with_its_own_version() {
+        let version = client_info("circles-0.3.0").unwrap().client_version;
+        assert!(matches!(version, ClientVersion::Circles));
+        assert!(!version.is_outdated());
+    }
+
+    #[test]
+    fn osu_logs_in_with_a_dated_version() {
+        let version = client_info("b20260101").unwrap().client_version;
+        assert!(matches!(version, ClientVersion::Osu(_)));
+        assert!(client_info("circles").is_err());
     }
 }

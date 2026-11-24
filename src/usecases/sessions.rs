@@ -21,7 +21,7 @@ pub const USER_SESSIONS_LIMIT: u64 = 20;
 pub const TOURNAMENT_STAFF_SESSIONS_LIMIT: u64 = 40;
 
 pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Session, Presence)> {
-    if args.client_info.osu_version.is_outdated() {
+    if args.client_info.client_version.is_outdated() {
         return Err(AppError::ClientTooOld);
     }
 
