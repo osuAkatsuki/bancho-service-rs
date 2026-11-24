@@ -3,7 +3,7 @@ use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::gamemodes::Gamemode;
 use crate::entities::sessions::CreateSessionArgs;
-use crate::models::bancho::LoginArgs;
+use crate::models::bancho::{ClientVersion, LoginArgs};
 use crate::models::presences::Presence;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
@@ -42,6 +42,13 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
         && !user.privileges.contains(Privileges::PendingVerification)
     {
         return Err(AppError::SessionsLoginForbidden);
+    }
+
+    // Until circles is released, only admins may log in with it
+    if matches!(args.client_info.client_version, ClientVersion::Circles)
+        && !user.privileges.is_admin()
+    {
+        return Err(AppError::UnsupportedClientVersion);
     }
 
     let ip_address = ctx.request_ip.ip_addr;
