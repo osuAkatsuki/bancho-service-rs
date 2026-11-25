@@ -39,6 +39,10 @@ pub async fn create<C: Context>(
     mode: Gamemode,
     max_player_count: usize,
 ) -> ServiceResult<MultiplayerMatch> {
+    if !host_session.is_publicly_visible() {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
+
     if let Some(match_id) =
         multiplayer::fetch_session_match_id(ctx, host_session.session_id).await?
     {
@@ -1435,6 +1439,47 @@ async fn change_playing_state<C: Context, F: Fn(&mut SlotEntity) -> &mut bool>(
 mod tests {
     use super::*;
     use crate::entities::multiplayer::MultiplayerMatch as MatchEntity;
+
+    struct NoStorage;
+
+    impl Context for NoStorage {
+        fn db_pool(&self) -> &sqlx::Pool<sqlx::MySql> {
+            panic!("Expected room creation to reject the request before accessing MySQL")
+        }
+
+        fn redis_pool(&self) -> &crate::common::redis_pool::RedisPool {
+            panic!("Expected room creation to reject the request before accessing Redis")
+        }
+    }
+
+    #[tokio::test]
+    async fn match_creation_rejects_restricted_sessions_before_accessing_storage() {
+        let session = Session {
+            session_id: Uuid::new_v4(),
+            user_id: 1000,
+            username: "restricted-player".to_owned(),
+            privileges: crate::models::privileges::Privileges::CanLogin,
+            create_ip_address: std::net::Ipv4Addr::LOCALHOST.into(),
+            private_dms: false,
+            silence_end: None,
+            updated_at: chrono::Utc::now(),
+        };
+
+        let result = create(
+            &NoStorage,
+            &session,
+            "test room",
+            "",
+            "",
+            "",
+            0,
+            Gamemode::Standard,
+            16,
+        )
+        .await;
+
+        assert!(matches!(result, Err(AppError::MultiplayerUnauthorized)));
+    }
 
     fn multiplayer_match(match_id: i64) -> MultiplayerMatch {
         MultiplayerMatch::try_from(MatchEntity {
