@@ -110,66 +110,99 @@ pub async fn private_chat_message(
     let result = messages::send(ctx, session, &recipient, args.message.text).await?;
     match recipient {
         Recipient::Channel(_) => unreachable!(),
-        Recipient::UserSessions(recipient_sessions) => match result.response {
-            Some(cmd_response) => {
-                let bot_response = cmd_response.answer.map(|answer| {
-                    let bot_response_msg = IrcMessage {
-                        sender: bot::BOT_NAME,
-                        sender_id: bot::BOT_ID as _,
-                        text: &answer,
+        Recipient::UserSessions(recipient_sessions) => {
+            let away_reply = recipient_sessions
+                .iter()
+                .find_map(|s| s.away_message.as_deref())
+                .map(|away_text| {
+                    let away_msg = IrcMessage {
+                        sender: recipient_name,
+                        sender_id: recipient_sessions[0].user_id as _,
+                        text: away_text,
                         recipient: &session.username,
                     };
-                    ChatMessage(&bot_response_msg).as_message().serialize()
+                    ChatMessage(&away_msg).as_message().serialize()
                 });
-                match cmd_response.properties.forward_message /*forward_message*/ {
-                    true => {
-                        for recipient_session in recipient_sessions {
-                            if !cmd_response
-                                .properties
-                                .read_privileges
-                                .is_none_or(|read_privileges| {
-                                    recipient_session.has_all_privileges(read_privileges)
-                                }) {
-                                break;
+
+            match result.response {
+                Some(cmd_response) => {
+                    let bot_response = cmd_response.answer.map(|answer| {
+                        let bot_response_msg = IrcMessage {
+                            sender: bot::BOT_NAME,
+                            sender_id: bot::BOT_ID as _,
+                            text: &answer,
+                            recipient: &session.username,
+                        };
+                        ChatMessage(&bot_response_msg).as_message().serialize()
+                    });
+                    match cmd_response.properties.forward_message {
+                        true => {
+                            for recipient_session in &recipient_sessions {
+                                if !cmd_response
+                                    .properties
+                                    .read_privileges
+                                    .is_none_or(|read_privileges| {
+                                        recipient_session.has_all_privileges(read_privileges)
+                                    })
+                                {
+                                    break;
+                                }
+
+                                let msg = IrcMessage {
+                                    sender: &session.username,
+                                    sender_id: session.user_id as _,
+                                    text: &result.message.content,
+                                    recipient: &recipient_session.username,
+                                };
+                                let message_stream =
+                                    StreamName::User(recipient_session.session_id);
+                                streams::broadcast_message(
+                                    ctx,
+                                    message_stream,
+                                    ChatMessage(&msg),
+                                    None,
+                                    None,
+                                )
+                                .await?;
                             }
 
-                            let msg = IrcMessage {
-                                sender: &session.username,
-                                sender_id: session.user_id as _,
-                                text: &result.message.content,
-                                recipient: &recipient_session.username,
-                            };
-                            let message_stream = StreamName::User(recipient_session.session_id);
-                            streams::broadcast_message(
-                                ctx,
-                                message_stream,
-                                ChatMessage(&msg),
-                                None,
-                                None,
-                            )
-                                .await?;
+                            let mut response = bot_response.unwrap_or_default();
+                            if let Some(away) = away_reply {
+                                response.extend(away);
+                            }
+                            Ok(Some(response).filter(|r| !r.is_empty()))
                         }
-
-                        Ok(bot_response)
+                        false => {
+                            let mut response = bot_response.unwrap_or_default();
+                            if let Some(away) = away_reply {
+                                response.extend(away);
+                            }
+                            Ok(Some(response).filter(|r| !r.is_empty()))
+                        }
                     }
-                    false => Ok(bot_response),
                 }
-            }
-            None => {
-                for recipient_session in recipient_sessions {
-                    let msg = IrcMessage {
-                        sender: &session.username,
-                        sender_id: session.user_id as _,
-                        text: &result.message.content,
-                        recipient: &recipient_session.username,
-                    };
-                    let message_stream = StreamName::User(recipient_session.session_id);
-                    streams::broadcast_message(ctx, message_stream, ChatMessage(&msg), None, None)
+                None => {
+                    for recipient_session in &recipient_sessions {
+                        let msg = IrcMessage {
+                            sender: &session.username,
+                            sender_id: session.user_id as _,
+                            text: &result.message.content,
+                            recipient: &recipient_session.username,
+                        };
+                        let message_stream = StreamName::User(recipient_session.session_id);
+                        streams::broadcast_message(
+                            ctx,
+                            message_stream,
+                            ChatMessage(&msg),
+                            None,
+                            None,
+                        )
                         .await?;
+                    }
+                    Ok(away_reply)
                 }
-                Ok(None)
             }
-        },
+        }
         Recipient::Bot => {
             if let Some(response) = result.response
                 && let Some(bot_reply) = response.answer
