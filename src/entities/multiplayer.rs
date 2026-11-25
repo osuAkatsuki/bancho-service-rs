@@ -45,24 +45,25 @@ pub struct MultiplayerMatchSlot {
 }
 
 impl MultiplayerMatchSlot {
+    pub fn reset_game_flags(&mut self) {
+        self.loaded = false;
+        self.skipped = false;
+        self.failed = false;
+        self.completed = false;
+    }
+
     pub fn prepare(&mut self, identity: SessionIdentity) {
         self.status = SlotStatus::NotReady.bits();
         self.team = 0;
         self.mods = 0;
         self.user = Some(identity);
-        self.loaded = false;
-        self.skipped = false;
-        self.failed = false;
-        self.completed = false;
+        self.reset_game_flags();
     }
     pub fn clear(&mut self) {
         self.status = SlotStatus::Empty.bits();
         self.team = 0;
         self.mods = 0;
         self.user = None;
-        self.loaded = false;
-        self.skipped = false;
-        self.failed = false;
-        self.completed = false;
+        self.reset_game_flags();
     }
 }

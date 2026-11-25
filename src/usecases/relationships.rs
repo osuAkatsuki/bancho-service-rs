@@ -1,5 +1,5 @@
 use crate::common::context::Context;
-use crate::common::error::{ServiceResult, unexpected};
+use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::models::relationships::Relationship;
 use crate::repositories::relationships;
 use crate::usecases::users;
@@ -12,6 +12,7 @@ pub async fn fetch_one<C: Context>(
 ) -> ServiceResult<Relationship> {
     match relationships::fetch_one(ctx, follower_id, friend_id).await {
         Ok(relationship) => Ok(Relationship::from(relationship)),
+        Err(sqlx::Error::RowNotFound) => Err(AppError::RelationshipsNotFound),
         Err(e) => unexpected(e),
     }
 }

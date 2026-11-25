@@ -18,14 +18,19 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
 
     let sessions = sessions::fetch_by_user_id(&ctx, user_id).await?;
     let restriction_notification = restriction_message(&user.username);
-    for mut session in sessions {
+    for session in sessions {
         if !user.privileges.can_login() {
             sessions::delete(&ctx, &session).await?;
             continue;
         }
 
-        session.privileges = user.privileges;
-        let session = sessions::update(&ctx, session).await?;
+        let Some(session) = sessions::update(&ctx, session.session_id, |current| {
+            current.privileges = user.privileges.bits();
+        })
+        .await?
+        else {
+            continue;
+        };
 
         streams::broadcast_message(
             &ctx,

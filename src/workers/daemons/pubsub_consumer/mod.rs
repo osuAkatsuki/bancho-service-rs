@@ -7,13 +7,14 @@ use crate::workers::daemons::pubsub_consumer::handlers::{
 };
 use tracing::{error, info, warn};
 
-pub const PUBSUB_CHANNELS: [&str; 8] = [
+pub const PUBSUB_CHANNELS: [&str; 9] = [
     "peppy:ban",
     "peppy:unban",
     "peppy:silence",
     "peppy:disconnect",
     "peppy:notification",
     "peppy:change_username",
+    "api:change_username",
     "peppy:update_cached_stats",
     "peppy:wipe",
 ];
@@ -43,6 +44,7 @@ pub async fn serve(settings: &AppSettings) -> anyhow::Result<()> {
                 "peppy:disconnect" => disconnect::handle(ctx, msg).await,
                 "peppy:notification" => notification::handle(ctx, msg).await,
                 "peppy:change_username" => change_username::handle(ctx, msg).await,
+                "api:change_username" => change_username::handle_committed(ctx, msg).await,
                 "peppy:update_cached_stats" => update_cached_stats::handle(ctx, msg).await,
                 "peppy:wipe" => wipe::handle(ctx, msg).await,
                 _ => {

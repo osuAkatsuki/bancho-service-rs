@@ -13,7 +13,7 @@ pub async fn handle(ctx: &RequestContext, session: &Session, _args: ()) -> Event
     let response = matches
         .into_iter()
         .flat_map(|(mp_match, slots)| {
-            MatchUpdate(&mp_match.as_bancho(slots))
+            MatchUpdate(&mp_match.as_lobby_match(slots))
                 .as_message()
                 .serialize()
         })

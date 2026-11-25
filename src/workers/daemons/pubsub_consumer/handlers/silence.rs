@@ -18,9 +18,14 @@ pub async fn handle(ctx: AppState, msg: Msg) -> ServiceResult<()> {
     });
 
     let sessions = sessions::fetch_by_user_id(&ctx, user_id).await?;
-    for mut session in sessions {
-        session.silence_end = user.silence_end;
-        let session = sessions::update(&ctx, session).await?;
+    for session in sessions {
+        let Some(session) = sessions::update(&ctx, session.session_id, |current| {
+            current.silence_end = user.silence_end;
+        })
+        .await?
+        else {
+            continue;
+        };
         streams::broadcast_data(
             &ctx,
             StreamName::User(session.session_id),

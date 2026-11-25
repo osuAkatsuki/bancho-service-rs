@@ -1,10 +1,14 @@
 use crate::api::RequestContext;
+use crate::common::error::AppError;
 use crate::entities::channels::ChannelName;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{channels, multiplayer, streams};
 
 pub async fn handle(ctx: &RequestContext, session: &Session, match_id: i32) -> super::EventResult {
+    if !session.privileges.is_tournament_staff() {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
     let mp_match = multiplayer::fetch_by_ingame_match_id(ctx, match_id).await?;
 
     tracing::info!(

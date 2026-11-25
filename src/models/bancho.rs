@@ -289,24 +289,32 @@ impl FromStr for ClientHashes {
         let mut parts = input.splitn(6, ':');
         let osu_path_md5 = parts
             .next()
-            .filter(|path_md5| path_md5.len() == 32)
+            .filter(|path_md5| {
+                path_md5.len() == 32 && path_md5.bytes().all(|byte| byte.is_ascii_hexdigit())
+            })
             .ok_or(AppError::DecodingRequestFailed)?
             .to_string();
         let adapters_str = parts.next().ok_or(AppError::DecodingRequestFailed)?;
         let adapters = NetworkAdapters::from_str(adapters_str)?;
         let adapters_md5 = parts
             .next()
-            .filter(|path_md5| path_md5.len() == 32)
+            .filter(|path_md5| {
+                path_md5.len() == 32 && path_md5.bytes().all(|byte| byte.is_ascii_hexdigit())
+            })
             .ok_or(AppError::DecodingRequestFailed)?
             .to_string();
         let uninstall_md5 = parts
             .next()
-            .filter(|path_md5| path_md5.len() == 32)
+            .filter(|path_md5| {
+                path_md5.len() == 32 && path_md5.bytes().all(|byte| byte.is_ascii_hexdigit())
+            })
             .ok_or(AppError::DecodingRequestFailed)?
             .to_string();
         let disk_signature_md5 = parts
             .next()
-            .filter(|path_md5| path_md5.len() == 32)
+            .filter(|path_md5| {
+                path_md5.len() == 32 && path_md5.bytes().all(|byte| byte.is_ascii_hexdigit())
+            })
             .ok_or(AppError::DecodingRequestFailed)?
             .to_string();
         Ok(Self {
