@@ -37,6 +37,12 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         inputs.push(fn_arg);
     }
 
+    if arg_count < 4 {
+        let tokens: TokenStream = "_: crate::commands::CommandTarget".parse().unwrap();
+        let fn_arg = syn::parse_macro_input!(tokens as syn::FnArg);
+        inputs.push(fn_arg);
+    }
+
     let args_arg = match inputs.get(2).expect("Wrong number of arguments") {
         syn::FnArg::Typed(arg) => arg,
         _ => panic!("Wrong type of arguments"),

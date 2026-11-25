@@ -17,11 +17,23 @@ pub struct CommandProperties {
     pub read_privileges: Option<Privileges>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum CommandTarget {
+    Game,
+    IrcBot,
+    IrcRoom(i64),
+}
+
 #[async_trait]
 pub trait Command: Send + Sync {
     type Args: FromCommandArgs;
     const PROPERTIES: CommandProperties;
-    async fn handle<C: Context>(ctx: &C, session: &Session, args: Self::Args) -> CommandResult;
+    async fn handle<C: Context>(
+        ctx: &C,
+        session: &Session,
+        args: Self::Args,
+        target: CommandTarget,
+    ) -> CommandResult;
 }
 
 pub struct RegisteredCommand {
@@ -41,6 +53,7 @@ pub trait CommandHandlerProxy: Send + Sync {
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
+        target: CommandTarget,
     ) -> ServiceResult<Option<CommandResponse>>;
 }
 
@@ -86,10 +99,11 @@ impl<CMD: Command> CommandHandlerProxy for CMD {
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
+        target: CommandTarget,
     ) -> ServiceResult<Option<CommandResponse>> {
         let ctx = CommandContext::from_ctx(ctx);
         let args = CMD::Args::from_args(args)?;
-        let answer = CMD::handle(&ctx, session, args).await?;
+        let answer = CMD::handle(&ctx, session, args, target).await?;
         Ok(Some(CommandResponse {
             answer,
             properties: CMD::PROPERTIES,
@@ -163,6 +177,7 @@ impl CommandHandlerProxy for &CommandRouter {
         ctx: &dyn Context,
         session: &Session,
         args: Option<&str>,
+        target: CommandTarget,
     ) -> ServiceResult<Option<CommandResponse>> {
         match args {
             Some(args) => {
@@ -180,7 +195,7 @@ impl CommandHandlerProxy for &CommandRouter {
                         {
                             return Err(AppError::CommandsUnauthorized);
                         }
-                        command.handler.handle(ctx, &session, args).await
+                        command.handler.handle(ctx, &session, args, target).await
                     }
                     None => Err(AppError::CommandsUnknownCommand),
                 }

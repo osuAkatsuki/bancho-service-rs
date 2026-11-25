@@ -52,6 +52,12 @@ jobs:
           username: root
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -e
             cd /opt/akatsuki
             docker compose pull bancho-service-rs-api bancho-service-rs-pubsub-daemon
             docker compose up -d bancho-service-rs-api bancho-service-rs-pubsub-daemon
+
+            if docker compose --profile irc ps --status running --services | grep -Fxq bancho-service-rs-irc; then
+              docker compose --profile irc pull bancho-service-rs-irc
+              docker compose --profile irc up -d bancho-service-rs-irc
+            fi

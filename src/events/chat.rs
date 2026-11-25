@@ -1,4 +1,5 @@
 use crate::api::RequestContext;
+use crate::commands::CommandTarget;
 use crate::entities::bot;
 use crate::events::EventResult;
 use crate::models::messages::Recipient;
@@ -20,7 +21,14 @@ pub async fn public_chat_message(
     let channel_name = channels::get_channel_name(ctx, session, &args.message.recipient).await?;
     let recipient = Recipient::Channel(channel_name);
 
-    let result = messages::send(ctx, session, &recipient, args.message.text).await?;
+    let result = messages::send(
+        ctx,
+        session,
+        &recipient,
+        args.message.text,
+        CommandTarget::Game,
+    )
+    .await?;
     match result.response {
         Some(cmd_response) => {
             let bot_response = cmd_response.answer.map(|answer| {
@@ -107,7 +115,14 @@ pub async fn private_chat_message(
         }
     };
 
-    let result = messages::send(ctx, session, &recipient, args.message.text).await?;
+    let result = messages::send(
+        ctx,
+        session,
+        &recipient,
+        args.message.text,
+        CommandTarget::Game,
+    )
+    .await?;
     match recipient {
         Recipient::Channel(_) => unreachable!(),
         Recipient::UserSessions(recipient_sessions) => match result.response {

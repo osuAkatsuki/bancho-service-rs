@@ -14,6 +14,18 @@ pub async fn handle<C: Context>(ctx: &C, session: &Session, args: MatchInvite) -
         .ok_or(AppError::MultiplayerUserNotInMatch)?;
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
 
+    if mp_match.tournament_owner_id.is_some()
+        && !multiplayer::can_manage(
+            ctx,
+            match_id,
+            mp_match.controller_user_id(),
+            session.user_id,
+        )
+        .await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
+
     let target_sessions = sessions::fetch_by_user_id(ctx, args.user_id as _).await?;
     let invite = mp_match.invite_message();
 

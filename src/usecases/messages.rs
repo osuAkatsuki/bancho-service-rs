@@ -1,4 +1,4 @@
-use crate::commands;
+use crate::commands::{self, CommandTarget};
 use crate::common::context::Context;
 use crate::common::error::{AppError, ServiceResult, unexpected};
 use crate::entities::bot;
@@ -83,6 +83,7 @@ pub async fn send<C: Context>(
     session: &mut Session,
     recipient: &Recipient<'_>,
     message_content: &str,
+    target: CommandTarget,
 ) -> ServiceResult<MessageSendResult> {
     if !session.is_publicly_visible() {
         return Err(AppError::InteractionBlocked);
@@ -111,7 +112,8 @@ pub async fn send<C: Context>(
     .await
     .map(Message::from)?;
 
-    let response = commands::try_handle_command(ctx, session, message_content, &recipient).await?;
+    let response =
+        commands::try_handle_command(ctx, session, message_content, &recipient, target).await?;
     Ok(MessageSendResult { message, response })
 }
 

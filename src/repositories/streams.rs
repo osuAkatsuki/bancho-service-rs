@@ -129,6 +129,21 @@ pub async fn broadcast_data<C: Context>(
     Ok(())
 }
 
+pub async fn read_streams<C: Context>(
+    ctx: &C,
+    offsets: &[(StreamName<'_>, &str)],
+) -> anyhow::Result<Vec<crate::entities::streams::StreamReply>> {
+    if offsets.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut redis = ctx.redis().await?;
+    let keys: Vec<_> = offsets.iter().map(|(name, _)| make_key(*name)).collect();
+    let ids: Vec<_> = offsets.iter().map(|(_, id)| *id).collect();
+    let options = redis::streams::StreamReadOptions::default().count(32);
+    let reply: Option<StreamReadReply> = redis.xread_options(&keys, &ids, &options).await?;
+    Ok(reply.map_or_else(Vec::new, |reply| reply.streams))
+}
+
 pub async fn read_pending_messages<C: Context>(
     ctx: &C,
     session_id: Uuid,
