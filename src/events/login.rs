@@ -82,6 +82,14 @@ pub async fn handle(ctx: &RequestContext, args: LoginArgs) -> BanchoResponse {
         user_panel,
         bot::user_panel(),
     ];
+    if !session.is_publicly_visible() {
+        response.push(Message::serialize(ChatMessage(&IrcMessage {
+            recipient: &session.username,
+            sender: bot::BOT_NAME,
+            sender_id: bot::BOT_ID as _,
+            text: "Your account is in restricted mode. Visit the website for more information.",
+        })));
+    }
     let silence_left = session.silence_left();
     if silence_left != 0 {
         response.push(Message::serialize(SilenceEnd {

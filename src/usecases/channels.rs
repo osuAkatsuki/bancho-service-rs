@@ -104,7 +104,7 @@ pub async fn leave<C: Context>(
 pub async fn leave_all<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<()> {
     let channels = channels::fetch_session_channels(ctx, session_id).await?;
     for channel in channels {
-        match leave(ctx, session_id, ChannelName::Chat(&channel)).await {
+        match leave(ctx, session_id, ChannelName::from_key(&channel)?).await {
             Ok(_) => {}
             Err(AppError::ChannelsNotFound) => {
                 error!(

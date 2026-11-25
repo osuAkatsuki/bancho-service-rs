@@ -144,9 +144,9 @@ pub async fn update<C: Context>(ctx: &C, presence: Presence) -> ServiceResult<Pr
     }
 }
 
-pub async fn delete<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<()> {
-    match presences::delete(ctx, user_id).await {
-        Ok(_) => Ok(()),
+pub async fn delete_if_offline<C: Context>(ctx: &C, user_id: i64) -> ServiceResult<bool> {
+    match presences::delete_if_offline(ctx, user_id).await {
+        Ok(deleted) => Ok(deleted),
         Err(e) => unexpected(e),
     }
 }

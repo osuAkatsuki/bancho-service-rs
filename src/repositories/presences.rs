@@ -2,6 +2,7 @@ use crate::common::context::{Context, PoolContext};
 use crate::common::redis_json::Json;
 use crate::entities::bot;
 use crate::entities::presences::Presence;
+use crate::repositories::sessions;
 use redis::AsyncCommands;
 use std::ops::DerefMut;
 use tracing::warn;
@@ -111,12 +112,24 @@ pub async fn update<C: Context>(ctx: &C, presence: Presence) -> anyhow::Result<P
     Ok(presence)
 }
 
-pub async fn delete<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<()> {
+pub async fn delete_if_offline<C: Context>(ctx: &C, user_id: i64) -> anyhow::Result<bool> {
+    const DELETE_IF_OFFLINE: &str = r#"
+        if redis.call('SCARD', KEYS[1]) == 0 then
+            return redis.call('HDEL', KEYS[2], ARGV[1])
+        end
+        return 0
+    "#;
     if user_id == bot::BOT_ID {
         warn!("Tried to delete bot presence, ignoring.");
-        return Ok(());
+        return Ok(false);
     }
 
     let mut redis = ctx.redis().await?;
-    Ok(redis.hdel(KEY, user_id).await?)
+    let deleted: bool = redis::Script::new(DELETE_IF_OFFLINE)
+        .key(sessions::make_id_key(user_id))
+        .key(KEY)
+        .arg(user_id)
+        .invoke_async(redis.deref_mut())
+        .await?;
+    Ok(deleted)
 }
