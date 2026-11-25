@@ -139,15 +139,10 @@ async fn get_recipient_info<'a, C: Context>(
             {
                 return Err(AppError::InteractionBlocked);
             }
-            if receiver_session.private_dms {
-                match relationships::fetch_one(ctx, receiver_session.user_id, sender.user_id).await
-                {
-                    Err(AppError::RelationshipsNotFound) => {
-                        return Err(AppError::InteractionBlocked);
-                    }
-                    Ok(_) => {}
-                    Err(e) => error!("Error fetching relationship: {e:?}"),
-                }
+            match check_private_dms(ctx, sender, receiver_session).await {
+                Err(AppError::InteractionBlocked) => return Err(AppError::InteractionBlocked),
+                Ok(()) => {}
+                Err(e) => error!("Error fetching relationship: {e:?}"),
             }
             Ok(RecipientInfo {
                 recipient_id: Some(receiver_session.user_id),
@@ -172,5 +167,21 @@ async fn get_recipient_info<'a, C: Context>(
             recipient_id: Some(bot::BOT_ID),
             ..Default::default()
         }),
+    }
+}
+
+pub async fn check_private_dms<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    recipient: &Session,
+) -> ServiceResult<()> {
+    if !recipient.private_dms {
+        return Ok(());
+    }
+
+    match relationships::fetch_one(ctx, recipient.user_id, sender.user_id).await {
+        Ok(_) => Ok(()),
+        Err(AppError::RelationshipsNotFound) => Err(AppError::InteractionBlocked),
+        Err(e) => Err(e),
     }
 }
