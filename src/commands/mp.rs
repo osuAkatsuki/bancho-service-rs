@@ -9,8 +9,8 @@ use crate::models::sessions::Session;
 use crate::repositories::multiplayer::TimerType;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{beatmaps, multiplayer, sessions, streams, users};
-use bancho_protocol::messages::server::{ChatMessage, MatchJoinFailed};
-use bancho_protocol::structures::{IrcMessage, MatchTeam, MatchTeamType, Mode, Mods, WinCondition};
+use bancho_protocol::messages::server::MatchJoinFailed;
+use bancho_protocol::structures::{MatchTeam, MatchTeamType, Mode, Mods, WinCondition};
 use bancho_service_macros::{FromCommandArgs, command};
 use std::ops::Deref;
 use std::str::FromStr;
@@ -391,29 +391,11 @@ pub struct InviteArgs {
 
 #[command("invite")]
 pub async fn invite_user<C: Context>(ctx: &C, sender: &Session, args: InviteArgs) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
-
-    let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    let target_sessions = sessions::fetch_by_username(ctx, &args.safe_username).await?;
-    let invite = mp_match.invite_message();
-
-    for target_session in target_sessions {
-        let invite_message = IrcMessage {
-            sender: &sender.username,
-            sender_id: sender.user_id as _,
-            text: &invite,
-            recipient: &target_session.username,
-        };
-        streams::broadcast_message(
-            ctx,
-            StreamName::User(target_session.session_id),
-            ChatMessage(&invite_message),
-            None,
-            None,
-        )
-        .await?;
+    let targets = sessions::fetch_by_username(ctx, &args.safe_username).await?;
+    if !multiplayer::invite(ctx, sender, targets).await? {
+        return Ok(Some(
+            "That player is unavailable for match invites.".to_owned(),
+        ));
     }
 
     Ok(Some(format!(

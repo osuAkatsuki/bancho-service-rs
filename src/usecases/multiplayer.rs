@@ -14,7 +14,7 @@ use crate::models::sessions::Session;
 use crate::repositories::multiplayer::TimerType;
 use crate::repositories::streams::StreamName;
 use crate::repositories::{match_games, multiplayer};
-use crate::usecases::{channels, match_events, presences, sessions, stats, streams};
+use crate::usecases::{channels, match_events, messages, presences, sessions, stats, streams};
 use bancho_protocol::concat_messages;
 use bancho_protocol::messages::MessageArgs;
 use bancho_protocol::messages::server::{
@@ -98,6 +98,55 @@ pub async fn create<C: Context>(
     )
     .await?;
     Ok(mp_match)
+}
+
+pub async fn invite<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    targets: impl IntoIterator<Item = Session>,
+) -> ServiceResult<bool> {
+    if !sender.is_publicly_visible() {
+        return Err(AppError::InteractionBlocked);
+    }
+    if sender.is_silenced() {
+        return Err(AppError::MessagesUserSilenced);
+    }
+
+    let match_id = fetch_session_match_id(ctx, sender.session_id)
+        .await?
+        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_data = fetch_one(ctx, match_id).await?;
+    let invite = match_data.invite_message();
+    let mut sent = false;
+
+    for target in targets {
+        if !target.is_publicly_visible() || target.is_expired() {
+            continue;
+        }
+        match messages::check_private_dms(ctx, sender, &target).await {
+            Ok(()) => {}
+            Err(AppError::InteractionBlocked) => continue,
+            Err(e) => return Err(e),
+        }
+
+        let invite_message = IrcMessage {
+            sender: &sender.username,
+            sender_id: sender.user_id as _,
+            text: &invite,
+            recipient: &target.username,
+        };
+        streams::broadcast_message(
+            ctx,
+            StreamName::User(target.session_id),
+            ChatMessage(&invite_message),
+            None,
+            None,
+        )
+        .await?;
+        sent = true;
+    }
+
+    Ok(sent)
 }
 
 pub async fn fetch_session_match_id<C: Context>(
@@ -1444,11 +1493,11 @@ mod tests {
 
     impl Context for NoStorage {
         fn db_pool(&self) -> &sqlx::Pool<sqlx::MySql> {
-            panic!("Expected room creation to reject the request before accessing MySQL")
+            panic!("Expected the request to be rejected before accessing MySQL")
         }
 
         fn redis_pool(&self) -> &crate::common::redis_pool::RedisPool {
-            panic!("Expected room creation to reject the request before accessing Redis")
+            panic!("Expected the request to be rejected before accessing Redis")
         }
     }
 
@@ -1479,6 +1528,36 @@ mod tests {
         .await;
 
         assert!(matches!(result, Err(AppError::MultiplayerUnauthorized)));
+    }
+
+    #[tokio::test]
+    async fn invites_reject_restricted_and_silenced_senders() {
+        use crate::models::privileges::Privileges;
+        use chrono::{TimeDelta, Utc};
+
+        let now = Utc::now();
+        let mut session = Session {
+            session_id: Uuid::new_v4(),
+            user_id: 1000,
+            username: "player".to_owned(),
+            privileges: Privileges::CanLogin,
+            create_ip_address: std::net::Ipv4Addr::LOCALHOST.into(),
+            private_dms: false,
+            silence_end: None,
+            updated_at: now,
+        };
+
+        assert!(matches!(
+            invite(&NoStorage, &session, []).await,
+            Err(AppError::InteractionBlocked)
+        ));
+
+        session.privileges = Privileges::CanLogin | Privileges::PubliclyVisible;
+        session.silence_end = Some(now + TimeDelta::minutes(5));
+        assert!(matches!(
+            invite(&NoStorage, &session, []).await,
+            Err(AppError::MessagesUserSilenced)
+        ));
     }
 
     fn multiplayer_match(match_id: i64) -> MultiplayerMatch {
