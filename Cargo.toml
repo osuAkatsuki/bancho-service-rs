@@ -32,6 +32,8 @@ deadpool = { version = "0.13", features = ["managed", "rt_tokio_1"] }
 dedent = "0.1.1"
 discord-webhook2 = "0.4.3"
 dotenv = "0.15"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+md-5 = "0.10"
 hashbrown = "0.16.1"
 iso8601-timestamp = "0.1.11"
 rand = "0.9.1"
@@ -42,7 +44,9 @@ serde = "1.0"
 serde_json = "1.0"
 socket2 = "0.6"
 sqlx = { version = "0.8.6", features = ["default", "runtime-tokio", "chrono", "rust_decimal", "mysql"] }
-tokio = { version = "1.49.0", features = ["rt-multi-thread", "macros", "net"] }
+tokio = { version = "1.49.0", features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }
+tokio-rustls = "0.26"
+tokio-util = { version = "0.7", features = ["codec"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 uuid = { version = "1.21", features = ["default", "fast-rng", "v4", "serde"] }

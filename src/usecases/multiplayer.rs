@@ -31,6 +31,7 @@ use uuid::Uuid;
 pub async fn create<C: Context>(
     ctx: &C,
     host_session: &Session,
+    tournament: bool,
     name: &str,
     password: &str,
     beatmap_name: &str,
@@ -39,15 +40,20 @@ pub async fn create<C: Context>(
     mode: Gamemode,
     max_player_count: usize,
 ) -> ServiceResult<MultiplayerMatch> {
-    if let Some(match_id) =
-        multiplayer::fetch_session_match_id(ctx, host_session.session_id).await?
-    {
-        leave(ctx, host_session.identity(), Some(match_id)).await?;
-    }
+    use crate::entities::multiplayer::MatchCreator;
+    let creator = if tournament {
+        MatchCreator::TournamentOrganizer(host_session.user_id)
+    } else {
+        let player = host_session.identity();
+        if let Some(match_id) = multiplayer::fetch_session_match_id(ctx, player.session_id).await? {
+            leave(ctx, player, Some(match_id)).await?;
+        }
+        MatchCreator::Player(player)
+    };
 
     let (mp_match, slots) = multiplayer::create(
         ctx,
-        host_session.identity(),
+        creator,
         name,
         password,
         beatmap_name,
@@ -62,7 +68,11 @@ pub async fn create<C: Context>(
         ctx,
         mp_match.match_id,
         MatchEventType::MatchCreated,
-        Some(mp_match.host_user_id),
+        Some(
+            mp_match
+                .tournament_owner_id
+                .unwrap_or(mp_match.host_user_id),
+        ),
         None,
     )
     .await?;
@@ -70,21 +80,23 @@ pub async fn create<C: Context>(
     let mp_match = MultiplayerMatch::try_from(mp_match)?;
     let slots = MultiplayerMatchSlot::from(slots);
 
-    streams::leave(ctx, host_session.session_id, StreamName::Lobby).await?;
-    streams::join(
-        ctx,
-        host_session.session_id,
-        StreamName::Multiplayer(mp_match.match_id),
-    )
-    .await?;
-    channels::join(
-        ctx,
-        host_session,
-        ChannelName::Multiplayer(mp_match.match_id),
-    )
-    .await?;
+    if let MatchCreator::Player(player) = creator {
+        streams::leave(ctx, player.session_id, StreamName::Lobby).await?;
+        streams::join(
+            ctx,
+            player.session_id,
+            StreamName::Multiplayer(mp_match.match_id),
+        )
+        .await?;
+        channels::join(
+            ctx,
+            host_session,
+            ChannelName::Multiplayer(mp_match.match_id),
+        )
+        .await?;
+    }
 
-    let match_notification = mp_match.as_bancho(slots);
+    let match_notification = mp_match.as_lobby_match(slots);
     streams::broadcast_message(
         ctx,
         StreamName::Lobby,
@@ -330,11 +342,17 @@ pub async fn leave<C: Context>(
         Err(AppError::MultiplayerNotFound) => return Ok(()),
         Err(e) => return Err(e),
     };
-    let (user_count, slots) =
-        match multiplayer::leave(ctx, session.session_id, mp_match.match_id).await? {
-            Some((user_count, slots)) => (user_count, MultiplayerMatchSlot::from(slots)),
-            None => return Ok(()),
-        };
+    let (user_count, slots) = match multiplayer::leave(
+        ctx,
+        session.session_id,
+        mp_match.match_id,
+        mp_match.tournament_owner_id.is_some(),
+    )
+    .await?
+    {
+        Some((user_count, slots)) => (user_count, MultiplayerMatchSlot::from(slots)),
+        None => return Ok(()),
+    };
 
     let _ = match_events::create(
         ctx,
@@ -365,7 +383,18 @@ pub async fn leave<C: Context>(
     .await?;
 
     if user_count == 0 {
-        delete(ctx, match_id).await?;
+        if mp_match.tournament_owner_id.is_none() {
+            return delete(ctx, match_id).await;
+        }
+        if mp_match.host_user_id != 0 {
+            mp_match.host_user_id = 0;
+            multiplayer::update(ctx, mp_match.as_entity(), false).await?;
+        }
+        return if mp_match.in_progress {
+            end_game(ctx, match_id).await
+        } else {
+            broadcast_update(ctx, &mp_match, slots).await
+        };
     } else {
         if mp_match.host_user_id == session.user_id {
             match slots.iter().filter_map(|slot| slot.user).next() {
@@ -404,8 +433,15 @@ pub async fn update_bancho<C: Context>(
 ) -> ServiceResult<MultiplayerMatch> {
     let mut mp_match = fetch_one(ctx, match_id).await?;
     if let Some(check_host) = check_host
-        && mp_match.host_user_id != check_host
-        && !is_referee(ctx, match_id, check_host).await?
+        && !can_manage(
+            ctx,
+            match_id,
+            mp_match
+                .tournament_owner_id
+                .unwrap_or(mp_match.host_user_id),
+            check_host,
+        )
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -505,8 +541,15 @@ pub async fn transfer_host_to_slot<C: Context>(
     }
     let mut mp_match = fetch_one(ctx, match_id).await?;
     if let Some(check_host) = check_host
-        && mp_match.host_user_id != check_host
-        && !is_referee(ctx, match_id, check_host).await?
+        && !can_manage(
+            ctx,
+            match_id,
+            mp_match
+                .tournament_owner_id
+                .unwrap_or(mp_match.host_user_id),
+            check_host,
+        )
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -540,8 +583,15 @@ pub async fn transfer_host_to_user<C: Context>(
 ) -> ServiceResult<()> {
     let mut mp_match = fetch_one(ctx, match_id).await?;
     if let Some(check_referee_user_id) = check_referee
-        && mp_match.host_user_id != check_referee_user_id
-        && !is_referee(ctx, match_id, check_referee_user_id).await?
+        && !can_manage(
+            ctx,
+            match_id,
+            mp_match
+                .tournament_owner_id
+                .unwrap_or(mp_match.host_user_id),
+            check_referee_user_id,
+        )
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -673,8 +723,15 @@ pub async fn set_slot_status<C: Context>(
 
     let mp_match = fetch_one(ctx, match_id).await?;
     if let Some(check_host) = check_host
-        && check_host != mp_match.host_user_id
-        && !is_referee(ctx, match_id, check_host).await?
+        && !can_manage(
+            ctx,
+            match_id,
+            mp_match
+                .tournament_owner_id
+                .unwrap_or(mp_match.host_user_id),
+            check_host,
+        )
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -775,13 +832,37 @@ pub async fn start_game<C: Context>(
         .await?
         .ok_or(AppError::MultiplayerNotFound)?;
     if let Some(check_host) = check_host
-        && check_host != mp_match.host_user_id
-        && !is_referee(ctx, match_id, check_host).await?
+        && !can_manage(
+            ctx,
+            match_id,
+            mp_match
+                .tournament_owner_id
+                .unwrap_or(mp_match.host_user_id),
+            check_host,
+        )
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
-    mp_match.in_progress = true;
     let mut slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
+    if mp_match.tournament_owner_id.is_some() {
+        if mp_match.in_progress {
+            return Err(AppError::CommandsInvalidArgument(
+                "A round is already in progress.",
+            ));
+        }
+        let has_playable_slot = slots.iter().any(|slot| {
+            slot.user.is_some()
+                && SlotStatus::from_bits_retain(slot.status)
+                    .intersects(SlotStatus::Ready | SlotStatus::NotReady)
+        });
+        if mp_match.beatmap_id == 0 || !has_playable_slot {
+            return Err(AppError::CommandsInvalidArgument(
+                "Choose a beatmap and invite a player before starting.",
+            ));
+        }
+    }
+    mp_match.in_progress = true;
     for slot in &mut slots {
         let slot_status = SlotStatus::from_bits_retain(slot.status);
         if let Some(slot_user) = slot.user {
@@ -828,7 +909,7 @@ pub async fn start_game<C: Context>(
 
     let mp_match = MultiplayerMatch::try_from(mp_match)?;
     let slots = MultiplayerMatchSlot::from(slots);
-    let bancho_match = mp_match.as_bancho(slots);
+    let bancho_match = mp_match.as_lobby_match(slots);
     streams::broadcast_message(
         ctx,
         StreamName::Lobby,
@@ -1051,6 +1132,28 @@ pub async fn change_mods<C: Context>(
     Ok(())
 }
 
+pub async fn can_manage<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    controller_user_id: i64,
+    user_id: i64,
+) -> ServiceResult<bool> {
+    Ok(controller_user_id == user_id || is_referee(ctx, match_id, user_id).await?)
+}
+
+async fn can_delegate<C: Context>(
+    ctx: &C,
+    match_id: i64,
+    host_user_id: i64,
+    tournament_owner_id: Option<i64>,
+    user_id: i64,
+) -> ServiceResult<bool> {
+    match tournament_owner_id {
+        Some(owner_id) => Ok(owner_id == user_id),
+        None => can_manage(ctx, match_id, host_user_id, user_id).await,
+    }
+}
+
 pub async fn is_referee<C: Context>(ctx: &C, match_id: i64, user_id: i64) -> ServiceResult<bool> {
     let is_referee = multiplayer::is_referee(ctx, match_id, user_id).await?;
     Ok(is_referee)
@@ -1067,8 +1170,14 @@ pub async fn add_referee<C: Context>(
         .ok_or(AppError::MultiplayerNotFound)?;
 
     if let Some(check_referee) = check_referee
-        && mp_match.host_user_id != check_referee
-        && !is_referee(ctx, match_id, check_referee).await?
+        && !can_delegate(
+            ctx,
+            match_id,
+            mp_match.host_user_id,
+            mp_match.tournament_owner_id,
+            check_referee,
+        )
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -1091,8 +1200,14 @@ pub async fn remove_referee<C: Context>(
         .ok_or(AppError::MultiplayerNotFound)?;
 
     if let Some(check_referee) = check_referee
-        && mp_match.host_user_id != check_referee
-        && !is_referee(ctx, match_id, check_referee).await?
+        && !can_delegate(
+            ctx,
+            match_id,
+            mp_match.host_user_id,
+            mp_match.tournament_owner_id,
+            check_referee,
+        )
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -1362,7 +1477,7 @@ async fn broadcast_update<C: Context>(
     mp_match: &MultiplayerMatch,
     slots: MultiplayerMatchSlots,
 ) -> ServiceResult<()> {
-    let bancho_match = mp_match.as_bancho(slots);
+    let bancho_match = mp_match.as_lobby_match(slots);
     let match_update = MatchUpdate(&bancho_match).as_message().serialize();
     streams::broadcast_data(ctx, StreamName::Lobby, &match_update, None, None).await?;
     streams::broadcast_data(

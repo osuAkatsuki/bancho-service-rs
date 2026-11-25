@@ -1,7 +1,8 @@
 use crate::commands;
-use crate::commands::{COMMAND_PREFIX, CommandResult, CommandRouterInstance};
+use crate::commands::from_args::NoArg;
+use crate::commands::{COMMAND_PREFIX, CommandResult, CommandRouterInstance, CommandTarget};
 use crate::common::context::Context;
-use crate::common::error::AppError;
+use crate::common::error::{AppError, ServiceResult};
 use crate::common::website;
 use crate::entities::gamemodes::Gamemode;
 use crate::models::privileges::Privileges;
@@ -39,6 +40,7 @@ pub static COMMANDS: CommandRouterInstance = commands![
     change_mods,
     set_user_team,
     view_settings,
+    view_results,
     set_scorev,
     help,
     match_history_link,
@@ -46,16 +48,47 @@ pub static COMMANDS: CommandRouterInstance = commands![
     aborttimer,
 ];
 
+async fn command_match_id<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    target: CommandTarget,
+) -> ServiceResult<i64> {
+    match target {
+        CommandTarget::IrcRoom(match_id) => {
+            let room = multiplayer::fetch_one(ctx, match_id).await?;
+            if room.tournament_owner_id.is_none()
+                || !multiplayer::can_manage(
+                    ctx,
+                    match_id,
+                    room.controller_user_id(),
+                    sender.user_id,
+                )
+                .await?
+            {
+                return Err(AppError::MultiplayerUnauthorized);
+            }
+            Ok(match_id)
+        }
+        CommandTarget::IrcBot => Err(AppError::MultiplayerUserNotInMatch),
+        CommandTarget::Game => multiplayer::fetch_session_match_id(ctx, sender.session_id)
+            .await?
+            .ok_or(AppError::MultiplayerUserNotInMatch),
+    }
+}
+
 #[derive(Debug, FromCommandArgs)]
 pub struct SetHostArgs {
     pub safe_username: String,
 }
 
 #[command("host")]
-pub async fn set_host<C: Context>(ctx: &C, sender: &Session, args: SetHostArgs) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn set_host<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: SetHostArgs,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
     multiplayer::transfer_host_to_user(ctx, match_id, target_user.user_id, Some(sender.user_id))
@@ -73,10 +106,9 @@ pub async fn add_referee<C: Context>(
     ctx: &C,
     sender: &Session,
     args: AddRefereeArgs,
+    target: CommandTarget,
 ) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
     multiplayer::add_referee(ctx, match_id, target_user.user_id, Some(sender.user_id)).await?;
@@ -93,10 +125,9 @@ pub async fn remove_referee<C: Context>(
     ctx: &C,
     sender: &Session,
     args: RemoveRefereeArgs,
+    target: CommandTarget,
 ) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let target_user = users::fetch_one_by_username_safe(ctx, &args.safe_username).await?;
     multiplayer::remove_referee(ctx, match_id, target_user.user_id, Some(sender.user_id)).await?;
@@ -107,14 +138,17 @@ pub async fn remove_referee<C: Context>(
 }
 
 #[command("listref")]
-pub async fn list_referees<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn list_referees<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -133,14 +167,17 @@ pub async fn list_referees<C: Context>(ctx: &C, sender: &Session) -> CommandResu
 }
 
 #[command("clearhost")]
-pub async fn clear_host<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn clear_host<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -150,14 +187,17 @@ pub async fn clear_host<C: Context>(ctx: &C, sender: &Session) -> CommandResult 
 }
 
 #[command("lock")]
-pub async fn lock<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn lock<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -168,14 +208,17 @@ pub async fn lock<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
 }
 
 #[command("unlock")]
-pub async fn unlock<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn unlock<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -191,18 +234,21 @@ pub struct SizeArgs {
 }
 
 #[command("size")]
-pub async fn size<C: Context>(ctx: &C, sender: &Session, args: SizeArgs) -> CommandResult {
+pub async fn size<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: SizeArgs,
+    target: CommandTarget,
+) -> CommandResult {
     if args.match_size < 2 || args.match_size > 16 {
         return Ok(Some("Match size must be between 2 and 16.".to_string()));
     }
 
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -218,17 +264,20 @@ pub struct MoveArgs {
 }
 
 #[command("move")]
-pub async fn move_cmd<C: Context>(ctx: &C, sender: &Session, args: MoveArgs) -> CommandResult {
+pub async fn move_cmd<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: MoveArgs,
+    target: CommandTarget,
+) -> CommandResult {
     if args.slot > 16 {
         return Ok(Some("Slot ID must be between 0 and 16.".to_string()));
     }
 
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -253,21 +302,57 @@ pub struct MakeArgs {
     "make",
     required_privileges = Privileges::AdminTournamentStaff,
 )]
-pub async fn make<C: Context>(ctx: &C, sender: &Session, args: MakeArgs) -> CommandResult {
+pub async fn make<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: MakeArgs,
+    target: CommandTarget,
+) -> CommandResult {
     if args.name.trim().is_empty() {
         return Ok(Some("Match name must not be empty!".to_string()));
     }
 
-    // Check if user is already in a match
-    if let Some(_) = multiplayer::fetch_session_match_id(ctx, sender.session_id).await? {
-        return Ok(Some("You are already in a match.".to_string()));
-    }
+    let (tournament, password) = match target {
+        CommandTarget::Game => {
+            if multiplayer::fetch_session_match_id(ctx, sender.session_id)
+                .await?
+                .is_some()
+            {
+                return Ok(Some("You are already in a match.".to_string()));
+            }
+            (false, String::new())
+        }
+        CommandTarget::IrcBot => {
+            if args.name.chars().count() > 255 {
+                return Err(AppError::CommandsInvalidArgument(
+                    "Room names can contain at most 255 characters.",
+                ));
+            }
+            let owned_rooms = multiplayer::fetch_all(ctx)
+                .await?
+                .into_iter()
+                .filter(|room| room.tournament_owner_id == Some(sender.user_id))
+                .count();
+            if owned_rooms >= 4 {
+                return Ok(Some(
+                    "Close an existing tournament room before creating another.".to_string(),
+                ));
+            }
+            (true, format!("{:032x}", rand::random::<u128>()))
+        }
+        CommandTarget::IrcRoom(_) => {
+            return Err(AppError::CommandsInvalidArgument(
+                "Send !mp make to the bot in a private message.",
+            ));
+        }
+    };
 
     let mp_match = multiplayer::create(
         ctx,
         sender,
+        tournament,
         &args.name,
-        "",
+        &password,
         "Tournament",
         "",
         0,
@@ -276,6 +361,13 @@ pub async fn make<C: Context>(ctx: &C, sender: &Session, args: MakeArgs) -> Comm
     )
     .await?;
 
+    if target == CommandTarget::IrcBot {
+        let link = website::get_match_history_link(mp_match.match_id);
+        return Ok(Some(format!(
+            "Created tournament match {link}. Join #mp_{}.",
+            mp_match.match_id
+        )));
+    }
     Ok(Some(format!(
         "Tourney match created with ID {}.",
         mp_match.ingame_match_id()
@@ -283,14 +375,17 @@ pub async fn make<C: Context>(ctx: &C, sender: &Session, args: MakeArgs) -> Comm
 }
 
 #[command("close")]
-pub async fn close<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn close<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -330,14 +425,13 @@ pub async fn start<C: Context>(
     ctx: &C,
     sender: &Session,
     args: Option<StartArgs>,
+    target: CommandTarget,
 ) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -363,14 +457,17 @@ pub async fn start<C: Context>(
 }
 
 #[command("abort")]
-pub async fn abort<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn abort<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -390,12 +487,21 @@ pub struct InviteArgs {
 }
 
 #[command("invite")]
-pub async fn invite_user<C: Context>(ctx: &C, sender: &Session, args: InviteArgs) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn invite_user<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: InviteArgs,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
+    if mp_match.tournament_owner_id.is_some()
+        && !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+            .await?
+    {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
     let target_sessions = sessions::fetch_by_username(ctx, &args.safe_username).await?;
     let invite = mp_match.invite_message();
 
@@ -429,20 +535,23 @@ pub struct MapArgs {
 }
 
 #[command("map")]
-pub async fn set_map<C: Context>(ctx: &C, sender: &Session, args: MapArgs) -> CommandResult {
+pub async fn set_map<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: MapArgs,
+    target: CommandTarget,
+) -> CommandResult {
     if let Some(gamemode) = args.gamemode {
         if gamemode > 3 {
             return Ok(Some("Gamemode must be 0, 1, 2 or 3.".to_string()));
         }
     }
 
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mut mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -483,7 +592,12 @@ pub struct SetArgs {
 }
 
 #[command("set")]
-pub async fn set_settings<C: Context>(ctx: &C, sender: &Session, args: SetArgs) -> CommandResult {
+pub async fn set_settings<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: SetArgs,
+    target: CommandTarget,
+) -> CommandResult {
     if args.team_mode > 3 {
         return Ok(Some("Match team type must be between 0 and 3.".to_string()));
     }
@@ -502,13 +616,11 @@ pub async fn set_settings<C: Context>(ctx: &C, sender: &Session, args: SetArgs) 
         }
     }
 
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mut mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -538,14 +650,17 @@ pub struct KickArgs {
 }
 
 #[command("kick")]
-pub async fn kick_user<C: Context>(ctx: &C, sender: &Session, args: KickArgs) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn kick_user<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: KickArgs,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -587,14 +702,13 @@ pub async fn set_password<C: Context>(
     ctx: &C,
     sender: &Session,
     args: PasswordArgs,
+    target: CommandTarget,
 ) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mut mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -607,14 +721,17 @@ pub async fn set_password<C: Context>(
 }
 
 #[command("randompassword")]
-pub async fn randomize_password<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn randomize_password<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mut mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -633,15 +750,22 @@ pub struct ModsArgs {
 }
 
 #[command("mods")]
-pub async fn change_mods<C: Context>(ctx: &C, sender: &Session, args: ModsArgs) -> CommandResult {
+pub async fn change_mods<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: ModsArgs,
+    target: CommandTarget,
+) -> CommandResult {
     let mods = Mods::from_str(&args.mod_string).map_err(|_| {
         AppError::CommandsInvalidArgument("Invalid Mods. Correct syntax: e.g. HDHR, EZDTFL, etc.")
     })?;
 
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
-    multiplayer::change_mods(ctx, match_id, mods, Some(sender.identity())).await?;
+    let match_id = command_match_id(ctx, sender, target).await?;
+    let slot_user = match target {
+        CommandTarget::IrcRoom(_) => None,
+        _ => Some(sender.identity()),
+    };
+    multiplayer::change_mods(ctx, match_id, mods, slot_user).await?;
     Ok(Some("Match mods have been updated!".to_string()))
 }
 
@@ -656,14 +780,13 @@ pub async fn set_user_team<C: Context>(
     ctx: &C,
     sender: &Session,
     args: SetUserTeamArgs,
+    target: CommandTarget,
 ) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -693,26 +816,92 @@ pub async fn set_user_team<C: Context>(
 }
 
 #[command("settings")]
-pub async fn view_settings<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn view_settings<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
 
     let slots = multiplayer::fetch_all_slots(ctx, match_id).await?;
-    let mut msg = vec!["PLAYERS IN THIS MATCH".to_string()];
-    for slot in slots.iter().filter_map(|slot| slot.user) {
-        let user = users::fetch_one(ctx, slot.user_id).await?;
-        msg.push(format!("{} ({})", user.username, user.user_id));
+    let mut msg = match target {
+        CommandTarget::IrcRoom(_) => vec![
+            format!(
+                "Room: {} | {}",
+                mp_match.name,
+                website::get_match_history_link(match_id)
+            ),
+            format!(
+                "Map: {} ({}) | Mode: {:?} | Mods: {:?} | Freemod: {}",
+                mp_match.beatmap_name,
+                mp_match.beatmap_id,
+                mp_match.mode,
+                mp_match.mods,
+                mp_match.freemod_enabled
+            ),
+            format!(
+                "Teams: {:?} | Scoring: {:?} | In progress: {}",
+                mp_match.team_type, mp_match.win_condition, mp_match.in_progress
+            ),
+        ],
+        _ => vec!["PLAYERS IN THIS MATCH".to_string()],
+    };
+    for (index, slot) in slots.iter().enumerate() {
+        if let Some(identity) = slot.user {
+            let user = users::fetch_one(ctx, identity.user_id).await?;
+            match target {
+                CommandTarget::IrcRoom(_) => msg.push(format!(
+                    "Slot {}: {} | {:?} | {:?} | {:?}",
+                    index + 1,
+                    user.username,
+                    slot.status,
+                    slot.team,
+                    slot.mods,
+                )),
+                _ => msg.push(format!("{} ({})", user.username, user.user_id)),
+            }
+        }
     }
 
     Ok(Some(msg.join("\n")))
+}
+
+#[command("results", forward_message = false)]
+pub async fn view_results<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
+    let room = multiplayer::fetch_one(ctx, match_id).await?;
+    if !multiplayer::can_manage(ctx, match_id, room.controller_user_id(), sender.user_id).await? {
+        return Err(AppError::MultiplayerUnauthorized);
+    }
+    let Some(game_id) = room.last_game_id.filter(|_| !room.in_progress) else {
+        return Ok(Some("No completed round yet.".to_owned()));
+    };
+    let scores = crate::repositories::match_games::scores(ctx, match_id, game_id).await?;
+    let link = website::get_match_history_link(match_id);
+    if scores.is_empty() {
+        return Ok(Some(format!(
+            "No scores recorded for the last round yet. {link}"
+        )));
+    }
+    let mut lines = vec![format!("Last round results | {link}")];
+    for (player, score, accuracy, passed) in scores {
+        let status = if passed { "pass" } else { "fail" };
+        lines.push(format!("{player}: {score} | {accuracy:.2}% | {status}"));
+    }
+    Ok(Some(lines.join("\n")))
 }
 
 #[derive(Debug, FromCommandArgs)]
@@ -725,14 +914,13 @@ pub async fn set_scorev<C: Context>(
     ctx: &C,
     sender: &Session,
     args: SetScoreVArgs,
+    target: CommandTarget,
 ) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mut mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -776,10 +964,13 @@ pub async fn help<C: Context>(_ctx: &C, sender: &Session) -> CommandResult {
 }
 
 #[command("link")]
-pub async fn match_history_link<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn match_history_link<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_history_link = website::get_match_history_link(match_id);
     let message = format!("Match history available [{mp_history_link} here].");
@@ -792,7 +983,12 @@ pub struct TimerArgs {
 }
 
 #[command("timer")]
-pub async fn timer<C: Context>(ctx: &C, sender: &Session, args: TimerArgs) -> CommandResult {
+pub async fn timer<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    args: TimerArgs,
+    target: CommandTarget,
+) -> CommandResult {
     let timer_seconds = args.timer_duration.as_secs();
     if timer_seconds < 1 {
         return Ok(Some(
@@ -806,13 +1002,11 @@ pub async fn timer<C: Context>(ctx: &C, sender: &Session, args: TimerArgs) -> Co
         ));
     }
 
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }
@@ -824,14 +1018,17 @@ pub async fn timer<C: Context>(ctx: &C, sender: &Session, args: TimerArgs) -> Co
 }
 
 #[command("aborttimer")]
-pub async fn aborttimer<C: Context>(ctx: &C, sender: &Session) -> CommandResult {
-    let match_id = multiplayer::fetch_session_match_id(ctx, sender.session_id)
-        .await?
-        .ok_or(AppError::MultiplayerUserNotInMatch)?;
+pub async fn aborttimer<C: Context>(
+    ctx: &C,
+    sender: &Session,
+    _: NoArg,
+    target: CommandTarget,
+) -> CommandResult {
+    let match_id = command_match_id(ctx, sender, target).await?;
 
     let mp_match = multiplayer::fetch_one(ctx, match_id).await?;
-    if mp_match.host_user_id != sender.user_id
-        && !multiplayer::is_referee(ctx, match_id, sender.user_id).await?
+    if !multiplayer::can_manage(ctx, match_id, mp_match.controller_user_id(), sender.user_id)
+        .await?
     {
         return Err(AppError::MultiplayerUnauthorized);
     }

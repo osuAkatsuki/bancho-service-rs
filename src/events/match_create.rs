@@ -23,6 +23,7 @@ pub async fn handle<C: Context>(
     let mp_match = multiplayer::create(
         ctx,
         session,
+        false,
         match_data.name,
         match_data.password,
         match_data.beatmap_name,

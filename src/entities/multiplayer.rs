@@ -12,6 +12,12 @@ pub struct PersistentMatch {
     pub end_time: Option<DateTime<Utc>>,
 }
 
+#[derive(Clone, Copy)]
+pub enum MatchCreator {
+    Player(SessionIdentity),
+    TournamentOrganizer(i64),
+}
+
 #[derive(Default, Deserialize, Serialize)]
 pub struct MultiplayerMatch {
     pub match_id: i64,
@@ -24,6 +30,8 @@ pub struct MultiplayerMatch {
     pub beatmap_md5: String,
     pub beatmap_id: i32,
     pub host_user_id: i64,
+    #[serde(default)]
+    pub tournament_owner_id: Option<i64>,
     pub mode: u8,
     pub win_condition: u8,
     pub team_type: u8,

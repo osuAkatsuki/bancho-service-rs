@@ -9,7 +9,8 @@ use command_handler::CommandHandlerProxy;
 use std::ops::Deref;
 
 pub use command_handler::{
-    Command, CommandProperties, CommandRouter, CommandRouterInstance, RegisteredCommand,
+    Command, CommandProperties, CommandRouter, CommandRouterInstance, CommandTarget,
+    RegisteredCommand,
 };
 pub use from_args::FromCommandArgs;
 
@@ -80,12 +81,13 @@ pub async fn handle_command<C: Context>(
     ctx: &C,
     sender: &Session,
     message_content: &str,
+    target: CommandTarget,
 ) -> ServiceResult<Option<CommandResponse>> {
     // Message does not start with command prefix, ignore
     let cmd_message = message_content.strip_prefix(COMMAND_PREFIX);
     COMMAND_ROUTER
         .deref()
-        .handle(ctx, sender, cmd_message)
+        .handle(ctx, sender, cmd_message, target)
         .await
 }
 
@@ -94,9 +96,10 @@ pub async fn try_handle_command<C: Context>(
     session: &Session,
     message_content: &str,
     recipient: &Recipient<'_>,
+    target: CommandTarget,
 ) -> ServiceResult<Option<CommandResponse>> {
     if is_command_message(message_content) {
-        handle_command(ctx, session, message_content).await
+        handle_command(ctx, session, message_content, target).await
     } else if let Some(np_message) = NowPlayingMessage::parse(message_content) {
         tracing::info!("/np message received: {np_message:?}");
         let np = tillerino::save_np(ctx, session.session_id, np_message).await?;

@@ -34,7 +34,7 @@ fn make_timer_key(match_id: i64, timer_type: TimerType) -> String {
 
 pub async fn create<C: Context>(
     ctx: &C,
-    host_identity: SessionIdentity,
+    creator: crate::entities::multiplayer::MatchCreator,
     name: &str,
     password: &str,
     beatmap_name: &str,
@@ -46,17 +46,24 @@ pub async fn create<C: Context>(
     MultiplayerMatch,
     [MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE],
 )> {
+    use crate::entities::multiplayer::MatchCreator;
+
+    let (player, tournament_owner_id) = match creator {
+        MatchCreator::Player(player) => (Some(player), None),
+        MatchCreator::TournamentOrganizer(user_id) => (None, Some(user_id)),
+    };
     let mut mp_match = MultiplayerMatch {
         beatmap_id,
         mode,
         name: name.to_string(),
         password: password.to_string(),
-        host_user_id: host_identity.user_id,
+        host_user_id: player.map_or(0, |player| player.user_id),
+        tournament_owner_id,
         beatmap_name: beatmap_name.to_string(),
         beatmap_md5: beatmap_md5.to_string(),
         ..Default::default()
     };
-    let private = !password.is_empty();
+    let private = tournament_owner_id.is_none() && !password.is_empty();
     let query_result = sqlx::query("INSERT INTO matches (name, private) VALUES (?, ?)")
         .bind(name)
         .bind(private)
@@ -69,7 +76,7 @@ pub async fn create<C: Context>(
             let mut slot = MultiplayerMatchSlot::default();
             match slot_id {
                 // Place the host into the first slot
-                0 => slot.prepare(host_identity),
+                0 if let Some(player) = player => slot.prepare(player),
                 i if i >= max_player_count => slot.status = SlotStatus::Locked.bits(),
                 _ => slot.status = SlotStatus::Empty.bits(),
             }
@@ -78,15 +85,13 @@ pub async fn create<C: Context>(
 
     let mut redis = ctx.redis().await?;
     let slots_key = make_slots_key(mp_match.match_id);
-    redis::pipe()
-        .atomic()
-        .hset(
-            SESSIONS_MATCHES_KEY,
-            host_identity.session_id,
-            mp_match.match_id,
-        )
-        .ignore()
-        .hset_multiple(slots_key, &slots)
+    let mut pipe = redis::pipe();
+    pipe.atomic();
+    if let Some(player) = player {
+        pipe.hset(SESSIONS_MATCHES_KEY, player.session_id, mp_match.match_id)
+            .ignore();
+    }
+    pipe.hset_multiple(slots_key, &slots)
         .ignore()
         .hset(KEY, mp_match.match_id, Json(&mp_match))
         .ignore()
@@ -158,6 +163,7 @@ pub async fn leave<C: Context>(
     ctx: &C,
     session_id: Uuid,
     match_id: i64,
+    keep_open: bool,
 ) -> anyhow::Result<Option<(usize, [MultiplayerMatchSlot; MULTIPLAYER_MAX_SIZE])>> {
     let mut slots = fetch_all_slots(ctx, match_id).await?;
     let (slot_id, slot) = match slots.iter_mut().enumerate().find(|(_, slot)| {
@@ -177,7 +183,7 @@ pub async fn leave<C: Context>(
     pipe.atomic()
         .hdel(SESSIONS_MATCHES_KEY, session_id)
         .ignore();
-    if user_count == 0 {
+    if user_count == 0 && !keep_open {
         pipe.hdel(KEY, match_id).ignore().del(slots_key).ignore();
     } else {
         pipe.hset(slots_key, slot_id, Json(slot)).ignore();

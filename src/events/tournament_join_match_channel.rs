@@ -28,7 +28,7 @@ pub async fn handle(ctx: &RequestContext, session: &Session, match_id: i32) -> s
     }
 
     let slots = multiplayer::fetch_all_slots(ctx, mp_match.match_id).await?;
-    let bancho_match = mp_match.as_bancho(slots);
+    let bancho_match = mp_match.as_lobby_match(slots);
     let match_update = Message::serialize(MatchUpdate(&bancho_match));
 
     Ok(Some(match_update))

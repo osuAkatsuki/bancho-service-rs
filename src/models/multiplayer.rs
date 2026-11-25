@@ -21,6 +21,7 @@ pub struct MultiplayerMatch {
     pub beatmap_md5: String,
     pub beatmap_id: i32,
     pub host_user_id: i64,
+    pub tournament_owner_id: Option<i64>,
     pub mode: Gamemode,
     pub win_condition: WinCondition,
     pub team_type: MatchTeamType,
@@ -42,6 +43,10 @@ pub struct MultiplayerMatchSlot {
 }
 
 impl MultiplayerMatch {
+    pub fn controller_user_id(&self) -> i64 {
+        self.tournament_owner_id.unwrap_or(self.host_user_id)
+    }
+
     pub fn as_entity(&self) -> Entity {
         self.clone().into()
     }
@@ -61,6 +66,14 @@ impl MultiplayerMatch {
             safe_password,
             self.name,
         )
+    }
+
+    pub fn as_lobby_match(&self, slots: MultiplayerMatchSlots) -> Match<'_> {
+        let mut data = self.as_bancho(slots);
+        if self.tournament_owner_id.is_some() && !data.password.is_empty() {
+            data.password = "\x01";
+        }
+        data
     }
 
     pub fn as_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match<'_> {
@@ -103,6 +116,7 @@ impl Into<Entity> for MultiplayerMatch {
             beatmap_md5: self.beatmap_md5,
             beatmap_id: self.beatmap_id,
             host_user_id: self.host_user_id,
+            tournament_owner_id: self.tournament_owner_id,
             mode: self.mode as _,
             win_condition: self.win_condition as _,
             team_type: self.team_type as _,
@@ -128,6 +142,7 @@ impl TryFrom<Entity> for MultiplayerMatch {
             beatmap_md5: value.beatmap_md5,
             beatmap_id: value.beatmap_id,
             host_user_id: value.host_user_id,
+            tournament_owner_id: value.tournament_owner_id,
             mode: Gamemode::try_from(value.mode)?,
             win_condition: WinCondition::try_from(value.win_condition)?,
             team_type: MatchTeamType::try_from(value.team_type)?,
@@ -210,5 +225,46 @@ impl<const N: usize> MatchSlotExt<N> for [MultiplayerMatchSlot; N] {
 
     fn to_mods(&self) -> [Mods; N] {
         std::array::from_fn(|i| self[i].mods)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tournament_lobby_packets_redact_passwords_and_keep_active_room_ids() {
+        let room = MultiplayerMatch::try_from(Entity {
+            match_id: 65_537,
+            tournament_owner_id: Some(5),
+            host_user_id: 7,
+            password: "invite-only".to_owned(),
+            ..Default::default()
+        })
+        .unwrap();
+        let slots = MultiplayerMatchSlot::from([SlotEntity::default(); MULTIPLAYER_MAX_SIZE]);
+        let lobby = room.as_lobby_match(slots);
+        assert_eq!(lobby.id, 1);
+        assert!(!lobby.password.is_empty());
+        assert_ne!(lobby.password, room.password);
+        assert_eq!(room.controller_user_id(), 5);
+        assert!(room.invite_message().contains("osump://1/invite-only"));
+    }
+
+    #[test]
+    fn existing_rooms_without_an_organizer_keep_their_host() {
+        let row = Entity {
+            host_user_id: 7,
+            ..Default::default()
+        };
+        let mut stored = serde_json::to_value(row).unwrap();
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("tournament_owner_id");
+        let room =
+            MultiplayerMatch::try_from(serde_json::from_value::<Entity>(stored).unwrap()).unwrap();
+        assert_eq!(room.tournament_owner_id, None);
+        assert_eq!(room.controller_user_id(), 7);
     }
 }
