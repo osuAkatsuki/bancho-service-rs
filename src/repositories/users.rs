@@ -29,6 +29,14 @@ pub async fn fetch_one<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<User> 
         .await
 }
 
+pub async fn fetch_privileges<C: Context>(ctx: &C, user_id: i64) -> sqlx::Result<Privileges> {
+    let bits = sqlx::query_scalar("SELECT privileges FROM users WHERE id = ?")
+        .bind(user_id)
+        .fetch_one(ctx.db())
+        .await?;
+    Ok(Privileges::from_bits_retain(bits))
+}
+
 pub async fn fetch_one_by_username<C: Context>(ctx: &C, username: &str) -> sqlx::Result<User> {
     const QUERY: &str = const_str::concat!(
         "SELECT ",

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 const SESSIONS_KEY: &str = "akatsuki:bancho:sessions";
 
-fn make_id_key(user_id: i64) -> String {
+pub(super) fn make_id_key(user_id: i64) -> String {
     format!("akatsuki:bancho:sessions:user_ids:{user_id}")
 }
 fn make_username_key(username: &str) -> String {
@@ -110,17 +110,25 @@ pub async fn fetch_count<C: Context>(ctx: &C) -> anyhow::Result<u64> {
     Ok(redis.hlen(SESSIONS_KEY).await?)
 }
 
-pub async fn extend<C: Context>(ctx: &C, session: Session) -> anyhow::Result<Session> {
-    update(ctx, session).await
-}
+pub async fn update<C: Context>(ctx: &C, mut session: Session) -> anyhow::Result<Option<Session>> {
+    // A refresh can race with logout or a moderation event. Only create() may add a token.
+    const UPDATE_EXISTING: &str = r#"
+        if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 0 then
+            return 0
+        end
+        redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
+        return 1
+    "#;
 
-pub async fn update<C: Context>(ctx: &C, mut session: Session) -> anyhow::Result<Session> {
     session.updated_at = chrono::Utc::now();
     let mut redis = ctx.redis().await?;
-    let _: () = redis
-        .hset(SESSIONS_KEY, session.session_id, Json(&session))
+    let updated: bool = redis::Script::new(UPDATE_EXISTING)
+        .key(SESSIONS_KEY)
+        .arg(session.session_id)
+        .arg(Json(&session))
+        .invoke_async(redis.deref_mut())
         .await?;
-    Ok(session)
+    Ok(updated.then_some(session))
 }
 
 pub async fn delete<C: Context>(
@@ -156,7 +164,7 @@ pub async fn set_private_dms<C: Context>(
     ctx: &C,
     mut session: Session,
     private_dms: bool,
-) -> anyhow::Result<Session> {
+) -> anyhow::Result<Option<Session>> {
     session.private_dms = private_dms;
     update(ctx, session).await
 }

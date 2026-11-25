@@ -81,7 +81,7 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
 
     if user_verification_pending {
         users::verify_user(ctx, user.user_id).await?;
-        user.privileges.remove(Privileges::PendingVerification);
+        user.privileges = Privileges::PubliclyVisible | Privileges::CanLogin;
     }
 
     let stats = stats::fetch_one(ctx, user.user_id, Gamemode::Standard).await?;
@@ -101,6 +101,20 @@ pub async fn create(ctx: &RequestContext, args: LoginArgs) -> ServiceResult<(Ses
         },
     )
     .await?;
+    // Register first so a concurrent ban can see the token. Recheck access in
+    // case the account changed before registration.
+    let access = Privileges::CanLogin | Privileges::PubliclyVisible;
+    match users::fetch_privileges(ctx, user.user_id).await {
+        Ok(current) if (current & access) == (user.privileges & access) => {}
+        result => {
+            sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;
+            return match result {
+                Ok(_) | Err(sqlx::Error::RowNotFound) => Err(AppError::SessionsLoginForbidden),
+                Err(e) => unexpected(e),
+            };
+        }
+    }
+
     // after creating the presence, the user becomes visible on the users panel
     let presence = presences::create_default(
         ctx,
@@ -173,38 +187,36 @@ pub async fn fetch_count<C: Context>(ctx: &C) -> ServiceResult<u64> {
 }
 
 pub async fn extend<C: Context>(ctx: &C, session_id: Uuid) -> ServiceResult<Session> {
-    let session = fetch_one(ctx, session_id).await?;
-    match sessions::extend(ctx, session.into()).await {
-        Ok(session) => Ok(Session::from(session)),
-        Err(e) => unexpected(e),
-    }
+    update(ctx, fetch_one(ctx, session_id).await?).await
 }
 
 pub async fn update<C: Context>(ctx: &C, session: Session) -> ServiceResult<Session> {
     match sessions::update(ctx, session.into()).await {
-        Ok(session) => Ok(Session::from(session)),
+        Ok(Some(session)) => Ok(Session::from(session)),
+        Ok(None) => Err(AppError::SessionsNotFound),
         Err(e) => unexpected(e),
     }
 }
 
 pub async fn delete<C: Context>(ctx: &C, session: &Session) -> ServiceResult<()> {
-    channels::leave_all(ctx, session.session_id).await?;
-    spectators::leave(ctx, session, None).await?;
-    spectators::close(ctx, session.session_id).await?;
-    multiplayer::leave(ctx, session.identity(), None).await?;
+    sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;
 
-    let user_session_count =
-        sessions::delete(ctx, session.session_id, session.user_id, &session.username).await?;
-    streams::clear_stream(ctx, StreamName::User(session.session_id)).await?;
-    streams::leave_all(ctx, session.session_id).await?;
+    // Continue teardown if one of the cleanup operations fails.
+    let cleanup = [
+        channels::leave_all(ctx, session.session_id).await,
+        spectators::leave(ctx, session, None).await.map(|_| ()),
+        spectators::close(ctx, session.session_id).await,
+        multiplayer::leave(ctx, session.identity(), None).await,
+        streams::clear_stream(ctx, StreamName::User(session.session_id)).await,
+        streams::leave_all(ctx, session.session_id).await,
+    ];
 
-    if user_session_count == 0 {
-        presences::delete(ctx, session.user_id).await?;
-        // notify everyone
+    if presences::delete_if_offline(ctx, session.user_id).await? {
         let logout_notification = UserLogout::new(session.user_id as _);
         streams::broadcast_message(ctx, StreamName::Main, logout_notification, None, None).await?;
     }
-    Ok(())
+
+    cleanup.into_iter().collect()
 }
 
 pub async fn set_private_dms<C: Context>(

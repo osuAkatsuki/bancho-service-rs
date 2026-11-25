@@ -2,15 +2,13 @@ use crate::adapters::discord;
 use crate::commands::CommandResult;
 use crate::common::context::Context;
 use crate::common::website;
-use crate::entities::bot;
 use crate::models::bancho::LoginError;
 use crate::models::beatmaps::RankedStatus;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
 use crate::usecases::{badges, beatmaps, sessions, streams, tillerino, users};
-use bancho_protocol::messages::server::{ChatMessage, LoginResult};
-use bancho_protocol::structures::IrcMessage;
+use bancho_protocol::messages::server::LoginResult;
 use bancho_service_macros::{FromCommandArgs, command};
 use std::time::Duration;
 
@@ -315,26 +313,6 @@ pub async fn restrict_user<C: Context>(
 
     // Restrict the user (remove publicly visible privileges)
     users::restrict_user(ctx, target_user.user_id).await?;
-
-    // Notify online sessions
-    let target_sessions = sessions::fetch_by_username(ctx, &target_user.username).await?;
-    for session in target_sessions {
-        // Send restriction notification packet
-        let restriction_message = IrcMessage {
-            recipient: &target_user.username,
-            sender: bot::BOT_NAME,
-            sender_id: bot::BOT_ID as _,
-            text: "Your account is now in restricted mode. Visit the website for more information.",
-        };
-        streams::broadcast_message(
-            ctx,
-            StreamName::User(session.session_id),
-            ChatMessage(&restriction_message),
-            None,
-            None,
-        )
-        .await?;
-    }
 
     let sender_profile = website::get_profile_link(sender.user_id);
     let target_profile = website::get_profile_link(target_user.user_id);
