@@ -63,6 +63,14 @@ impl MultiplayerMatch {
         )
     }
 
+    pub fn as_bancho_summary(&self, slots: MultiplayerMatchSlots) -> Match<'_> {
+        let mut summary = self.as_bancho(slots);
+        if !self.password.is_empty() {
+            summary.password = "*";
+        }
+        summary
+    }
+
     pub fn as_bancho(&self, slots: [MultiplayerMatchSlot; 16]) -> Match<'_> {
         let freemods = match self.freemod_enabled {
             true => Some(slots.to_mods()),
@@ -210,5 +218,22 @@ impl<const N: usize> MatchSlotExt<N> for [MultiplayerMatchSlot; N] {
 
     fn to_mods(&self) -> [Mods; N] {
         std::array::from_fn(|i| self[i].mods)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn match_summary_only_exposes_whether_the_room_is_locked() {
+        let mut room = MultiplayerMatch::try_from(Entity::default()).unwrap();
+        let slots = MultiplayerMatchSlot::from([SlotEntity::default(); 16]);
+
+        assert!(room.as_bancho_summary(slots).password.is_empty());
+
+        room.password = "private room password".to_owned();
+        assert_eq!(room.as_bancho_summary(slots).password, "*");
+        assert_eq!(room.as_bancho(slots).password, room.password);
     }
 }

@@ -129,6 +129,37 @@ pub async fn broadcast_data<C: Context>(
     Ok(())
 }
 
+pub async fn broadcast_to_sessions<C: Context>(
+    ctx: &C,
+    session_ids: &[Uuid],
+    data: &[u8],
+) -> anyhow::Result<()> {
+    if session_ids.is_empty() {
+        return Ok(());
+    }
+
+    let message = StreamMessage::new(
+        data,
+        MessageInfo {
+            excluded_session_ids: None,
+            read_privileges: None,
+        },
+    );
+    let mut pipeline = redis::pipe();
+    for session_id in session_ids {
+        pipeline
+            .xadd(
+                make_key(StreamName::User(*session_id)),
+                "*",
+                &message.items(),
+            )
+            .ignore();
+    }
+    let mut redis = ctx.redis().await?;
+    pipeline.exec_async(&mut *redis).await?;
+    Ok(())
+}
+
 pub async fn read_pending_messages<C: Context>(
     ctx: &C,
     session_id: Uuid,

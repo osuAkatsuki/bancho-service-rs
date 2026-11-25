@@ -88,7 +88,7 @@ pub async fn create<C: Context>(
     )
     .await?;
 
-    let match_notification = mp_match.as_bancho(slots);
+    let match_notification = mp_match.as_bancho_summary(slots);
     streams::broadcast_message(
         ctx,
         StreamName::Lobby,
@@ -881,21 +881,15 @@ pub async fn start_game<C: Context>(
 
     let mp_match = MultiplayerMatch::try_from(mp_match)?;
     let slots = MultiplayerMatchSlot::from(slots);
-    let bancho_match = mp_match.as_bancho(slots);
-    streams::broadcast_message(
+    let summary = mp_match.as_bancho_summary(slots);
+    streams::broadcast_message(ctx, StreamName::Lobby, MatchUpdate(&summary), None, None).await?;
+    let match_data = mp_match.as_bancho(slots);
+    broadcast_match_state(
         ctx,
-        StreamName::Lobby,
-        MatchUpdate(&bancho_match),
-        None,
-        None,
-    )
-    .await?;
-    streams::broadcast_message(
-        ctx,
-        StreamName::Multiplayer(match_id),
-        MatchStart(&bancho_match),
-        None,
-        None,
+        &mp_match,
+        slots,
+        MatchStart(&summary),
+        MatchStart(&match_data),
     )
     .await?;
     Ok(())
@@ -1415,18 +1409,35 @@ async fn broadcast_update<C: Context>(
     mp_match: &MultiplayerMatch,
     slots: MultiplayerMatchSlots,
 ) -> ServiceResult<()> {
-    let bancho_match = mp_match.as_bancho(slots);
-    let match_update = MatchUpdate(&bancho_match).as_message().serialize();
-    streams::broadcast_data(ctx, StreamName::Lobby, &match_update, None, None).await?;
-    streams::broadcast_data(
+    let summary = mp_match.as_bancho_summary(slots);
+    streams::broadcast_message(ctx, StreamName::Lobby, MatchUpdate(&summary), None, None).await?;
+    let match_data = mp_match.as_bancho(slots);
+    broadcast_match_state(
         ctx,
-        StreamName::Multiplayer(mp_match.match_id),
-        &match_update,
-        None,
-        None,
+        mp_match,
+        slots,
+        MatchUpdate(&summary),
+        MatchUpdate(&match_data),
     )
-    .await?;
-    Ok(())
+    .await
+}
+
+async fn broadcast_match_state<C: Context, M: MessageArgs>(
+    ctx: &C,
+    mp_match: &MultiplayerMatch,
+    slots: MultiplayerMatchSlots,
+    summary: M,
+    member_state: M,
+) -> ServiceResult<()> {
+    let stream = StreamName::Multiplayer(mp_match.match_id);
+    // Tournament observers share this stream. Slot holders receive full state privately.
+    let members: Vec<_> = slots
+        .iter()
+        .filter_map(|slot| slot.user.map(|user| user.session_id))
+        .collect();
+    let member_state = member_state.as_message().serialize();
+    streams::broadcast_to_sessions(ctx, &members, &member_state).await?;
+    streams::broadcast_message(ctx, stream, summary, Some(members), None).await
 }
 
 async fn update_match_members_presences<C: Context>(

@@ -51,6 +51,17 @@ pub async fn broadcast_data<C: Context>(
     }
 }
 
+pub async fn broadcast_to_sessions<C: Context>(
+    ctx: &C,
+    session_ids: &[Uuid],
+    data: &[u8],
+) -> ServiceResult<()> {
+    match streams::broadcast_to_sessions(ctx, session_ids, data).await {
+        Ok(()) => Ok(()),
+        Err(e) => unexpected(e),
+    }
+}
+
 pub async fn read_pending_data<C: Context>(ctx: &C, session: &Session) -> ServiceResult<Vec<u8>> {
     let messages = streams::read_pending_messages(ctx, session.session_id).await?;
     let mut pending_data = vec![];
