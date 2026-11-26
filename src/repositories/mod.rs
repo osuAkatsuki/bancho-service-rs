@@ -8,6 +8,7 @@ pub mod match_events;
 pub mod match_games;
 pub mod messages;
 pub mod multiplayer;
+pub mod news;
 pub mod presences;
 pub mod relationships;
 pub mod scores;
