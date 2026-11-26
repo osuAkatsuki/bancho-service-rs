@@ -5,6 +5,9 @@ use crate::entities::news::NewsKind;
 use crate::models::beatmaps::Beatmap;
 use crate::repositories::news;
 
+/// `news.title` is a varchar(255), which MySQL measures in characters.
+const TITLE_MAX_CHARS: usize = 255;
+
 /// Writes the news item for `author_id` giving one difficulty the status `kind`.
 pub async fn create_map_news<C: Context>(
     ctx: &C,
@@ -16,7 +19,7 @@ pub async fn create_map_news<C: Context>(
     match news::create(
         ctx,
         kind,
-        &beatmap.song_name,
+        truncate_title(&beatmap.song_name),
         None,
         Some(&url),
         Some(author_id),
@@ -40,7 +43,7 @@ pub async fn create_set_news<C: Context>(
     changed_count: usize,
     author_id: i64,
 ) -> ServiceResult<()> {
-    let title = song_name_without_version(&beatmap.song_name);
+    let title = truncate_title(song_name_without_version(&beatmap.song_name));
     let body = match changed_count {
         1 => "1 difficulty".to_owned(),
         n => format!("{n} difficulties"),
@@ -73,9 +76,31 @@ fn song_name_without_version(song_name: &str) -> &str {
     }
 }
 
+/// Keeps the first `TITLE_MAX_CHARS` characters of `title`, cutting between
+/// characters, never inside a multi-byte one.
+fn truncate_title(title: &str) -> &str {
+    match title.char_indices().nth(TITLE_MAX_CHARS) {
+        Some((cut, _)) => &title[..cut],
+        None => title,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn truncates_a_long_title_to_the_column_length() {
+        let title = "a".repeat(300);
+        assert_eq!(truncate_title(&title).chars().count(), 255);
+    }
+
+    #[test]
+    fn truncates_between_multi_byte_characters() {
+        // At 255 bytes, this would cut inside a 3-byte "あ".
+        let title = format!("a{}", "あ".repeat(300));
+        assert_eq!(truncate_title(&title), format!("a{}", "あ".repeat(254)));
+    }
 
     #[test]
     fn removes_the_version() {
