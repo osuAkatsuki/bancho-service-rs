@@ -3,12 +3,13 @@ use crate::commands::CommandResult;
 use crate::common::context::Context;
 use crate::common::website;
 use crate::entities::bot;
+use crate::entities::news::NewsKind;
 use crate::models::bancho::LoginError;
 use crate::models::beatmaps::RankedStatus;
 use crate::models::privileges::Privileges;
 use crate::models::sessions::Session;
 use crate::repositories::streams::StreamName;
-use crate::usecases::{badges, beatmaps, sessions, streams, tillerino, users};
+use crate::usecases::{badges, beatmaps, news, sessions, streams, tillerino, users};
 use bancho_protocol::messages::server::{ChatMessage, LoginResult};
 use bancho_protocol::structures::IrcMessage;
 use bancho_service_macros::{FromCommandArgs, command};
@@ -43,6 +44,13 @@ pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) 
         }
     };
 
+    // Ranking and loving are announced in the news feed; unranking is not.
+    let news_kind = match new_status {
+        RankedStatus::Ranked => Some(NewsKind::Ranked),
+        RankedStatus::Loved => Some(NewsKind::Loved),
+        _ => None,
+    };
+
     let last_np = match tillerino::fetch_last_np(ctx, sender.session_id).await? {
         Some(np) => np,
         None => {
@@ -61,16 +69,36 @@ pub async fn edit_map<C: Context>(ctx: &C, sender: &Session, args: EditMapArgs) 
                 sender.user_id,
             )
             .await;
+            if let Some(kind) = news_kind
+                && previous_status != new_status
+            {
+                let _ = news::create_map_news(ctx, kind, &beatmap, sender.user_id).await;
+            }
             Ok(Some("Map status changed".to_owned()))
         }
         "set" => {
-            let beatmaps =
-                beatmaps::change_set_status(ctx, last_np.beatmap_set_id, new_status).await?;
-            for (beatmap, previous_status) in beatmaps {
+            // change_set_status returns only the difficulties whose status changed.
+            let changed_beatmaps: Vec<_> =
+                beatmaps::change_set_status(ctx, last_np.beatmap_set_id, new_status)
+                    .await?
+                    .collect();
+            for (beatmap, previous_status) in &changed_beatmaps {
                 let _ = discord::send_ranked_maps_embed(
-                    &beatmap,
-                    previous_status,
+                    beatmap,
+                    *previous_status,
                     &sender.username,
+                    sender.user_id,
+                )
+                .await;
+            }
+            if let Some(kind) = news_kind
+                && let Some((beatmap, _)) = changed_beatmaps.first()
+            {
+                let _ = news::create_set_news(
+                    ctx,
+                    kind,
+                    beatmap,
+                    changed_beatmaps.len(),
                     sender.user_id,
                 )
                 .await;
